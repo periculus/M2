@@ -295,6 +295,10 @@ class M2Kernel(Kernel):
                         'traceback': [magic_result['error']]
                     }
                 
+                # Display magic command result if it has output
+                if magic_result.get('text') and not silent:
+                    self._send_output(magic_result, magic_line)
+                
                 # Use remaining code for execution (if any)
                 code = remaining_code if remaining_code and remaining_code.strip() else ''
             else:
@@ -303,28 +307,62 @@ class M2Kernel(Kernel):
                 lines = code.split('\n')
                 processed_lines = []
                 
-                for line in lines:
-                    # Look for %pi magic commands anywhere in the line
-                    magic_match = re.search(r'(%pi\s*(?:\d+|on|off)?)', line)
-                    if magic_match:
-                        magic_command = magic_match.group(1)
-                        # Handle the line magic
-                        magic_result = self.m2_process.execute(magic_command)
-                        if not magic_result['success']:
-                            return {
-                                'status': 'error',
-                                'execution_count': self.execution_count,
-                                'ename': 'MagicError',
-                                'evalue': magic_result['error'],
-                                'traceback': [magic_result['error']]
-                            }
-                        
-                        # Remove the magic from this line, keeping the rest
-                        line_without_magic = line[:magic_match.start()] + line[magic_match.end():]
-                        # Only add the line if it has content after removing magic
-                        line_without_magic = line_without_magic.strip()
-                        if line_without_magic:
-                            processed_lines.append(line_without_magic)
+                for i, line in enumerate(lines):
+                    # Check if line starts with a line magic
+                    line_stripped = line.strip()
+                    if line_stripped.startswith('%') and not line_stripped.startswith('%%'):
+                        # Parse the line magic
+                        # Match magic command with optional argument
+                        # For %timeout=600, we want the whole thing as magic
+                        magic_match = re.match(r'^(%\w+(?:=\d+|\s+\w+)?)\s*(.*)$', line_stripped)
+                        if magic_match:
+                            magic_command = magic_match.group(1)
+                            remaining_on_line = magic_match.group(2)
+                            
+                            # Handle the line magic
+                            magic_result = self.m2_process.execute(magic_command)
+                            if not magic_result['success']:
+                                return {
+                                    'status': 'error',
+                                    'execution_count': self.execution_count,
+                                    'ename': 'MagicError',
+                                    'evalue': magic_result['error'],
+                                    'traceback': [magic_result['error']]
+                                }
+                            
+                            # Display magic command result if it has output
+                            if magic_result.get('text') and not silent:
+                                self._send_output(magic_result, magic_command)
+                            
+                            # For %pi magic, check if there's M2 code on the same line
+                            if magic_command.startswith('%pi'):
+                                if remaining_on_line:
+                                    # Apply progress to this line only
+                                    if self.m2_process._progress_mode == 'line':
+                                        # Execute the code on this line with progress
+                                        result = self._execute_with_progress(remaining_on_line, silent)
+                                        if result:
+                                            return result
+                                        # Reset line magic mode after use
+                                        self.m2_process._progress_mode = 'off'
+                                    else:
+                                        processed_lines.append(remaining_on_line)
+                                else:
+                                    # Warning: line magic with no code
+                                    if not silent:
+                                        self._send_output({
+                                            'text': 'Warning: Line magic %pi has no M2 statement on the same line',
+                                            'html': '<em style="color: orange;">Warning: Line magic %pi has no M2 statement on the same line</em>'
+                                        }, '')
+                                    # Reset line magic mode since it wasn't used
+                                    if self.m2_process._progress_mode == 'line':
+                                        self.m2_process._progress_mode = 'off'
+                            else:
+                                # Other magics - just keep remaining code if any
+                                if remaining_on_line:
+                                    processed_lines.append(remaining_on_line)
+                        else:
+                            processed_lines.append(line)
                     else:
                         processed_lines.append(line)
                 
@@ -351,11 +389,8 @@ class M2Kernel(Kernel):
                 # Don't send the "Running..." message as it clutters output
                 # The progress tracker will handle showing progress updates
                 
-                # Add verbosity flags to enable progress output
-                modified_code = self._add_verbosity_flags(code)
-                if modified_code != code:
-                    logger.info(f"Modified code from '{code}' to '{modified_code}'")
-                    code = modified_code
+                # Progress tracking is handled by the progress tracker
+                # Don't modify code here
             
             # Execute code
             logger.debug(f"Executing code: {code}")
@@ -631,6 +666,52 @@ math {{
                 'metadata': {}
             }
         )
+    
+    def _execute_with_progress(self, code: str, silent: bool) -> Optional[Dict[str, Any]]:
+        """Execute code with progress tracking already enabled."""
+        try:
+            # Check if this is a long-running operation
+            is_long_running = self.progress_tracker.is_long_running_operation(code)
+            
+            if is_long_running and not silent:
+                # Start progress tracking
+                self.progress_tracker.start_tracking(code)
+            
+            # Execute code with progress modifications
+            modified_code, progress_info = self.m2_process._add_progress_verbosity(code, self.m2_process._progress_level)
+            result = self.m2_process.execute(modified_code)
+            
+            # Stop progress tracking
+            if is_long_running:
+                self.progress_tracker.finish_tracking(result['success'])
+            
+            # Send progress banner if we have progress info
+            if not silent and progress_info and progress_info.get('operations'):
+                self._send_progress_banner(progress_info)
+            
+            # Send output
+            if result['success'] and not silent and result['text']:
+                self._send_output(result, code)
+            elif not result['success']:
+                return {
+                    'status': 'error',
+                    'execution_count': self.execution_count,
+                    'ename': 'M2Error',
+                    'evalue': result.get('error', 'Unknown error'),
+                    'traceback': [result.get('error', 'M2 execution failed')]
+                }
+            
+            return None  # Success, continue with rest of cell
+            
+        except Exception as e:
+            logger.error(f"Error in progress execution: {e}")
+            return {
+                'status': 'error',
+                'execution_count': self.execution_count,
+                'ename': type(e).__name__,
+                'evalue': str(e),
+                'traceback': [str(e)]
+            }
     
     def _send_progress_banner(self, progress_info: Dict[str, Any]) -> None:
         """Send flowing progress banner for enhanced progress display."""

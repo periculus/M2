@@ -221,9 +221,6 @@ class M2Process:
         init_commands = [
             '-- Jupyter kernel initialization',
             'printWidth = 80;',
-            'debugLevel = 1;',  # Enable debug output for progress tracking
-            'gbTrace = 1;',     # Enable Gröbner basis progress output
-            'resTrace = 1;',    # Enable resolution progress output  
             ''  # Empty line to complete initialization
         ]
         
@@ -650,7 +647,7 @@ class M2Process:
             return self._handle_logging_magic(code)
         elif code.startswith('%latex'):
             return self._handle_latex_magic(code)
-        elif code.startswith('%pi'):
+        elif code.startswith('%%pi') or code.startswith('%pi'):
             return self._handle_progress_magic(code)
         else:
             return {
@@ -925,60 +922,37 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
             }
     
     def _add_progress_verbosity(self, code: str, level: int) -> Tuple[str, Dict[str, Any]]:
-        """Add verbosity options to M2 operations that support progress tracking."""
+        """Add progress tracking options to M2 operations."""
         import re
-        
-        # Operations that support Verbosity option
-        progress_operations = [
-            (r'\b(gb)\s+(\w+)', 'Gröbner basis computation'),
-            (r'\b(groebnerBasis)\s*\(', 'Gröbner basis computation'),
-            (r'\b(res)\s+(\w+)', 'Resolution computation'),
-            (r'\b(resolution)\s*\(', 'Resolution computation'),
-            (r'\b(decompose)\s+(\w+)', 'Primary decomposition'),
-            (r'\b(minimalPrimes)\s*\(', 'Primary decomposition'),
-            (r'\b(primaryDecomposition)\s*\(', 'Primary decomposition'),
-            (r'\b(syz)\s+(\w+)', 'Syzygy computation'),
-            (r'\b(syzygies)\s*\(', 'Syzygy computation'),
-            (r'\b(hilbertSeries)\s*\(', 'Hilbert function'),
-            (r'\b(hilbertPolynomial)\s*\(', 'Hilbert function'),
-            (r'\b(saturate)\s*\(', 'Ideal operation'),
-            (r'\b(quotient)\s*\(', 'Ideal operation'),
-        ]
         
         modified_code = code
         progress_info = {
             'level': level,
             'operations': [],
-            'mode': 'flowing'  # Use flowing progress display
+            'mode': 'flowing'
         }
         
-        for pattern, operation_name in progress_operations:
-            if re.search(pattern, code, re.IGNORECASE):
-                progress_info['operations'].append(operation_name)
-                
-                # Check if verbosity is already specified
-                if not re.search(r'Verbosity\s*=>', code, re.IGNORECASE):
-                    # Add verbosity based on level
-                    # Level 1: Basic progress (Verbosity => 1)
-                    # Level 2: Detailed progress (Verbosity => 2) 
-                    # Level 3: Verbose progress (Verbosity => 3)
-                    
-                    # Handle different patterns
-                    if r'\s+(\w+)' in pattern:  # Pattern like "gb I" 
-                        # Replace "gb I" with "gb(I, Verbosity => level)"
-                        def add_verbosity_arg(match):
-                            op = match.group(1)
-                            arg = match.group(2)
-                            return f"{op}({arg}, Verbosity => {level})"
-                        modified_code = re.sub(pattern, add_verbosity_arg, modified_code, flags=re.IGNORECASE)
-                    else:  # Pattern like "groebnerBasis("
-                        # Add verbosity as first parameter
-                        def add_verbosity_paren(match):
-                            op = match.group(1)
-                            return f"{op}(Verbosity => {level}, "
-                        modified_code = re.sub(pattern, add_verbosity_paren, modified_code, flags=re.IGNORECASE)
-                    
-                    break  # Only modify the first operation found
+        # For Gröbner basis computations, use gbTrace
+        if re.search(r'\bgb\s+\w+', code, re.IGNORECASE):
+            progress_info['operations'].append('Gröbner basis computation')
+            # Set gbTrace based on level
+            if level >= 1:
+                # Prepend gbTrace setting
+                modified_code = f"gbTrace = {level};\n{code}"
+        
+        # For resolution computations, use Strategy
+        elif re.search(r'\bres\s+\w+', code, re.IGNORECASE):
+            progress_info['operations'].append('Resolution computation')
+            # For resolutions, we can use Strategy => ... options
+            # But for now, just track that it's a resolution
+        
+        # For decompose/minimalPrimes, these support Verbosity
+        elif re.search(r'\b(decompose|minimalPrimes|primaryDecomposition)\s+\w+', code, re.IGNORECASE):
+            progress_info['operations'].append('Primary decomposition')
+            # These actually do support Verbosity, but as a global option
+            if level >= 1:
+                # Set debugLevel for more output
+                modified_code = f"debugLevel = {level};\n{code}"
         
         return modified_code, progress_info
     

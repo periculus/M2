@@ -184,11 +184,21 @@ class M2CellParser:
         # Check for line magic at start
         line_magic, first_line_code = self._parse_line_magic(lines[start_idx])
         
-        # If magic-only line with no code, it's not a statement
-        if line_magic and not first_line_code:
-            return None
+        # If line magic is present, it only affects code on the same line
+        if line_magic:
+            if first_line_code:
+                # Line magic with code - create single-line statement only
+                return Statement(
+                    code=first_line_code,
+                    line_magic=line_magic,
+                    start_line=start_idx,
+                    end_line=start_idx
+                )
+            else:
+                # Magic-only line - not a statement
+                return None
         
-        # Initialize statement
+        # No line magic - proceed with normal multiline parsing
         statement_lines = []
         if first_line_code:
             statement_lines.append(first_line_code)
