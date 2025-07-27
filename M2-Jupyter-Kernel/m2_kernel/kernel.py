@@ -39,9 +39,10 @@ class M2Kernel(Kernel):
             'name': 'macaulay2',  # Use custom M2 mode
             'version': 1
         },
-        'pygments_lexer': 'python',  # Fallback to Python for now
+        'pygments_lexer': 'macaulay2',  # Use our custom lexer
         'file_extension': '.m2',
         'mimetype': 'text/x-macaulay2',
+        'nbconvert_exporter': '',
         'help_links': [
             {
                 'text': 'Macaulay2 Documentation',
@@ -114,6 +115,14 @@ class M2Kernel(Kernel):
         from .progress_tracker import M2ProgressTracker
         self.progress_tracker = M2ProgressTracker(self._send_progress_update)
         
+        # Initialize process monitor
+        from .process_monitor import M2ProcessMonitor
+        self.process_monitor = M2ProcessMonitor(self)
+        
+        # Initialize code intelligence
+        from .code_intelligence import M2CodeIntelligence
+        self.code_intelligence = M2CodeIntelligence()
+        
         # Initialize cell parser and async executor
         from .cell_parser import M2CellParser
         from .async_executor import AsyncM2Executor
@@ -129,6 +138,9 @@ class M2Kernel(Kernel):
         # Track execution state
         self._execution_interrupted = False
         self._progress_display_active = False
+        
+        # Track M2 output mode (WebApp vs Standard)
+        self.m2_output_mode = "WebApp"  # Start in WebApp mode (matches --webapp startup)
         
         logger.info("M2 Kernel initialized successfully")
     
@@ -174,6 +186,11 @@ class M2Kernel(Kernel):
                 kernel=self
             )
             logger.info("M2 process initialized")
+            
+            # Start process monitoring if M2 started successfully
+            if self.m2_process and self.m2_process.process and hasattr(self, 'process_monitor'):
+                self.process_monitor.start_monitoring(self.m2_process.process.pid)
+                logger.info(f"Started monitoring M2 process PID: {self.m2_process.process.pid}")
         except M2ProcessError as e:
             logger.error(f"Failed to initialize M2 process: {e}")
             self.m2_process = None
@@ -251,6 +268,11 @@ class M2Kernel(Kernel):
                 'payload': [],
                 'user_expressions': {},
             }
+            
+        # Track definitions in the code
+        if not cell_id:
+            cell_id = f"cell_{self.execution_count}"
+        self.code_intelligence.track_definitions(code, cell_id=cell_id)
         
         # Use async execution if enabled
         if self.use_async_execution:
@@ -284,8 +306,8 @@ class M2Kernel(Kernel):
                 magic_line = lines[0]
                 remaining_code = '\n'.join(lines[1:]) if len(lines) > 1 else ''
                 
-                # Handle the cell magic
-                magic_result = self.m2_process.execute(magic_line)
+                # Handle the cell magic through the magic handler
+                magic_result = self.m2_process._handle_magic_command(magic_line)
                 if not magic_result['success']:
                     return {
                         'status': 'error',
@@ -295,8 +317,9 @@ class M2Kernel(Kernel):
                         'traceback': [magic_result['error']]
                     }
                 
-                # Display magic command result if it has output
-                if magic_result.get('text') and not silent:
+                # Don't display magic command result for %pi
+                # It will be shown in the progress tracker
+                if magic_result.get('text') and not silent and not magic_line.strip().startswith('%%pi'):
                     self._send_output(magic_result, magic_line)
                 
                 # Use remaining code for execution (if any)
@@ -308,61 +331,102 @@ class M2Kernel(Kernel):
                 processed_lines = []
                 
                 for i, line in enumerate(lines):
-                    # Check if line starts with a line magic
                     line_stripped = line.strip()
+                    
+                    # Keep empty lines and comments for proper execution flow
+                    if not line_stripped:
+                        processed_lines.append(line)
+                        continue
+                    if line_stripped.startswith('--'):
+                        processed_lines.append(line)
+                        continue
+                        
+                    # Check if line starts with a line magic
                     if line_stripped.startswith('%') and not line_stripped.startswith('%%'):
                         # Parse the line magic
-                        # Match magic command with optional argument
+                        # Match magic command - be more flexible with arguments
                         # For %timeout=600, we want the whole thing as magic
-                        magic_match = re.match(r'^(%\w+(?:=\d+|\s+\w+)?)\s*(.*)$', line_stripped)
-                        if magic_match:
-                            magic_command = magic_match.group(1)
-                            remaining_on_line = magic_match.group(2)
-                            
-                            # Handle the line magic
-                            magic_result = self.m2_process.execute(magic_command)
-                            if not magic_result['success']:
-                                return {
-                                    'status': 'error',
-                                    'execution_count': self.execution_count,
-                                    'ename': 'MagicError',
-                                    'evalue': magic_result['error'],
-                                    'traceback': [magic_result['error']]
-                                }
-                            
-                            # Display magic command result if it has output
-                            if magic_result.get('text') and not silent:
-                                self._send_output(magic_result, magic_command)
-                            
-                            # For %pi magic, check if there's M2 code on the same line
-                            if magic_command.startswith('%pi'):
-                                if remaining_on_line:
-                                    # Apply progress to this line only
-                                    if self.m2_process._progress_mode == 'line':
-                                        # Execute the code on this line with progress
-                                        result = self._execute_with_progress(remaining_on_line, silent)
-                                        if result:
-                                            return result
-                                        # Reset line magic mode after use
-                                        self.m2_process._progress_mode = 'off'
-                                    else:
-                                        processed_lines.append(remaining_on_line)
-                                else:
-                                    # Warning: line magic with no code
-                                    if not silent:
-                                        self._send_output({
-                                            'text': 'Warning: Line magic %pi has no M2 statement on the same line',
-                                            'html': '<em style="color: orange;">Warning: Line magic %pi has no M2 statement on the same line</em>'
-                                        }, '')
-                                    # Reset line magic mode since it wasn't used
-                                    if self.m2_process._progress_mode == 'line':
-                                        self.m2_process._progress_mode = 'off'
+                        # For %pi 2 gb I, we want "%pi 2" as magic and "gb I" as remaining
+                        # For %latex off, we want the whole thing as magic
+                        if line_stripped.startswith('%latex'):
+                            # Special handling for %latex on/off
+                            parts = line_stripped.split(None, 2)  # Split on whitespace, max 3 parts
+                            if len(parts) >= 2 and parts[1] in ['on', 'off']:
+                                magic_command = f"{parts[0]} {parts[1]}"
+                                remaining_on_line = parts[2] if len(parts) > 2 else ""
                             else:
-                                # Other magics - just keep remaining code if any
-                                if remaining_on_line:
-                                    processed_lines.append(remaining_on_line)
+                                magic_command = parts[0]
+                                remaining_on_line = " ".join(parts[1:]) if len(parts) > 1 else ""
+                        elif line_stripped.startswith(('%def', '%where')):
+                            # Special handling for %def and %where - they take a symbol argument
+                            parts = line_stripped.split(None, 2)  # Split on whitespace, max 3 parts
+                            if len(parts) >= 2:
+                                magic_command = f"{parts[0]} {parts[1]}"  # Include the symbol
+                                remaining_on_line = parts[2] if len(parts) > 2 else ""
+                            else:
+                                magic_command = parts[0]
+                                remaining_on_line = ""
                         else:
-                            processed_lines.append(line)
+                            # General magic parsing
+                            magic_match = re.match(r'^(%\w+(?:=\w+|\s+\d+)?)\s*(.*)$', line_stripped)
+                            if magic_match:
+                                magic_command = magic_match.group(1)
+                                remaining_on_line = magic_match.group(2)
+                            else:
+                                # Fallback - just take the first word as magic
+                                parts = line_stripped.split(None, 1)
+                                magic_command = parts[0]
+                                remaining_on_line = parts[1] if len(parts) > 1 else ""
+                        
+                        # Handle the line magic through the magic handler
+                        magic_result = self.m2_process._handle_magic_command(magic_command)
+                        if not magic_result['success']:
+                            return {
+                                'status': 'error',
+                                'execution_count': self.execution_count,
+                                'ename': 'MagicError',
+                                'evalue': magic_result['error'],
+                                'traceback': [magic_result['error']]
+                            }
+                        
+                        # For %def and %where, don't display here - let statement execution handle it
+                        if not magic_command.strip().startswith(('%def', '%where')):
+                            # Display magic command result
+                            if magic_result.get('text') and not silent:
+                                # Don't display for %pi - it will be shown in the progress tracker
+                                if not magic_command.strip().startswith('%pi'):
+                                    self._send_output(magic_result, magic_command)
+                        
+                        # For %pi magic, check if there's M2 code on the same line
+                        if magic_command.startswith('%pi'):
+                            if remaining_on_line:
+                                # Apply progress to this line only
+                                if self.m2_process._progress_mode == 'line':
+                                    # Execute the code on this line with progress
+                                    result = self._execute_with_progress(remaining_on_line, silent)
+                                    if result:
+                                        return result
+                                    # Reset line magic mode after use
+                                    self.m2_process._progress_mode = 'off'
+                                else:
+                                    processed_lines.append(remaining_on_line)
+                            else:
+                                # Warning: line magic with no code
+                                if not silent:
+                                    self._send_output({
+                                        'text': 'Warning: Line magic %pi has no M2 statement on the same line',
+                                        'html': '<em style="color: orange;">Warning: Line magic %pi has no M2 statement on the same line</em>'
+                                    }, '')
+                                # Reset line magic mode since it wasn't used
+                                if self.m2_process._progress_mode == 'line':
+                                    self.m2_process._progress_mode = 'off'
+                        else:
+                            # For %def and %where, keep the whole line for later processing
+                            if magic_command.strip().startswith(('%def', '%where')):
+                                processed_lines.append(line_stripped)  # Keep the whole magic command
+                            elif remaining_on_line:
+                                # Other magics - if there's remaining code on the line, keep it
+                                processed_lines.append(remaining_on_line)
                     else:
                         processed_lines.append(line)
                 
@@ -378,37 +442,154 @@ class M2Kernel(Kernel):
                     'user_expressions': {}
                 }
             
-            # Check if progress indicators are enabled and this is a long-running operation
-            progress_enabled = self.m2_process._progress_mode != 'off'
-            is_long_running = self.progress_tracker.is_long_running_operation(code)
+            # Parse cell into individual statements for proper output ordering
+            from .cell_parser import M2CellParser, Statement
+            parser = M2CellParser()
+            parsed_cell = parser.parse_cell(code)
             
-            if progress_enabled and is_long_running and not silent:
-                # Start progress tracking only when magic is enabled
-                self.progress_tracker.start_tracking(code)
-                
-                # Don't send the "Running..." message as it clutters output
-                # The progress tracker will handle showing progress updates
-                
-                # Progress tracking is handled by the progress tracker
-                # Don't modify code here
+            # If parsing failed, execute as single block (backward compatibility)
+            if not parsed_cell.statements:
+                logger.debug("Cell parsing failed, executing as single block")
+                parsed_cell.statements = [Statement(code=code, start_line=0)]
             
-            # Execute code
-            logger.debug(f"Executing code: {code}")
-            try:
-                result = self.m2_process.execute(code)
-                logger.debug(f"Execution result: {result}")
-            except M2ProcessError as e:
-                logger.error(f"M2 process error during execution: {e}")
-                # Try to restart M2 and inform user
-                self._send_error(f"M2 process crashed: {e}")
-                self._send_error("Attempting to restart M2...")
+            # Execute each statement separately to maintain output order
+            all_results = []
+            for i, statement in enumerate(parsed_cell.statements):
+                stmt_code = statement.code.strip()
+                if not stmt_code:
+                    continue
+                    
+                # Check if this is a magic command that wasn't handled earlier
+                if stmt_code.startswith('%') and not stmt_code.startswith('%%'):
+                    # This is a line magic - handle it now
+                    magic_result = self.m2_process._handle_magic_command(stmt_code)
+                    if not magic_result['success']:
+                        all_results.append({
+                            'text': '',
+                            'html': '',
+                            'latex': '',
+                            'other_output': '',
+                            'error': magic_result['error'],
+                            'success': False,
+                            'statement_index': i,
+                            'total_statements': len(parsed_cell.statements)
+                        })
+                        continue
+                    else:
+                        # Add successful magic result
+                        magic_result['statement_index'] = i
+                        magic_result['total_statements'] = len(parsed_cell.statements)
+                        all_results.append(magic_result)
+                        continue
+                    
+                # Check if this specific statement needs progress tracking
+                progress_enabled = self.m2_process._progress_mode != 'off'
+                is_long_running = self.progress_tracker.is_long_running_operation(stmt_code)
+                
+                if progress_enabled and is_long_running and not silent:
+                    # Start progress tracking only when magic is enabled
+                    self.progress_tracker.start_tracking(stmt_code)
+                    
+                    # Don't send the "Running..." message as it clutters output
+                    # The progress tracker will handle showing progress updates
+                    
+                    # Progress tracking is handled by the progress tracker
+                    # Don't modify code here
+                
+                # Execute statement
+                logger.debug(f"Executing statement {i+1}/{len(parsed_cell.statements)}: {stmt_code[:50]}...")
                 try:
-                    self._initialize_m2_process()
-                    self._send_error("M2 restarted successfully. Please try your command again.")
-                except Exception as restart_error:
-                    self._send_error(f"Failed to restart M2: {restart_error}")
+                    result = self.m2_process.execute(stmt_code)
+                    logger.debug(f"Statement result: {result['success']}, has output: {bool(result.get('text'))}")
+                    
+                    # Add statement index for proper separator handling
+                    result['statement_index'] = i
+                    result['total_statements'] = len(parsed_cell.statements)
+                    
+                    # Check if statement ends with semicolon (output suppression)
+                    if stmt_code.rstrip().endswith(';'):
+                        logger.debug("Statement ends with semicolon, suppressing output")
+                        # Don't add to results if semicolon suppresses output
+                        # But still check for errors
+                        if not result['success']:
+                            all_results.append(result)
+                    else:
+                        all_results.append(result)
+                except M2ProcessError as e:
+                    logger.error(f"M2 process error during statement execution: {e}")
+                    # Add error result
+                    all_results.append({
+                        'text': '',
+                        'html': '',
+                        'latex': '',
+                        'other_output': '',
+                        'error': str(e),
+                        'success': False,
+                        'statement_index': i,
+                        'total_statements': len(parsed_cell.statements)
+                    })
+                    # Don't continue executing if M2 crashed
+                    break
                 
+                # Stop progress tracking for this statement if it was started
+                if progress_enabled and is_long_running:
+                    self.progress_tracker.finish_tracking(result.get('success', True))
+            
+            # Now process all results
+            if not all_results:
                 return {
+                    'status': 'ok',
+                    'execution_count': self.execution_count,
+                    'payload': [],
+                    'user_expressions': {}
+                }
+            
+            # Send each result in order
+            for result in all_results:
+                if result['success']:
+                    # Send successful output
+                    if not silent and (result.get('text') or result.get('other_output')):
+                        logger.debug(f"Sending output for statement {result.get('statement_index', 0) + 1}")
+                        self._send_output(result, original_code)
+                        
+                    # Handle progress info if present
+                    if not silent and result.get('progress_info'):
+                        # Progress info is handled by the progress tracker
+                        pass
+                else:
+                    # Send error output
+                    if not silent:
+                        self._send_error(result['error'])
+                    
+                    # Return error status on first error
+                    return {
+                        'status': 'error',
+                        'execution_count': self.execution_count,
+                        'ename': 'M2ExecutionError',
+                        'evalue': result['error'],
+                        'traceback': self._format_traceback(result['error'])
+                    }
+            
+            # All statements executed successfully
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+            
+        except M2ProcessError as e:
+            logger.error(f"M2 process error during execution: {e}")
+            # Try to restart M2 and inform user
+            self._send_error(f"M2 process crashed: {e}")
+            self._send_error("Attempting to restart M2...")
+            try:
+                self._initialize_m2_process()
+                self._send_error("M2 restarted successfully. Please try your command again.")
+            except Exception as restart_error:
+                self._send_error(f"Failed to restart M2: {restart_error}")
+            
+            return {
                     'status': 'error',
                     'execution_count': self.execution_count,
                     'ename': 'M2ProcessCrash',
@@ -437,6 +618,9 @@ class M2Kernel(Kernel):
             if result['success']:
                 # Send successful output
                 if not silent and result['text']:
+                    logger.debug(f"Result keys: {result.keys()}")
+                    logger.debug(f"Has latex: {'latex' in result}")
+                    logger.debug(f"Has html: {'html' in result}")
                     self._send_output(result, original_code)
                     
                 # Handle progress info if present
@@ -475,7 +659,9 @@ class M2Kernel(Kernel):
             }
         
         except Exception as e:
-            logger.error(f"Unexpected error in do_execute: {e}")
+            import traceback
+            tb = traceback.format_exc()
+            logger.error(f"Unexpected error in do_execute: {e}\nTraceback:\n{tb}")
             
             if not silent:
                 self._send_error(f"Kernel error: {e}")
@@ -494,17 +680,122 @@ class M2Kernel(Kernel):
     
     def _send_output(self, result: Dict[str, Any], original_code: str) -> None:
         """Send execution output to the frontend."""
-        # Prepare output data with plain text
-        output_data = {'text/plain': result['text']}
+        # Check if this is an error result from M2
+        if result.get('error') and not result.get('success', True):
+            # Style M2 errors with reddish background
+            import html as html_lib
+            error_html = f"""<style>
+.m2-error-output {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    font-size: 13px;
+    line-height: 1.4;
+    background-color: #ffe6e6;
+    border-left: 3px solid #ff4444;
+    padding: 10px 15px;
+    margin: 10px 0;
+    white-space: pre-wrap;
+    color: #cc0000;
+}}
+</style>
+<div class="m2-error-output">{html_lib.escape(result['error'])}</div>"""
+            
+            self.send_response(
+                self.iopub_socket,
+                'display_data',
+                {
+                    'data': {
+                        'text/html': error_html,
+                        'text/plain': result['error']
+                    },
+                    'metadata': {}
+                }
+            )
+            return
         
-        # Add HTML output if available (from webapp mode)
-        if result.get('html'):
+        # Handle output based on current M2 mode
+        if self.m2_output_mode == "Standard":
+            # Standard mode: M2 already provides clean plain text output
+            # Just remove any stray control characters and use as-is
+            import re
+            clean_text = result['text']
+            clean_text = re.sub(r'[\x0e\x11\x12\x15]', '', clean_text)
+            output_data = {'text/plain': clean_text}
+            use_latex = False  # Never use LaTeX processing in Standard mode
+        else:
+            # WebApp mode: Use existing LaTeX/HTML processing
+            use_latex = self.enable_latex and self._should_use_latex(result)
+            output_data = {'text/plain': result['text']}
+        
+        logger.debug(f"_send_output called with keys: {result.keys()}")
+        logger.debug(f"enable_latex: {self.enable_latex}, use_latex: {use_latex}")
+        logger.debug(f"latex content: {result.get('latex', 'None')[:100] if result.get('latex') else 'None'}")
+        logger.debug(f"html content: {result.get('html', 'None')[:100] if result.get('html') else 'None'}")
+        
+        # Handle "other output" if present (informational messages)
+        other_output_html = ""
+        if result.get('other_output') and result['other_output'].strip():
+            # Check if we're using progress indicators
+            if not (hasattr(self, 'm2_process') and self.m2_process._progress_mode != 'off'):
+                # No progress mode - show other output in light blue block
+                import html as html_lib
+                escaped_other = html_lib.escape(result['other_output'])
+                other_output_html = f'<div class="m2-other-output">{escaped_other}</div>'
+        
+        # When LaTeX is disabled, only show other output in HTML (if any)
+        if not use_latex:
+            if other_output_html:
+                # Create minimal HTML with just the other output
+                styled_html = f"""<style>
+.m2-other-output {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    font-size: 13px;
+    line-height: 1.4;
+    background-color: #f0f8ff;
+    border-left: 3px solid #87ceeb;
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    color: #333;
+    opacity: 0.9;
+}}
+.m2-large-output-notice {{
+    margin-top: 10px;
+    padding: 8px 12px;
+    background-color: #f0f8ff;
+    border-left: 3px solid #1e90ff;
+    font-size: 12px;
+    color: #555;
+    font-style: italic;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}}
+.m2-command-separator {{
+    border-top: 1px solid #e0e0e0;
+    margin: 15px 10px 15px 10px;
+    opacity: 0.5;
+}}
+</style>
+{other_output_html if other_output_html else ''}"""
+                
+                # Add notice if LaTeX was disabled due to size (not user preference)
+                if self.enable_latex and result.get('latex') and not self._should_use_latex(result):
+                    styled_html += '''<div class="m2-large-output-notice">⚡ LaTeX rendering disabled for large output. Showing plain text for better performance.</div>'''
+                
+                # Add command separator if this is part of multi-command output
+                if result.get('statement_index') is not None and result.get('statement_index', 0) > 0:
+                    # Insert separator after the <style> tag
+                    style_end = styled_html.find('</style>') + 8
+                    styled_html = styled_html[:style_end] + '<div class="m2-command-separator"></div>' + styled_html[style_end:]
+                
+                output_data['text/html'] = styled_html
+        elif use_latex and result.get('html'):
+            # LaTeX is enabled, use the HTML output
             html_content = result['html']
+            
             if html_content.strip():
                 # Add CSS styling for better formatting
                 # Include LaTeX for copy functionality if available
                 latex_for_copy = ""
-                if self.enable_latex and result.get('latex'):
+                if self.enable_latex and result.get('latex') and use_latex:
                     output_var = result.get('output_var', '')
                     latex_content = result['latex']
                     if output_var and latex_content:
@@ -514,10 +805,24 @@ class M2Kernel(Kernel):
                 
                 # Build the full HTML with proper escaping
                 copy_button = ""
-                if latex_for_copy:
+                if latex_for_copy and use_latex:  # Only show copy button if we're actually displaying LaTeX
                     # Escape the LaTeX for JavaScript
                     escaped_latex = latex_for_copy.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
                     copy_button = f'''<button class='m2-copy-button' onclick='navigator.clipboard.writeText("{escaped_latex}"); this.textContent="Copied!"; setTimeout(() => this.textContent="Copy LaTeX", 1500);' title='Copy LaTeX to clipboard'>Copy LaTeX</button>'''
+                
+                # Build other output HTML if present
+                other_output_html = ""
+                if result.get('other_output') and result['other_output'].strip():
+                    # Check if we're using progress indicators
+                    if hasattr(self, 'm2_process') and self.m2_process._progress_mode != 'off':
+                        # Progress mode active - don't show other output as separate block
+                        # It will be handled by the progress tracker
+                        pass
+                    else:
+                        # No progress mode - show other output in light blue block
+                        import html as html_lib
+                        escaped_other = html_lib.escape(result['other_output'])
+                        other_output_html = f'<div class="m2-other-output">{escaped_other}</div>'
                 
                 styled_html = f"""<style>
 .m2-output {{
@@ -595,6 +900,22 @@ span.m2-output-var {{
     background: none !important;
     padding: 0 !important;
 }}
+samp.token.class-name {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    color: #0066cc !important;
+    background: none !important;
+    padding: 0 !important;
+    border: none !important;
+    font-weight: 500 !important;
+}}
+samp.token.function {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    color: #0066cc !important;
+    background: none !important;
+    padding: 0 !important;
+    border: none !important;
+    font-weight: normal !important;
+}}
 .m2-copy-button {{
     position: absolute;
     top: 5px;
@@ -632,13 +953,60 @@ math {{
 .katex {{
     font-size: 110% !important;
 }}
+/* Large output notice */
+.m2-large-output-notice {{
+    margin-top: 10px;
+    padding: 8px 12px;
+    background-color: #f0f8ff;
+    border-left: 3px solid #1e90ff;
+    font-size: 12px;
+    color: #555;
+    font-style: italic;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}}
+/* Other output block */
+.m2-other-output {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    font-size: 13px;
+    line-height: 1.4;
+    background-color: #f0f8ff;  /* Light blue background */
+    border-left: 3px solid #87ceeb;  /* Slightly darker blue border */
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    color: #333;
+    opacity: 0.9;
+}}
+/* Command separator for multi-command cells */
+.m2-command-separator {{
+    border-top: 1px solid #e0e0e0;
+    margin: 15px 10px 15px 10px;
+    opacity: 0.5;
+}}
 </style>
+{other_output_html}
 {html_content}
 {copy_button}"""
+                
+                # Add command separator if this is part of multi-command output
+                separator_html = ""
+                if result.get('statement_index') is not None and result.get('statement_index', 0) > 0:
+                    separator_html = '<div class="m2-command-separator"></div>'
+                
+                # Rebuild HTML with separator at the beginning if needed
+                if separator_html:
+                    # Insert separator after the <style> tag
+                    style_end = styled_html.find('</style>') + 8
+                    styled_html = styled_html[:style_end] + separator_html + styled_html[style_end:]
+                
+                # Add notice if we're not showing LaTeX due to size
+                if result.get('latex') and not use_latex:
+                    styled_html += '''<div class="m2-large-output-notice">⚡ LaTeX rendering disabled for large output. Showing plain text for better performance.</div>'''
+                    
                 output_data['text/html'] = styled_html
         
-        # Add LaTeX output if available and enabled
-        if self.enable_latex and result.get('latex'):
+        # Add LaTeX output if available, enabled, and appropriate size
+        if self.enable_latex and result.get('latex') and use_latex:
             latex_content = result['latex']
             output_var = result.get('output_var', '')
             
@@ -666,6 +1034,94 @@ math {{
                 'metadata': {}
             }
         )
+    
+    def _set_m2_output_mode(self, latex_enabled: bool) -> bool:
+        """
+        Switch M2's output mode between WebApp (LaTeX/HTML) and Standard (plain text).
+        
+        Args:
+            latex_enabled: True for WebApp mode, False for Standard mode
+            
+        Returns:
+            bool: True if mode switch was successful
+        """
+        target_mode = "WebApp" if latex_enabled else "Standard"
+        
+        # Skip if already in correct mode
+        if self.m2_output_mode == target_mode:
+            logger.debug(f"Already in {target_mode} mode, skipping switch")
+            return True
+            
+        # Send mode switch command to M2
+        mode_command = f"topLevelMode = global {target_mode}"
+        logger.info(f"Switching M2 output mode to {target_mode}")
+        
+        try:
+            result = self.m2_process.execute(mode_command)
+            if result['success']:
+                self.m2_output_mode = target_mode
+                logger.info(f"Successfully switched to {target_mode} mode")
+                return True
+            else:
+                logger.error(f"Failed to switch to {target_mode} mode: {result['error']}")
+                return False
+        except Exception as e:
+            logger.error(f"Exception during mode switch: {e}")
+            return False
+    
+    def _should_use_latex(self, result: Dict[str, Any]) -> bool:
+        """
+        Determine if LaTeX should be used based on output size and complexity.
+        
+        Returns False for very large outputs to improve performance.
+        """
+        if not result.get('latex'):
+            return False
+            
+        latex_content = result['latex']
+        
+        # Check for very large matrices first (before size check)
+        # Count occurrences of matrix delimiters
+        matrix_rows = latex_content.count('\\\\')
+        matrix_cols = latex_content.count('&')
+        
+        # Estimate matrix size (very rough)
+        # For a matrix, cols ≈ (number of &) / rows
+        if matrix_rows > 0:
+            avg_cols_per_row = matrix_cols / matrix_rows if matrix_rows > 0 else 0
+            # Disable for matrices larger than 50x50
+            if matrix_rows > 50 or avg_cols_per_row > 50:
+                return False
+            # Allow smaller matrices even if they have lots of LaTeX
+            if matrix_rows > 20 and matrix_rows <= 50:
+                # For medium matrices, use a more lenient size threshold
+                if len(latex_content) > 20000:  # 20KB for matrices
+                    return False
+                else:
+                    return True  # Don't apply other checks for medium matrices
+        
+        # Check LaTeX content size (for non-matrix content)
+        if len(latex_content) > 10000:  # ~10KB threshold for non-matrices
+            return False
+            
+        # Check plain text size as well
+        if result.get('text') and len(result['text']) > 15000:
+            return False
+            
+        # Check for deeply nested structures by counting braces
+        open_braces = latex_content.count('{')
+        close_braces = latex_content.count('}')
+        
+        # If we have many braces, it's likely a complex structure
+        if open_braces > 300 or close_braces > 300:
+            return False
+            
+        # Check for long polynomials (many + or - signs)
+        plus_minus_count = latex_content.count('+') + latex_content.count('-')
+        if plus_minus_count > 150:
+            return False
+            
+        return True
     
     def _execute_with_progress(self, code: str, silent: bool) -> Optional[Dict[str, Any]]:
         """Execute code with progress tracking already enabled."""
@@ -792,13 +1248,44 @@ math {{
         )
     
     def _send_error(self, error_message: str) -> None:
-        """Send error message to the frontend."""
+        """Send error message to the frontend with styled display."""
+        import html as html_lib
+        
+        # Send to stderr stream
         self.send_response(
             self.iopub_socket,
             'stream',
             {
                 'name': 'stderr',
                 'text': f"Error: {error_message}\\n"
+            }
+        )
+        
+        # Also send as display_data with reddish styling
+        error_html = f"""<style>
+.m2-error-output {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    font-size: 13px;
+    line-height: 1.4;
+    background-color: #ffe6e6;  /* Light red background */
+    border-left: 3px solid #ff4444;  /* Red border */
+    padding: 10px 15px;
+    margin: 10px 0;
+    white-space: pre-wrap;
+    color: #cc0000;
+}}
+</style>
+<div class="m2-error-output">{html_lib.escape(error_message)}</div>"""
+        
+        self.send_response(
+            self.iopub_socket,
+            'display_data',
+            {
+                'data': {
+                    'text/html': error_html,
+                    'text/plain': error_message
+                },
+                'metadata': {}
             }
         )
     
@@ -863,29 +1350,8 @@ math {{
         Returns:
             Completion result dictionary
         """
-        # Extract the word being completed
-        line = code[:cursor_pos].split('\\n')[-1]
-        
-        # Find the start of the current word
-        word_start = cursor_pos
-        for i in range(len(line) - 1, -1, -1):
-            if line[i].isalnum() or line[i] == '_':
-                word_start = cursor_pos - len(line) + i
-            else:
-                break
-        
-        current_word = code[word_start:cursor_pos]
-        
-        # Get completions
-        matches = self._get_completions(current_word, code)
-        
-        return {
-            'status': 'ok',
-            'matches': matches,
-            'cursor_start': word_start,
-            'cursor_end': cursor_pos,
-            'metadata': {}
-        }
+        # Use code intelligence for completions
+        return self.code_intelligence.get_completions(code, cursor_pos)
     
     def _get_completions(self, word: str, context: str) -> List[str]:
         """Get completion suggestions using M2's apropos function."""
@@ -984,57 +1450,66 @@ math {{
         Returns:
             Inspection result dictionary
         """
-        # Extract the word at cursor position
-        line = code[:cursor_pos].split('\\n')[-1]
-        words = re.findall(r'\\b\\w+\\b', line)
-        
-        if not words:
-            return {'status': 'ok', 'found': False, 'data': {}, 'metadata': {}}
-        
-        target_word = words[-1]
-        
-        # Try to get help for the word
-        help_content = self._get_help_content(target_word)
-        
-        if help_content:
-            # Import HTML formatter
-            from .enhanced_help import (
-                parse_methods_output, format_help_html,
-                get_function_info
-            )
+        # Detail level 2 is used for go-to-definition
+        if detail_level == 2:
+            return self.code_intelligence.get_goto_definition_info(code, cursor_pos)
             
-            # Try to get enhanced HTML help
-            html_content = None
-            try:
-                # Re-fetch methods for HTML formatting
-                func_info = get_function_info(target_word)
-                methods = []
-                
-                if self.m2_process:
-                    result = self.m2_process.execute(f'methods {target_word}', timeout=2.0)
-                    if result['success'] and result['text']:
-                        methods = parse_methods_output(result['text'])
-                
-                html_content = format_help_html(
-                    target_word, 
-                    methods, 
-                    func_info.get('description', '')
+        # First try code intelligence for quick hover info
+        result = self.code_intelligence.get_inspection(code, cursor_pos, detail_level)
+        
+        # If not found or user wants more detail (but not go-to-def), fall back to M2 help
+        if not result['found'] or (detail_level > 0 and detail_level != 2):
+            # Extract the word at cursor position
+            line = code[:cursor_pos].split('\\n')[-1]
+            words = re.findall(r'\\b\\w+\\b', line)
+            
+            if not words:
+                return result
+            
+            target_word = words[-1]
+            
+            # Try to get help for the word
+            help_content = self._get_help_content(target_word)
+            
+            if help_content:
+                # Import HTML formatter
+                from .enhanced_help import (
+                    parse_methods_output, format_help_html,
+                    get_function_info
                 )
-            except Exception as e:
-                logger.debug(f"Failed to generate HTML help: {e}")
-                html_content = f"<pre>{help_content}</pre>"
-            
-            return {
-                'status': 'ok',
-                'found': True,
-                'data': {
-                    'text/plain': help_content,
-                    'text/html': html_content
-                },
-                'metadata': {}
-            }
-        else:
-            return {'status': 'ok', 'found': False, 'data': {}, 'metadata': {}}
+                
+                # Try to get enhanced HTML help
+                html_content = None
+                try:
+                    # Re-fetch methods for HTML formatting
+                    func_info = get_function_info(target_word)
+                    methods = []
+                    
+                    if self.m2_process:
+                        m2_result = self.m2_process.execute(f'methods {target_word}', timeout=2.0)
+                        if m2_result['success'] and m2_result['text']:
+                            methods = parse_methods_output(m2_result['text'])
+                    
+                    html_content = format_help_html(
+                        target_word, 
+                        methods, 
+                        func_info.get('description', '')
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to generate HTML help: {e}")
+                    html_content = f"<pre>{help_content}</pre>"
+                
+                return {
+                    'status': 'ok',
+                    'found': True,
+                    'data': {
+                        'text/plain': help_content,
+                        'text/html': html_content
+                    },
+                    'metadata': {}
+                }
+                
+        return result
     
     def _get_help_content(self, word: str) -> str:
         """Get help content for a word."""

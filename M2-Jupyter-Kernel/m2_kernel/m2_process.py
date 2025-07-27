@@ -320,10 +320,27 @@ class M2Process:
                 if progress_info:
                     result['progress_info'] = progress_info
                 
-                # Parse webapp HTML output if execution was successful
+                # Parse webapp HTML output only if in WebApp mode and execution was successful
                 if result['success'] and result['text'].strip():
-                    parsed_output = self._parse_webapp_output(result['text'])
-                    result.update(parsed_output)
+                    # Check current M2 output mode
+                    current_mode = getattr(self.kernel, 'm2_output_mode', 'WebApp') if self.kernel else 'WebApp'
+                    
+                    if current_mode == 'WebApp':
+                        # WebApp mode: Parse control characters and extract LaTeX/HTML
+                        saved_other_output = result.get('other_output', '')
+                        parsed_output = self._parse_webapp_output(result['text'])
+                        # Always preserve other_output from text filtering
+                        if saved_other_output:
+                            parsed_output['other_output'] = saved_other_output
+                        result.update(parsed_output)
+                    else:
+                        # Standard mode: Don't parse webapp control characters
+                        # The text output is already clean ASCII from M2
+                        logger.debug(f"Standard mode: using plain text output directly")
+                        # Just ensure we have the basic structure
+                        result.setdefault('html', '')
+                        result.setdefault('latex', '')
+                        result.setdefault('output_var', '')
                 
                 return result
                 
@@ -334,6 +351,7 @@ class M2Process:
                     'text': f"Execution timed out after {effective_timeout} seconds",
                     'html': '',
                     'latex': '',
+                    'other_output': '',
                     'error': f"TimeoutError: Execution exceeded {effective_timeout} seconds",
                     'success': False
                 }
@@ -344,6 +362,7 @@ class M2Process:
                     'text': '',
                     'html': '',
                     'latex': '',
+                    'other_output': '',
                     'error': str(e),
                     'success': False
                 }
@@ -352,6 +371,13 @@ class M2Process:
         """Execute code with timeout handling."""
         # Clear output queues
         self._clear_output_queues()
+        
+        # Initialize smart timeout if kernel reference exists
+        smart_timeout = None
+        if self.kernel and hasattr(self.kernel, 'process_monitor'):
+            from .smart_timeout import SmartTimeout
+            smart_timeout = SmartTimeout(self.kernel)
+            smart_timeout.start_execution(timeout)
         
         # Add execution marker
         marker = f"-- EXECUTION_START_{execution_id}"
@@ -372,10 +398,19 @@ class M2Process:
         found_start = False
         found_end = False
         
-        while time.time() - start_time < timeout and not found_end:
+        while not found_end:
+            # Check timeout using smart timeout if available
+            if smart_timeout:
+                if smart_timeout.check_timeout():
+                    raise M2TimeoutError(f"Execution timed out after {timeout} seconds")
+            else:
+                # Fallback to simple timeout
+                if time.time() - start_time > timeout:
+                    raise M2TimeoutError(f"Execution timed out after {timeout} seconds")
+            
             # Check stdout
             try:
-                source, line = self.output_queue.get(timeout=0.1)
+                source, line = self.output_queue.get(timeout=0.001)  # 1ms instead of 100ms
                 if marker in line:
                     found_start = True
                     continue
@@ -392,7 +427,7 @@ class M2Process:
             
             # Check stderr
             try:
-                source, line = self.error_queue.get(timeout=0.1)
+                source, line = self.error_queue.get(timeout=0.001)  # 1ms instead of 100ms
                 if found_start and not found_end:
                     error_lines.append(line.rstrip())
             except Empty:
@@ -419,13 +454,23 @@ class M2Process:
         if not found_end:
             raise M2TimeoutError(f"Execution timed out after {timeout} seconds")
         
+        # Stop smart timeout tracking
+        if smart_timeout:
+            smart_timeout.stop_execution()
+        
         # Process results
         output_text = '\n'.join(output_lines).strip()
         error_text = '\n'.join(error_lines).strip()
         
+        # Keep the original output for webapp parsing
+        original_output = output_text
+        
         # Filter out comment lines and progress messages from output text
+        other_output = ""
         if output_text:
-            output_text = self._filter_output_comments(output_text)
+            filtered_output, other_output = self._filter_output_comments(output_text)
+        else:
+            filtered_output = output_text
         
         # Filter out informational messages from stderr that aren't actual errors
         if error_text:
@@ -434,15 +479,20 @@ class M2Process:
         success = not error_text and not self._contains_error(output_text)
         
         return {
-            'text': output_text,
+            'text': original_output,  # Pass original output for webapp parsing
             'latex': '',
             'error': error_text if error_text else (output_text if not success else ''),
-            'success': success
+            'success': success,
+            'other_output': other_output
         }
     
     def _parse_webapp_output(self, webapp_output: str) -> Dict[str, str]:
         """Parse M2 webapp mode HTML output using control character delimiters."""
-        result = {'html': '', 'latex': '', 'output_var': ''}
+        result = {'html': '', 'latex': '', 'output_var': '', 'other_output': ''}
+        
+        logger.debug(f"Parsing webapp output of length {len(webapp_output)}")
+        logger.debug(f"First 200 chars: {repr(webapp_output[:200])}")
+        logger.debug(f"Has control chars: \\x0e={chr(0x0e) in webapp_output}, \\x11={chr(0x11) in webapp_output}, \\x12={chr(0x12) in webapp_output}")
         
         try:
             import html
@@ -457,6 +507,9 @@ class M2Process:
             # 2. Remove input echoes (everything between \x15...\x12)
             cleaned_output = re.sub(r'\x15\d+:\d+\x12[^\x0e]*?(?=\x0e|$)', '', cleaned_output)
             
+            # 2b. Also remove any remaining input echoes that might not have proper delimiters
+            cleaned_output = re.sub(r'\n?\d+:\d+--[^\n]*', '', cleaned_output)
+            
             # 3. Find ALL output variables (o1, o2, etc.) and their content
             output_patterns = list(re.finditer(r'\x0e(o\d+)\x12\s*=\s*\x11(.*?)\x12', cleaned_output, re.DOTALL))
             type_patterns = list(re.finditer(r'\x0eo\d+\x12\s*:\s*\x11(.*?)\x12', cleaned_output, re.DOTALL))
@@ -467,21 +520,25 @@ class M2Process:
                 latex_content = '\\quad '.join(latex_matches)
                 latex_content = html.unescape(latex_content)
                 result['latex'] = latex_content.strip()
+                logger.debug(f"Extracted LaTeX: {result['latex'][:100]}...")
             
             # 5. Extract context (comments, progress) - everything outside delimited sections
             context = cleaned_output
             context = re.sub(r'\x0eo\d+\x12\s*=\s*\x11.*?\x12', '', context)
             context = re.sub(r'\x0eo\d+\x12\s*:\s*\x11.*?\x12', '', context)
             context = re.sub(r'[\x0e\x11\x12\x15]', '', context)
+            # Remove any remaining input echoes
+            context = re.sub(r'\n?\d+:\d+--[^\n]*', '', context)
             context = re.sub(r'\n\s*\n+', '\n', context)
             context = context.strip()
             
+            # Set context as "other output" if it's meaningful
+            # But don't overwrite if we already have other_output from text filtering
+            if context and context != '--' and not context.isspace() and not result.get('other_output'):
+                result['other_output'] = context
+            
             # 6. Build HTML output for ALL output variables
             html_parts = []
-            
-            # Add context as a subtle header (if present and meaningful)
-            if context and context != '--' and not context.isspace():
-                html_parts.append(f'<div class="m2-context">{html.escape(context)}</div>')
             
             # Process each output variable
             for i, output_match in enumerate(output_patterns):
@@ -560,33 +617,41 @@ class M2Process:
         
         return result
     
-    def _filter_output_comments(self, output_text: str) -> str:
-        """Filter out comment lines and progress messages from M2 output."""
+    def _filter_output_comments(self, output_text: str) -> tuple[str, str]:
+        """
+        Split output into main output and other output based on control sequences.
+        
+        Returns:
+            (main_output, other_output) where other_output contains informational messages
+        """
         if not output_text:
-            return output_text
+            return output_text, ""
         
-        # Lines to filter out (comments and progress messages)
-        filter_patterns = [
-            r'^--\s+.*',           # All comment lines starting with --
-            r'.*\[gb\].*',         # Gröbner basis progress messages
-            r'.*number of \(nonminimal\).*',  # Progress counters
-            r'.*This may take several minutes.*',  # Timeout warnings
-            r'.*Running.*should show progress.*',  # Progress headers
-            r'^\s*$',              # Empty lines
-        ]
+        # Don't filter control characters here! They're needed for webapp parsing
+        # Just separate based on comment lines and input echoes
+        main_lines = []
+        other_lines = []
         
-        filtered_lines = []
         for line in output_text.split('\n'):
-            should_filter = False
-            for pattern in filter_patterns:
-                if re.match(pattern, line.strip()):
-                    should_filter = True
-                    break
+            # Skip empty lines
+            if not line.strip():
+                continue
             
-            if not should_filter and line.strip():
-                filtered_lines.append(line)
+            # Lines starting with -- are informational/comments
+            if line.strip().startswith('--'):
+                other_lines.append(line)
+            # Input echoes and position markers should be other output
+            # These can have control characters before the position markers
+            # Pattern: optional control chars + digits + colon + digits + optional stuff
+            elif re.match(r'^[\x00-\x1f]*\d+:\d+', line):
+                other_lines.append(line)
+            # Also catch input prompts with control characters (i1 :, i2 :, etc.)
+            elif re.match(r'^[\x00-\x1f]*i\d+[\x00-\x1f]*\s*:', line):
+                other_lines.append(line)
+            else:
+                main_lines.append(line)
         
-        return '\n'.join(filtered_lines).strip()
+        return '\n'.join(main_lines), '\n'.join(other_lines)
     
     def _filter_stderr_info(self, stderr_text: str) -> str:
         """Filter out informational messages from stderr that aren't errors."""
@@ -639,7 +704,7 @@ class M2Process:
         
         if code.startswith('%timeout'):
             return self._handle_timeout_magic(code)
-        elif code.startswith('%help'):
+        elif code.startswith('%help') or code.startswith('%info'):
             return self._handle_help_magic()
         elif code.startswith('%debug'):
             return self._handle_debug_magic(code)
@@ -649,11 +714,16 @@ class M2Process:
             return self._handle_latex_magic(code)
         elif code.startswith('%%pi') or code.startswith('%pi'):
             return self._handle_progress_magic(code)
+        elif code.startswith('%status'):
+            return self._handle_status_magic(code)
+        elif code.startswith('%def') or code.startswith('%where'):
+            return self._handle_definition_magic(code)
         else:
             return {
                 'text': f"Unknown magic command: {code}",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': False
             }
@@ -673,6 +743,7 @@ class M2Process:
                     'text': f"Timeout set to {new_timeout} seconds",
                     'html': '',
                     'latex': '',
+                    'other_output': '',
                     'error': '',
                     'success': True
                 }
@@ -681,6 +752,7 @@ class M2Process:
                     'text': '',
                     'html': '',
                     'latex': '',
+                    'other_output': '',
                     'error': f"Invalid timeout value: {e}",
                     'success': False
                 }
@@ -689,17 +761,32 @@ class M2Process:
                 'text': f"Current timeout: {self.current_timeout} seconds",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
     
     def _handle_help_magic(self) -> Dict[str, Any]:
-        """Handle %help magic command."""
+        """Handle %help or %info magic command."""
         help_text = """
 Macaulay2 Jupyter Kernel Magic Commands
 ======================================
 
-%help              Show this help message
+%help, %info       Show this help message
+
+Code Intelligence:
+  %def <symbol>      Show definition location of a symbol
+  %where <symbol>    Alias for %def
+  
+  Examples:
+    %def R           # Show where R was defined
+    %where ideal     # Show if 'ideal' is built-in or user-defined
+
+MAGIC COMMAND BEHAVIOR:
+----------------------
+• Line magics (%magic) affect ONLY the M2 code on the same line
+• Cell magics (%%magic) affect ALL statements in the cell  
+• Magic commands are processed before M2 code execution
 
 Timeout Management:
   %timeout=<seconds>   Set execution timeout (e.g., %timeout=600 for 10 minutes)
@@ -724,27 +811,38 @@ LaTeX Display:
   
   Examples:
     %latex off        # Use plain text output
+    %latex on         # Enable LaTeX output (default)
+  
+  Note: LaTeX is automatically disabled for very large outputs
+        (>50x50 matrices, >10KB LaTeX, >150 terms) to improve performance
 
 Progress Indicators:
-  %pi [level]         Enable progress for next command (line magic)
-  %%pi [level]        Enable progress for entire cell (cell magic)
+  %pi [level]         Enable progress for M2 code ON SAME LINE (line magic)
+  %%pi [level]        Enable progress for ENTIRE CELL (cell magic)
   %pi off             Disable progress indicators
   
   Levels:
-    1 = Basic progress (steps and completion)
-    2 = Detailed progress (with intermediate results)  
-    3 = Verbose progress (all M2 debug output)
+    1 = Basic progress (shows operation start/completion)
+    2 = Detailed progress (includes intermediate steps)  
+    3 = Verbose progress (full debug output)
   
-  Examples:
-    %pi 2             # Enable level 2 progress for next command
-    %%pi 1            # Enable level 1 progress for whole cell
-    %pi off           # Disable progress
+  LINE MAGIC Examples:
+    %pi 2 gb I        # Progress for 'gb I' only
+    %pi 2             # No effect (no M2 code on line)
+    %pi 1 gb I; res I # Progress for 'gb I' only, not 'res I'
+    
+  CELL MAGIC Examples:
+    %%pi 1            # Progress for all commands in cell
+    gb I              # This gets progress
+    res I             # This also gets progress
 
-Notes:
-- Magic commands must be at the start of a cell
-- Settings persist for the session
-- Use %logging off to reduce disk usage during normal work
+Important Notes:
+- Line magics must have M2 code on THE SAME LINE to have effect
+- Cell magics must be on the FIRST line of a cell
+- Settings persist for the session except line magic %pi
+- Progress tracking: uses gbTrace for Gröbner bases, debugLevel for decompose
 - Default timeout is 300 seconds (5 minutes)
+- Use %logging off to reduce disk usage during normal work
 - Use Jupyter's zoom feature (Ctrl/Cmd +/-) to adjust font sizes
 
 For Macaulay2 help, use: help "topic" or viewHelp "topic"
@@ -754,6 +852,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
             'text': help_text,
             'html': '',
             'latex': '',
+            'other_output': '',
             'error': '',
             'success': True
         }
@@ -766,6 +865,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': "Debug mode enabled",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
@@ -775,6 +875,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': "Debug mode disabled", 
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
@@ -784,6 +885,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': f"Debug mode is {current_level}",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
@@ -796,6 +898,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': "M2 logging to files enabled",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
@@ -805,6 +908,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': "M2 logging to files disabled", 
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
@@ -814,45 +918,85 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': f"M2 logging is {current_state}",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
     
     def _handle_latex_magic(self, code: str) -> Dict[str, Any]:
         """Handle %latex magic command."""
+        logger.debug(f"Handling latex magic: {repr(code)}")
+        logger.debug(f"Kernel reference: {self.kernel}")
+        logger.debug(f"Current enable_latex before change: {self.kernel.enable_latex if self.kernel else 'No kernel'}")
+        
         if self.kernel is None:
+            logger.warning("Kernel reference is None in latex magic handler")
             return {
                 'text': "LaTeX settings not available (kernel reference missing)",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': False
             }
-            
-        if 'on' in code.lower():
+        
+        # Parse the command more carefully
+        code_lower = code.lower().strip()
+        if ' on' in code_lower or code_lower.endswith(' on') or code_lower == '%latex on':
             self.kernel.enable_latex = True
-            return {
-                'text': "LaTeX output enabled",
-                'html': '',
-                'latex': '',
-                'error': '',
-                'success': True
-            }
-        elif 'off' in code.lower():
+            # Switch M2 to WebApp mode for LaTeX/HTML output
+            if self.kernel._set_m2_output_mode(True):
+                logger.info(f"LaTeX output enabled by magic command. enable_latex = {self.kernel.enable_latex}")
+                return {
+                    'text': "LaTeX output enabled",
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': '',
+                    'success': True
+                }
+            else:
+                logger.error("Failed to switch M2 to WebApp mode")
+                return {
+                    'text': "LaTeX output enabled but mode switch failed",
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': 'Failed to switch M2 output mode',
+                    'success': False
+                }
+        elif ' off' in code_lower or code_lower.endswith(' off') or code_lower == '%latex off':
             self.kernel.enable_latex = False
-            return {
-                'text': "LaTeX output disabled", 
-                'html': '',
-                'latex': '',
-                'error': '',
-                'success': True
-            }
+            # Switch M2 to Standard mode for plain text output
+            if self.kernel._set_m2_output_mode(False):
+                logger.info(f"LaTeX output disabled by magic command. enable_latex = {self.kernel.enable_latex}")
+                return {
+                    'text': "LaTeX output disabled", 
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': '',
+                    'success': True
+                }
+            else:
+                logger.error("Failed to switch M2 to Standard mode")
+                return {
+                    'text': "LaTeX output disabled but mode switch failed",
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': 'Failed to switch M2 output mode',
+                    'success': False
+                }
         else:
+            # Just %latex by itself - show current state
             current_state = "enabled" if self.kernel.enable_latex else "disabled"
+            logger.info(f"LaTeX status query: currently {current_state}")
             return {
                 'text': f"LaTeX output is {current_state}",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
@@ -879,6 +1023,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': f"Progress indicators enabled ({mode_str}, level 1)",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
@@ -888,6 +1033,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': "Progress indicators disabled",
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': '',
                 'success': True
             }
@@ -901,6 +1047,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                     'text': f"Progress indicators enabled ({mode_str}, level {level})",
                     'html': '',
                     'latex': '',
+                    'other_output': '',
                     'error': '',
                     'success': True
                 }
@@ -909,6 +1056,7 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                     'text': '',
                     'html': '',
                     'latex': '',
+                    'other_output': '',
                     'error': "Progress level must be 1, 2, or 3",
                     'success': False
                 }
@@ -917,7 +1065,139 @@ For Macaulay2 help, use: help "topic" or viewHelp "topic"
                 'text': '',
                 'html': '',
                 'latex': '',
+                'other_output': '',
                 'error': f"Invalid progress command. Use: %pi [1-3|on|off] or %%pi [1-3|on|off]",
+                'success': False
+            }
+    
+    def _handle_status_magic(self, code: str) -> Dict[str, Any]:
+        """Handle %status magic command to show/control M2 process monitoring."""
+        parts = code.lower().split()
+        
+        if len(parts) > 1:
+            if parts[1] == 'on':
+                # Enable status widget (if kernel has process monitor)
+                from .status_widget import M2StatusWidget
+                if not hasattr(self.kernel, 'status_widget'):
+                    self.kernel.status_widget = M2StatusWidget(self.kernel)
+                self.kernel.status_widget.create_widget()
+                return {
+                    'text': 'M2 status widget enabled',
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': '',
+                    'success': True
+                }
+                    
+            elif parts[1] == 'off':
+                # Disable status widget
+                if hasattr(self.kernel, 'status_widget'):
+                    js_code = f"""
+                    const widget = document.getElementById('{self.kernel.status_widget.widget_id}');
+                    if (widget) widget.style.display = 'none';
+                    """
+                    self.kernel.send_response(
+                        self.kernel.iopub_socket,
+                        'display_data',
+                        {'data': {'application/javascript': js_code}, 'metadata': {}}
+                    )
+                return {
+                    'text': 'M2 status widget disabled',
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': '',
+                    'success': True
+                }
+                
+        # Show current stats
+        if hasattr(self.kernel, 'process_monitor'):
+            stats = self.kernel.process_monitor.get_current_stats()
+            if stats:
+                text = f"M2 Process Status:\n"
+                text += f"CPU: {stats['total_cpu']:.1f}%\n"
+                text += f"Memory: {stats['total_memory_mb']:.0f} MB\n"
+                text += f"Threads: {stats['num_threads']}\n"
+                text += f"Processes: {stats['num_processes']}"
+                
+                return {
+                    'text': text,
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': '',
+                    'success': True
+                }
+                
+        return {
+            'text': 'No M2 process statistics available\nUsage: %status [on|off]',
+            'html': '',
+            'latex': '',
+            'other_output': '',
+            'error': '',
+            'success': True
+        }
+    
+    def _handle_definition_magic(self, code: str) -> Dict[str, Any]:
+        """Handle %def or %where magic command to show symbol definition."""
+        # Extract symbol from command
+        parts = code.split()
+        if len(parts) < 2:
+            return {
+                'text': '',
+                'html': '',
+                'latex': '',
+                'other_output': '',
+                'error': 'Usage: %def <symbol> or %where <symbol>',
+                'success': False
+            }
+        
+        symbol = parts[1]
+        
+        # Get definition info from kernel's code intelligence
+        if hasattr(self.kernel, 'code_intelligence'):
+            definition = self.kernel.code_intelligence.get_definition(symbol)
+            
+            if definition:
+                # Format output
+                text_lines = [f"Definition of '{symbol}':"]
+                
+                if definition.get('builtin'):
+                    text_lines.append(f"  Type: Built-in {definition.get('type', 'symbol')}")
+                    text_lines.append(f"  {definition.get('documentation', '')}")
+                else:
+                    text_lines.append(f"  Location: {definition['file']}:{definition['line']}")
+                    if definition.get('cell_id'):
+                        text_lines.append(f"  Cell: {definition['cell_id']}")
+                    text_lines.append(f"  Type: {definition.get('type', 'variable')}")
+                    if definition.get('code'):
+                        text_lines.append(f"  Code: {definition['code']}")
+                
+                return {
+                    'text': '\n'.join(text_lines),
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': '',
+                    'success': True
+                }
+            else:
+                return {
+                    'text': f"No definition found for '{symbol}'\nNote: Only symbols defined in this session are tracked.",
+                    'html': '',
+                    'latex': '',
+                    'other_output': '',
+                    'error': '',
+                    'success': True
+                }
+        else:
+            return {
+                'text': '',
+                'html': '',
+                'latex': '',
+                'other_output': '',
+                'error': 'Code intelligence not available',
                 'success': False
             }
     

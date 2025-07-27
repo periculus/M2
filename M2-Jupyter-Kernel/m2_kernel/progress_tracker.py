@@ -146,11 +146,8 @@ class M2ProgressTracker:
         self.start_time = time.time()
         self.last_update = self.start_time
         
-        # Send initial progress message
-        op_info = self.progress_patterns.get(self.operation_type, {})
-        description = op_info.get('description', 'Computing')
-        
-        self.send_progress_update(f"{description}...", 0, show_spinner=True)
+        # Don't send initial progress message (0%) to avoid duplicate indicators
+        # The progress banner will show the operation type anyway
         
         logger.debug(f"Started tracking {self.operation_type}")
     
@@ -262,14 +259,8 @@ class M2ProgressTracker:
         
         elapsed = time.time() - self.start_time
         
-        if success:
-            op_info = self.progress_patterns.get(self.operation_type, {})
-            description = op_info.get('description', 'Computation')
-            self.send_progress_update(f"✓ {description} completed", 100, elapsed, is_final=True)
-        else:
-            op_info = self.progress_patterns.get(self.operation_type, {})
-            description = op_info.get('description', 'Computation')
-            self.send_progress_update(f"⚠️ {description} interrupted", None, elapsed, is_final=True)
+        # Don't send final progress message (100%) to avoid duplicate indicators
+        # The actual computation result will be shown anyway
         
         self.active = False
         logger.debug(f"Finished tracking {self.operation_type}")

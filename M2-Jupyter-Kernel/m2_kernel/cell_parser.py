@@ -130,7 +130,7 @@ class M2CellParser:
             arg_and_code = line[match.end(1):].strip()
             
             # If it's a known magic that takes arguments, parse them
-            if name in ['timeout', 'pi', 'debug', 'logging', 'latex']:
+            if name in ['timeout', 'pi', 'debug', 'logging', 'latex', 'def', 'where', 'status']:
                 # Split on first space or =
                 parts = re.split(r'[\s=]', arg_and_code, 1)
                 if len(parts) > 1:
@@ -186,7 +186,21 @@ class M2CellParser:
         
         # If line magic is present, it only affects code on the same line
         if line_magic:
-            if first_line_code:
+            magic_name, magic_arg = line_magic
+            # Special handling for magics that are complete statements by themselves
+            if magic_name in ['def', 'where', 'help', 'info', 'status']:
+                # These are complete statements even without code
+                # Reconstruct the full magic command
+                full_magic = f'%{magic_name}'
+                if magic_arg:
+                    full_magic += f' {magic_arg}'
+                return Statement(
+                    code=full_magic,
+                    line_magic=None,  # Don't separate it, treat as code
+                    start_line=start_idx,
+                    end_line=start_idx
+                )
+            elif first_line_code:
                 # Line magic with code - create single-line statement only
                 return Statement(
                     code=first_line_code,
@@ -195,7 +209,7 @@ class M2CellParser:
                     end_line=start_idx
                 )
             else:
-                # Magic-only line - not a statement
+                # Other magic-only lines - not a statement
                 return None
         
         # No line magic - proceed with normal multiline parsing

@@ -7,26 +7,36 @@ This provides syntax highlighting for M2 code in Jupyter notebooks.
 from pygments.lexer import RegexLexer, bygroups, include, words
 from pygments.token import *
 
-# M2 language keywords
-M2_KEYWORDS = [
-    'and', 'break', 'catch', 'continue', 'do', 'else', 'elseif', 'export',
-    'exportFrom', 'exportMutable', 'for', 'from', 'global', 'if', 'in',
-    'local', 'new', 'not', 'of', 'or', 'return', 'shield', 'SPACE', 'step',
-    'symbol', 'then', 'threadLocal', 'throw', 'time', 'timing', 'to', 'try',
-    'when', 'while', 'xor'
-]
-
-# M2 types
-M2_TYPES = [
+try:
+    from .language_data import get_language_data
+    # Get dynamic language data
+    _lang_data = get_language_data()
+    M2_KEYWORDS = list(_lang_data.keywords)
+    M2_TYPES = list(_lang_data.types)
+    M2_FUNCTIONS = list(_lang_data.functions)
+    M2_CONSTANTS = list(_lang_data.constants)
+except:
+    # Fallback to static lists if language_data not available
+    # M2 language keywords
+    M2_KEYWORDS = [
+        'and', 'break', 'catch', 'continue', 'do', 'else', 'elseif', 'export',
+        'exportFrom', 'exportMutable', 'for', 'from', 'global', 'if', 'in',
+        'local', 'new', 'not', 'of', 'or', 'return', 'shield', 'SPACE', 'step',
+        'symbol', 'then', 'threadLocal', 'throw', 'time', 'timing', 'to', 'try',
+        'when', 'while', 'xor'
+    ]
+    
+    # M2 types
+    M2_TYPES = [
     'Ring', 'Ideal', 'Module', 'Matrix', 'MutableMatrix', 'ChainComplex',
     'RingElement', 'BasicList', 'HashTable', 'Sequence', 'Array', 'List',
     'MutableList', 'MutableHashTable', 'Option', 'OptionTable', 'Set',
     'String', 'Net', 'Boolean', 'Function', 'Type', 'Nothing', 'Thing',
     'ZZ', 'QQ', 'RR', 'CC', 'RRi', 'CCi', 'InfiniteNumber', 'IndeterminateNumber'
-]
-
-# Common M2 functions (abbreviated)
-M2_FUNCTIONS = [
+    ]
+    
+    # Common M2 functions (abbreviated)
+    M2_FUNCTIONS = [
     'abs', 'adjoint', 'all', 'ann', 'any', 'apply', 'apropos', 'assert',
     'basis', 'betti', 'binomial', 'borel', 'char', 'class', 'codim',
     'coefficient', 'coefficientRing', 'coker', 'cokernel', 'columns',
@@ -88,13 +98,13 @@ M2_FUNCTIONS = [
     'update', 'use', 'userSymbols', 'value', 'values', 'variety', 'vars',
     'vector', 'versalEmbedding', 'wait', 'wedgeProduct', 'weightRange',
     'width', 'wrap', 'youngest', 'zero', 'zeta'
-]
-
-# M2 constants
-M2_CONSTANTS = [
-    'true', 'false', 'null', 'infinity', 'ii', 'oo', 'pi', 'EulerConstant',
-    'newline', 'endl', 'version'
-]
+    ]
+    
+    # M2 constants
+    M2_CONSTANTS = [
+        'true', 'false', 'null', 'infinity', 'ii', 'oo', 'pi', 'EulerConstant',
+        'newline', 'endl', 'version'
+    ]
 
 
 class M2Lexer(RegexLexer):
@@ -118,16 +128,16 @@ class M2Lexer(RegexLexer):
             (r'///(?:\/(?!\/)|(?:\/\/)+(?!\/)|[^\/])*(?:\/\/)+\/(?!\/)', String.Regex),
             
             # Keywords
-            (words(M2_KEYWORDS, boundary=r'\b'), Keyword),
+            (words(M2_KEYWORDS, prefix=r'\b', suffix=r'\b'), Keyword),
             
             # Types
-            (words(M2_TYPES, boundary=r'\b'), Name.Class),
+            (words(M2_TYPES, prefix=r'\b', suffix=r'\b'), Name.Class),
             
             # Functions
-            (words(M2_FUNCTIONS, boundary=r'\b'), Name.Function),
+            (words(M2_FUNCTIONS, prefix=r'\b', suffix=r'\b'), Name.Function),
             
             # Constants
-            (words(M2_CONSTANTS, boundary=r'\b'), Name.Constant),
+            (words(M2_CONSTANTS, prefix=r'\b', suffix=r'\b'), Name.Constant),
             
             # Numbers
             (r'\d+\.?\d*([eE][+-]?\d+)?', Number),
