@@ -408,6 +408,13 @@ class M2Kernel(Kernel):
                                         return result
                                     # Reset line magic mode after use
                                     self.m2_process._progress_mode = 'off'
+                                    # For line mode, we're done - don't process any other lines
+                                    return {
+                                        'status': 'ok',
+                                        'execution_count': self.execution_count,
+                                        'payload': [],
+                                        'user_expressions': {},
+                                    }
                                 else:
                                     processed_lines.append(remaining_on_line)
                             else:
@@ -434,7 +441,8 @@ class M2Kernel(Kernel):
                 code = '\n'.join(processed_lines)
             
             # If no code remains after processing magic commands, return success
-            if not code or not code.strip():
+            # Also return success if we only have comments (no actual M2 statements)
+            if not code or not code.strip() or all(line.strip().startswith('--') or not line.strip() for line in code.split('\n')):
                 return {
                     'status': 'ok',
                     'execution_count': self.execution_count,
@@ -724,7 +732,47 @@ class M2Kernel(Kernel):
         else:
             # WebApp mode: Use existing LaTeX/HTML processing
             use_latex = self.enable_latex and self._should_use_latex(result)
-            output_data = {'text/plain': result['text']}
+            
+            # For WebApp mode, use the parsed HTML but preserve meaningful text/plain
+            if result.get('html') and result['html'].strip():
+                # We have processed HTML - clean the original text and extract meaningful content
+                import re
+                clean_text = re.sub(r'[\x00-\x1f\x7f]', '', result['text'])
+                
+                # Try to extract meaningful content from the clean text for text/plain
+                if result.get('output_var'):
+                    output_var = result['output_var']
+                    
+                    # Look for actual content in the parsed HTML without raw tokens
+                    html_content = result.get('html', '')
+                    
+                    # Extract text content from HTML by removing all tags
+                    import re
+                    text_content = re.sub(r'<[^>]+>', '', html_content)
+                    # Clean up whitespace and newlines
+                    text_content = re.sub(r'\s+', ' ', text_content).strip()
+                    
+                    if text_content and text_content != output_var:
+                        # Use the extracted text content
+                        clean_text = text_content
+                    elif result.get('latex'):
+                        clean_text = f"{output_var} = {result['latex']}"
+                    else:
+                        # Fallback: use cleaned original text if available, otherwise minimal representation
+                        if clean_text.strip() and not re.match(r'^\s*\d+:\d+.*$', clean_text.strip()):
+                            # Keep original clean text if it has meaningful content
+                            pass
+                        else:
+                            clean_text = f"{output_var}"
+                elif clean_text.strip() == '' or re.match(r'^\s*\d+:\d+.*$', clean_text.strip()):
+                    # Empty or just position info - use empty string  
+                    clean_text = ''
+                output_data = {'text/plain': clean_text}
+            else:
+                # No processed HTML - use original text (but still clean control chars)
+                import re
+                clean_text = re.sub(r'[\x00-\x1f\x7f]', '', result['text'])
+                output_data = {'text/plain': clean_text}
         
         logger.debug(f"_send_output called with keys: {result.keys()}")
         logger.debug(f"enable_latex: {self.enable_latex}, use_latex: {use_latex}")
@@ -741,11 +789,42 @@ class M2Kernel(Kernel):
                 escaped_other = html_lib.escape(result['other_output'])
                 other_output_html = f'<div class="m2-other-output">{escaped_other}</div>'
         
-        # When LaTeX is disabled, only show other output in HTML (if any)
+        # When LaTeX is disabled, show HTML output if available
         if not use_latex:
-            if other_output_html:
-                # Create minimal HTML with just the other output
+            # Check if we have regular HTML output (e.g., for GroebnerBasis objects)
+            if result.get('html') and result['html'].strip():
+                # Use the HTML from webapp parser
+                html_content = result['html']
+                
+                # Add styling - include styles for M2 output formatting
                 styled_html = f"""<style>
+.m2-output {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}}
+.m2-output-line {{
+    margin: 5px 0;
+}}
+.m2-output-var {{
+    color: #0066cc;
+    font-weight: bold !important;
+}}
+.m2-output-punct {{
+    color: #666;
+    margin: 0 5px;
+}}
+.m2-nonmath {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    background-color: #f5f5f5;
+    padding: 2px 4px;
+    border-radius: 3px;
+}}
+.m2-type {{
+    color: #666;
+    font-style: italic;
+}}
 .m2-other-output {{
     font-family: 'Source Code Pro', 'Consolas', monospace !important;
     font-size: 13px;
@@ -774,7 +853,7 @@ class M2Kernel(Kernel):
     opacity: 0.5;
 }}
 </style>
-{other_output_html if other_output_html else ''}"""
+{other_output_html}{html_content}"""
                 
                 # Add notice if LaTeX was disabled due to size (not user preference)
                 if self.enable_latex and result.get('latex') and not self._should_use_latex(result):
@@ -783,6 +862,35 @@ class M2Kernel(Kernel):
                 # Add command separator if this is part of multi-command output
                 if result.get('statement_index') is not None and result.get('statement_index', 0) > 0:
                     # Insert separator after the <style> tag
+                    style_end = styled_html.find('</style>') + 8
+                    styled_html = styled_html[:style_end] + '<div class="m2-command-separator"></div>' + styled_html[style_end:]
+                
+                output_data['text/html'] = styled_html
+            elif other_output_html:
+                # Only other output, no main HTML content
+                styled_html = f"""<style>
+.m2-other-output {{
+    font-family: 'Source Code Pro', 'Consolas', monospace !important;
+    font-size: 13px;
+    line-height: 1.4;
+    background-color: #f0f8ff;
+    border-left: 3px solid #87ceeb;
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    color: #333;
+    opacity: 0.9;
+}}
+.m2-command-separator {{
+    border-top: 1px solid #e0e0e0;
+    margin: 15px 10px 15px 10px;
+    opacity: 0.5;
+}}
+</style>
+{other_output_html}"""
+                
+                # Add command separator if needed
+                if result.get('statement_index') is not None and result.get('statement_index', 0) > 0:
                     style_end = styled_html.find('</style>') + 8
                     styled_html = styled_html[:style_end] + '<div class="m2-command-separator"></div>' + styled_html[style_end:]
                 

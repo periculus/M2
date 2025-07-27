@@ -183,6 +183,21 @@ The build system downloads and builds 20+ external mathematical libraries:
 
 Libraries are managed via CMake's `ExternalProject` with consistent compiler flags and installation paths.
 
+## Code Intelligence Features
+
+- Successfully implemented comprehensive code intelligence for M2 Jupyter kernel
+- Features include:
+  * **Autocomplete**: Context-aware completion for 1763+ M2 symbols (functions, types, keywords)
+  * **Hover Documentation**: Quick info on Shift+hover (symbol type, signatures, descriptions)
+  * **Go-to-Definition**: Alt+Click to jump to where symbols are defined
+  * **Syntax Highlighting**: Dynamic highlighting using parsed M2 language data
+- Implementation details:
+  * Parses M2 vim dictionary file for language symbols
+  * Tracks symbol definitions as code executes
+  * Provides built-in symbol information
+  * Context-aware completions (e.g., types after ':', functions after '=')
+- Testing: Run `python test_code_intelligence.py` and `python test_goto_definition.py`
+
 ## Memories
 - `memorize`
 - Always use fish and jupyter lab

@@ -327,11 +327,8 @@ class M2Process:
                     
                     if current_mode == 'WebApp':
                         # WebApp mode: Parse control characters and extract LaTeX/HTML
-                        saved_other_output = result.get('other_output', '')
                         parsed_output = self._parse_webapp_output(result['text'])
-                        # Always preserve other_output from text filtering
-                        if saved_other_output:
-                            parsed_output['other_output'] = saved_other_output
+                        # The webapp parser now handles all categorization internally
                         
                         # For webapp mode, use cleaned text if no substantial output was produced
                         if not parsed_output.get('html') and not parsed_output.get('latex') and not parsed_output.get('output_var'):
@@ -476,12 +473,20 @@ class M2Process:
         # Keep the original output for webapp parsing
         original_output = output_text
         
-        # Filter out comment lines and progress messages from output text
+        # For webapp mode, don't do line-based filtering - let webapp parser handle it
+        # For standard mode, still filter comments and progress messages  
         other_output = ""
-        if output_text:
-            filtered_output, other_output = self._filter_output_comments(output_text)
-        else:
+        current_mode = getattr(self.kernel, 'm2_output_mode', 'WebApp') if self.kernel else 'WebApp'
+        
+        if current_mode == 'WebApp':
+            # WebApp mode: Pass raw output to webapp parser, no pre-filtering
             filtered_output = output_text
+        else:
+            # Standard mode: Use line-based filtering
+            if output_text:
+                filtered_output, other_output = self._filter_output_comments(output_text)
+            else:
+                filtered_output = output_text
         
         # Filter out informational messages from stderr that aren't actual errors
         if error_text:
@@ -615,6 +620,14 @@ class M2Process:
                 html_content.append(html_block)
                 
             elif tag == 'Prompt':
+                # Prompt content may contain input echo AND trace messages
+                # Extract trace messages from current segment content
+                prompt_lines = content.split('\n')
+                for line in prompt_lines:
+                    line = line.strip()
+                    if line.startswith('--') and ('gb' in line or 'number of' in line or 'resolution' in line):
+                        other_content.append(line)
+                
                 # When we have a Prompt tag, look at the NEXT segment to see what the prompt contains
                 if i + 1 < len(segments):
                     next_segment = segments[i + 1]
@@ -670,12 +683,28 @@ class M2Process:
                 pass
                 
             elif tag is None and content.strip():
-                # Plain content without tag - could be comments, progress, etc.
-                # Filter out input echoes and prompts
-                if not re.match(r'^\s*(i\d+\s*:|--|:\d+:|\d+:\d+)', content):
-                    content_clean = content.strip()
-                    if content_clean and content_clean != '--':
-                        other_content.append(content_clean)
+                # Plain content without tag - could be comments, progress, trace messages, etc.
+                lines = content.strip().split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # Skip input echoes (position + command)
+                    if re.match(r'^\d+:\d+', line):
+                        continue
+                    
+                    # Skip bare prompts  
+                    if re.match(r'^i\d+\s*:', line):
+                        continue
+                    
+                    # Include trace messages and other informational content
+                    if line.startswith('--') or 'gb' in line or 'number of' in line:
+                        other_content.append(line)
+                    # Include any non-trivial content that's not an input echo
+                    elif not re.match(r'.*(=|:).*(\w+|\d+)', line):  # Skip assignment-like patterns
+                        if len(line) > 3:  # Only meaningful content
+                            other_content.append(line)
             
             i += 1
         
@@ -713,8 +742,9 @@ class M2Process:
                     if latex_matches:
                         latex_parts.extend(latex_matches)
                     
-                    # For LaTeX content, display as-is (it will be rendered by MathJax)
-                    html_value = html.escape(value_content)
+                    # For LaTeX content, display as-is - it already has proper HTML entities
+                    # DO NOT escape LaTeX content as it already contains &amp; entities for proper LaTeX formatting
+                    html_value = value_content
                 else:
                     # Handle non-LaTeX content - escape HTML entities
                     clean_content = re.sub(r'<[^>]*>', '', value_content)
