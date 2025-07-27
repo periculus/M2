@@ -487,133 +487,284 @@ class M2Process:
         }
     
     def _parse_webapp_output(self, webapp_output: str) -> Dict[str, str]:
-        """Parse M2 webapp mode HTML output using control character delimiters."""
+        """Parse M2 webapp mode output using structured control character parsing."""
         result = {'html': '', 'latex': '', 'output_var': '', 'other_output': ''}
         
         logger.debug(f"Parsing webapp output of length {len(webapp_output)}")
         logger.debug(f"First 200 chars: {repr(webapp_output[:200])}")
-        logger.debug(f"Has control chars: \\x0e={chr(0x0e) in webapp_output}, \\x11={chr(0x11) in webapp_output}, \\x12={chr(0x12) in webapp_output}")
         
         try:
-            import html
+            # Use structured parsing similar to M2Web
+            parsed_segments = self._parse_webapp_segments(webapp_output)
             
-            # Clean control characters except M2's structural ones
-            # Keep \x0e, \x11, \x12, \x15 which are M2's delimiters
-            cleaned_output = re.sub(r'[\x00-\x0d\x0f-\x10\x13-\x14\x16-\x1f\x7f]', '', webapp_output)
-            
-            # 1. Remove input line numbers (i1, i2, etc.) - these are not output variables  
-            cleaned_output = re.sub(r'\x0ei\d+\x12[^:]*:', '', cleaned_output)
-            
-            # 2. Remove input echoes (everything between \x15...\x12)
-            cleaned_output = re.sub(r'\x15\d+:\d+\x12[^\x0e]*?(?=\x0e|$)', '', cleaned_output)
-            
-            # 2b. Also remove any remaining input echoes that might not have proper delimiters
-            cleaned_output = re.sub(r'\n?\d+:\d+--[^\n]*', '', cleaned_output)
-            
-            # 3. Find ALL output variables (o1, o2, etc.) and their content
-            output_patterns = list(re.finditer(r'\x0e(o\d+)\x12\s*=\s*\x11(.*?)\x12', cleaned_output, re.DOTALL))
-            type_patterns = list(re.finditer(r'\x0eo\d+\x12\s*:\s*\x11(.*?)\x12', cleaned_output, re.DOTALL))
-            
-            # 4. Extract LaTeX content from $...$ delimiters
-            latex_matches = re.findall(r'\$([^$]+)\$', cleaned_output)
-            if latex_matches:
-                latex_content = '\\quad '.join(latex_matches)
-                latex_content = html.unescape(latex_content)
-                result['latex'] = latex_content.strip()
-                logger.debug(f"Extracted LaTeX: {result['latex'][:100]}...")
-            
-            # 5. Extract context (comments, progress) - everything outside delimited sections
-            context = cleaned_output
-            context = re.sub(r'\x0eo\d+\x12\s*=\s*\x11.*?\x12', '', context)
-            context = re.sub(r'\x0eo\d+\x12\s*:\s*\x11.*?\x12', '', context)
-            context = re.sub(r'[\x0e\x11\x12\x15]', '', context)
-            # Remove any remaining input echoes
-            context = re.sub(r'\n?\d+:\d+--[^\n]*', '', context)
-            context = re.sub(r'\n\s*\n+', '\n', context)
-            context = context.strip()
-            
-            # Set context as "other output" if it's meaningful
-            # But don't overwrite if we already have other_output from text filtering
-            if context and context != '--' and not context.isspace() and not result.get('other_output'):
-                result['other_output'] = context
-            
-            # 6. Build HTML output for ALL output variables
-            html_parts = []
-            
-            # Process each output variable
-            for i, output_match in enumerate(output_patterns):
-                output_var = output_match.group(1)
-                output_content_raw = output_match.group(2).strip()
-                
-                # Set the first output variable as the main one for LaTeX extraction
-                if i == 0:
-                    result['output_var'] = output_var
-                
-                # Process the output content
-                has_latex = '$' in output_content_raw
-                
-                if has_latex:
-                    # For LaTeX content, clean HTML but keep math
-                    output_content = re.sub(r'<span[^>]*>', '', output_content_raw)
-                    output_content = re.sub(r'</span>', '', output_content)
-                    output_content = re.sub(r'<samp[^>]*>', '', output_content)
-                    output_content = re.sub(r'</samp>', '', output_content)
-                    output_content = html.unescape(output_content)
-                else:
-                    # For non-LaTeX content, handle special cases
-                    output_content = re.sub(r'<[^>]*>', '', output_content_raw)
-                    output_content = html.unescape(output_content)
-                    
-                    # Handle constructs like GroebnerBasis[...] where GroebnerBasis is tt and [...] is sans-serif
-                    if re.match(r'^[A-Za-z]+\[.*\]$', output_content.strip()):
-                        # Extract the type name and the bracketed content
-                        match = re.match(r'^([A-Za-z]+)(\[.*\])$', output_content.strip())
-                        if match:
-                            type_name = match.group(1)
-                            bracket_content = match.group(2)
-                            output_content = f'<code class="m2-nonmath">{html.escape(type_name)}</code> <span class="m2-description">{html.escape(bracket_content)}</span>'
-                        else:
-                            output_content = f'<code class="m2-nonmath">{html.escape(output_content)}</code>'
-                    else:
-                        # Default to typewriter font for other non-math content
-                        output_content = f'<code class="m2-nonmath">{html.escape(output_content)}</code>'
-                
-                # Build the main output line: oN = value
-                if output_content:
-                    output_line = f'<span class="m2-output-var" style="font-weight: normal !important;">{output_var}</span><span class="m2-output-punct"> = </span>{output_content}'
-                    html_parts.append(f'<div class="m2-output-line">{output_line}</div>')
-                
-                # Find corresponding type information
-                if i < len(type_patterns):
-                    type_content_raw = type_patterns[i].group(1).strip()
-                    
-                    # Check if type contains math (like "Ideal of R" where R should be math)
-                    if '$' in type_content_raw:
-                        # Keep LaTeX content but clean HTML
-                        type_content = re.sub(r'<span[^>]*>', '', type_content_raw)
-                        type_content = re.sub(r'</span>', '', type_content_raw)
-                        type_content = re.sub(r'<samp[^>]*>', '', type_content_raw)
-                        type_content = re.sub(r'</samp>', '', type_content_raw)
-                        type_content = html.unescape(type_content)
-                    else:
-                        # For non-math types (like PolynomialRing, GroebnerBasis), use monospace
-                        type_content = re.sub(r'<[^>]*>', '', type_content_raw)
-                        type_content = html.unescape(type_content)
-                        type_content = f'<span class="m2-type">{html.escape(type_content)}</span>'
-                    
-                    # Add type line: oN : Type  
-                    type_line = f'<span class="m2-output-var" style="font-weight: normal !important;">{output_var}</span><span class="m2-output-punct"> : </span>{type_content}'
-                    html_parts.append(f'<div class="m2-type-line">{type_line}</div>')
-            
-            if html_parts:
-                result['html'] = f'<div class="m2-output">{"".join(html_parts)}</div>'
+            # Process parsed segments to build result
+            result = self._process_webapp_segments(parsed_segments)
             
         except Exception as e:
             logger.debug(f"Failed to parse webapp output: {e}")
             # Fallback to simple cleaning
+            import html
             simple_output = re.sub(r'[\x00-\x1f\x7f]', '', webapp_output)
             if simple_output.strip():
                 result['html'] = f'<div class="m2-output"><pre>{html.escape(simple_output)}</pre></div>'
+        
+        return result
+    
+    def _parse_webapp_segments(self, webapp_output: str):
+        """Parse webapp output into structured segments using control characters."""
+        # Control character definitions (matching M2Web tags.ts)
+        WEBAPP_TAGS = {
+            '\x0E': 'Prompt',      # M2 prompt (i1 : )
+            '\x11': 'Html',        # HTML content start
+            '\x12': 'End',         # HTML content end
+            '\x13': 'Cell',        # Cell container start
+            '\x14': 'CellEnd',     # Cell container end
+            '\x15': 'Position',    # Source position (file:line:col)
+            '\x1C': 'Input',       # User input text
+            '\x1D': 'InputContd',  # Multi-line input continuation
+        }
+        
+        # Build regex for splitting (matches M2Web approach)
+        control_chars = ''.join(WEBAPP_TAGS.keys())
+        webapp_regex = re.compile(f'([{re.escape(control_chars)}])')
+        
+        # Clean carriage returns and split on control characters
+        clean_output = webapp_output.replace('\r', '')
+        segments = webapp_regex.split(clean_output)
+        
+        # Parse segments into structured format
+        parsed_segments = []
+        
+        for i in range(0, len(segments)):
+            if i % 2 == 0:
+                # Even index: content
+                content = segments[i]
+                # Get control character that follows this content (if any)
+                control_char = segments[i + 1] if i + 1 < len(segments) else None
+                tag_name = WEBAPP_TAGS.get(control_char, None)
+                
+                if content or tag_name:  # Only add meaningful segments
+                    parsed_segments.append({
+                        'content': content,
+                        'tag': tag_name,
+                        'control_char': control_char
+                    })
+        return parsed_segments
+    
+    def _process_webapp_segments(self, segments):
+        """Process parsed webapp segments into output format."""
+        import html
+        
+        result = {'html': '', 'latex': '', 'output_var': '', 'other_output': ''}
+        
+        # State tracking (similar to M2Web)
+        current_cell = None
+        html_content = []
+        output_variables = []
+        type_info = []
+        other_content = []
+        positions = []
+        
+        # Process segments sequentially
+        i = 0
+        while i < len(segments):
+            segment = segments[i]
+            content = segment['content']
+            tag = segment['tag']
+            
+            # Process based on tag type
+            if tag == 'Cell':
+                # Start new cell
+                current_cell = {'content': content, 'outputs': [], 'types': []}
+                
+            elif tag == 'CellEnd':
+                # End current cell
+                if current_cell:
+                    # Process completed cell
+                    self._finalize_cell(current_cell, result)
+                current_cell = None
+                
+            elif tag == 'Html':
+                # HTML content follows - collect until End tag
+                html_block = content  # Content before Html tag
+                i += 1
+                
+                # Collect content until we hit End tag
+                while i < len(segments):
+                    if segments[i]['tag'] == 'End':
+                        break
+                    html_block += segments[i]['content']
+                    if segments[i]['control_char']:
+                        html_block += segments[i]['control_char']
+                    i += 1
+                
+                # Store HTML content for processing
+                html_content.append(html_block)
+                
+            elif tag == 'Prompt':
+                # When we have a Prompt tag, look at the NEXT segment to see what the prompt contains
+                if i + 1 < len(segments):
+                    next_segment = segments[i + 1]
+                    prompt_content = next_segment['content']
+                    
+                    # Check if the prompt content is an output variable (o1, o2, etc.)
+                    if re.match(r'^(o\d+)$', prompt_content.strip()):
+                        output_var = prompt_content.strip()
+                        
+                        # Look further ahead for assignment and HTML content
+                        # Pattern: Prompt(i) -> o2/End(i+1) -> " = "/Html(i+2) -> "$5$"/End(i+3)
+                        if i + 2 < len(segments):
+                            assignment_segment = segments[i + 2]
+                            assignment_content = assignment_segment['content']
+                            
+                            # Check for assignment pattern: " = "
+                            if assignment_content.strip().startswith('='):
+                                if not result['output_var']:  # Set first output variable
+                                    result['output_var'] = output_var
+                                
+                                # Look for Html content that follows
+                                html_content = ""
+                                if assignment_segment['tag'] == 'Html':
+                                    # The assignment content is in an Html block, look for the actual content after it
+                                    if i + 3 < len(segments):
+                                        html_content = segments[i + 3]['content']
+                                
+                                output_variables.append({
+                                    'var': output_var,
+                                    'assignment': assignment_content,
+                                    'html_content': html_content
+                                })
+                    
+                    # Also check for type information patterns
+                    elif re.match(r'^(o\d+)$', prompt_content.strip()):
+                        # Look for type assignment ": Type"
+                        if i + 2 < len(segments) and segments[i + 2]['tag'] == 'End':
+                            if i + 3 < len(segments):
+                                type_content = segments[i + 3]['content']
+                                if type_content.strip().startswith(':'):
+                                    type_info.append({
+                                        'var': prompt_content.strip(),
+                                        'content': type_content
+                                    })
+                
+            elif tag == 'Position':
+                # Store position information for debugging
+                positions.append(content)
+                
+            elif tag == 'Input' or tag == 'InputContd':
+                # Input content - typically we want to filter this out
+                # but keep track for debugging
+                pass
+                
+            elif tag is None and content.strip():
+                # Plain content without tag - could be comments, progress, etc.
+                # Filter out input echoes and prompts
+                if not re.match(r'^\s*(i\d+\s*:|--|:\d+:|\d+:\d+)', content):
+                    content_clean = content.strip()
+                    if content_clean and content_clean != '--':
+                        other_content.append(content_clean)
+            
+            i += 1
+        
+        # Build final result
+        self._build_final_result(result, output_variables, type_info, html_content, other_content)
+        
+        return result
+    
+    def _finalize_cell(self, cell, result):
+        """Finalize a completed cell (placeholder for future cell-level processing)."""
+        # Future enhancement: process cell-level structure
+        pass
+    
+    def _build_final_result(self, result, output_variables, type_info, html_content, other_content):
+        """Build the final result from processed segments."""
+        import html
+        
+        # Process output variables and build HTML
+        html_parts = []
+        latex_parts = []
+        
+        for output in output_variables:
+            var = output['var']
+            assignment = output.get('assignment', '')
+            html_content = output.get('html_content', '')
+            
+            # Use HTML content if available, otherwise fallback to assignment parsing
+            if html_content:
+                value_content = html_content
+                
+                # Check for LaTeX content
+                if '$' in value_content:
+                    # Extract LaTeX
+                    latex_matches = re.findall(r'\$([^$]+)\$', value_content)
+                    if latex_matches:
+                        latex_parts.extend(latex_matches)
+                    
+                    # For LaTeX content, display as-is (it will be rendered by MathJax)
+                    html_value = html.escape(value_content)
+                else:
+                    # Handle non-LaTeX content - escape HTML entities
+                    clean_content = re.sub(r'<[^>]*>', '', value_content)
+                    clean_content = html.unescape(clean_content)
+                    
+                    # Special formatting for types like GroebnerBasis[...]
+                    if re.match(r'^[A-Za-z]+\[.*\]$', clean_content.strip()):
+                        match = re.match(r'^([A-Za-z]+)(\[.*\])$', clean_content.strip())
+                        if match:
+                            type_name = match.group(1)
+                            bracket_content = match.group(2)
+                            html_value = f'<code class="m2-nonmath">{html.escape(type_name)}</code> <span class="m2-description">{html.escape(bracket_content)}</span>'
+                        else:
+                            html_value = f'<code class="m2-nonmath">{html.escape(clean_content)}</code>'
+                    else:
+                        html_value = f'<code class="m2-nonmath">{html.escape(clean_content)}</code>'
+            else:
+                # Fallback to parsing assignment text
+                value_match = re.search(r'=\s*(.*)', assignment, re.DOTALL)
+                if value_match:
+                    value_content = value_match.group(1).strip()
+                    html_value = f'<code class="m2-nonmath">{html.escape(value_content)}</code>'
+                else:
+                    html_value = f'<code class="m2-nonmath">{html.escape(assignment)}</code>'
+                
+            # Build output line
+            output_line = f'<span class="m2-output-var" style="font-weight: normal !important;">{var}</span><span class="m2-output-punct"> = </span>{html_value}'
+            html_parts.append(f'<div class="m2-output-line">{output_line}</div>')
+        
+        # Add type information
+        for type_info_item in type_info:
+            var = type_info_item['var']
+            content = type_info_item['content']
+            
+            # Extract type after ':'
+            type_match = re.search(r':\s*(.*)', content, re.DOTALL)
+            if type_match:
+                type_content = type_match.group(1).strip()
+                
+                # Clean and format type
+                if '$' in type_content:
+                    # Keep LaTeX in types
+                    clean_type = re.sub(r'<[^>]*>', '', type_content)
+                    clean_type = html.unescape(clean_type)
+                    html_type = clean_type
+                else:
+                    clean_type = re.sub(r'<[^>]*>', '', type_content)
+                    clean_type = html.unescape(clean_type)
+                    html_type = f'<span class="m2-type">{html.escape(clean_type)}</span>'
+                
+                # Build type line
+                type_line = f'<span class="m2-output-var" style="font-weight: normal !important;">{var}</span><span class="m2-output-punct"> : </span>{html_type}'
+                html_parts.append(f'<div class="m2-type-line">{type_line}</div>')
+        
+        # Set results
+        if html_parts:
+            result['html'] = f'<div class="m2-output">{"".join(html_parts)}</div>'
+        
+        if latex_parts:
+            result['latex'] = '\\quad '.join(latex_parts)
+        
+        if other_content:
+            result['other_output'] = '\n'.join(other_content)
         
         return result
     
