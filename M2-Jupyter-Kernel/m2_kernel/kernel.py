@@ -71,6 +71,10 @@ class M2Kernel(Kernel):
         help="Enable LaTeX output rendering"
     ).tag(config=True)
     
+    use_async_execution = Bool(
+        False,
+        help="Enable async multiline parser and execution (experimental)"
+    ).tag(config=True)
     
     debug_mode = Bool(
         True,  # Temporarily enable debug mode
@@ -109,6 +113,13 @@ class M2Kernel(Kernel):
         # Initialize progress tracker
         from .progress_tracker import M2ProgressTracker
         self.progress_tracker = M2ProgressTracker(self._send_progress_update)
+        
+        # Initialize cell parser and async executor
+        from .cell_parser import M2CellParser
+        from .async_executor import AsyncM2Executor
+        self.cell_parser = M2CellParser()
+        self.async_executor = AsyncM2Executor(self.m2_process, self._send_output)
+        self.async_executor.start()
         
         # Initialize heartbeat mechanism
         from .heartbeat import KernelHeartbeat
@@ -240,6 +251,11 @@ class M2Kernel(Kernel):
                 'payload': [],
                 'user_expressions': {},
             }
+        
+        # Use async execution if enabled
+        if self.use_async_execution:
+            return self._do_execute_async(code, silent, store_history,
+                                        user_expressions, allow_stdin, cell_id)
         
         # Clear interrupt flag at start of execution
         self._execution_interrupted = False
@@ -1136,6 +1152,87 @@ math {{
                         }
                     )
     
+    def _do_execute_async(
+        self,
+        code: str,
+        silent: bool,
+        store_history: bool = True,
+        user_expressions: Optional[Dict] = None,
+        allow_stdin: bool = False,
+        cell_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Execute code using async multiline parser."""
+        logger.info(f"Executing cell asynchronously: {code[:50]}...")
+        
+        # Update execution count
+        if not silent:
+            self.execution_count += 1
+        
+        # Check if M2 process is available
+        if not self.m2_process or not self.m2_process.is_alive():
+            return {
+                'status': 'error',
+                'execution_count': self.execution_count,
+                'ename': 'M2ProcessError',
+                'evalue': 'M2 process not available',
+                'traceback': ['M2 process failed to initialize']
+            }
+        
+        try:
+            # Start heartbeat
+            self.heartbeat.begin_computation(self.execution_count)
+            
+            # Parse the cell
+            parsed_cell = self.cell_parser.parse_cell(code)
+            logger.debug(f"Parsed cell: {len(parsed_cell.statements)} statements")
+            
+            # Generate cell ID if not provided
+            if not cell_id:
+                cell_id = f"cell_{self.execution_count}"
+            
+            # Handle cell magic synchronously if present
+            if parsed_cell.cell_magic:
+                magic_name, magic_arg = parsed_cell.cell_magic
+                magic_code = f"%%{magic_name} {magic_arg or ''}"
+                result = self.m2_process.execute(magic_code)
+                if not result['success'] and not silent:
+                    self.heartbeat.end_computation()
+                    return {
+                        'status': 'error',
+                        'execution_count': self.execution_count,
+                        'ename': 'MagicError',
+                        'evalue': result['error'],
+                        'traceback': [result['error']]
+                    }
+            
+            # Execute statements asynchronously
+            self.async_executor.execute_cell_async(
+                cell_id=cell_id,
+                parsed_cell=parsed_cell
+            )
+            
+            # End heartbeat
+            self.heartbeat.end_computation()
+            
+            # Return success immediately (results will come async)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+            
+        except Exception as e:
+            logger.error(f"Async execution error: {e}", exc_info=True)
+            self.heartbeat.end_computation()
+            return {
+                'status': 'error',
+                'execution_count': self.execution_count,
+                'ename': type(e).__name__,
+                'evalue': str(e),
+                'traceback': [str(e)]
+            }
+    
     def do_shutdown(self, restart: bool) -> Dict[str, Any]:
         """
         Shutdown the kernel.
@@ -1151,6 +1248,10 @@ math {{
         # Stop heartbeat
         if hasattr(self, 'heartbeat'):
             self.heartbeat.stop()
+        
+        # Stop async executor
+        if hasattr(self, 'async_executor'):
+            self.async_executor.stop()
         
         if self.m2_process:
             try:
