@@ -1,0 +1,48 @@
+{
+    "configurations": [
+        {
+            "name": "M2-ARM64-macOS",
+            "includePath": [
+                "${workspaceFolder}/M2/include",
+                "${workspaceFolder}/M2/Macaulay2/c",
+                "${workspaceFolder}/M2/Macaulay2/d",
+                "${workspaceFolder}/M2/Macaulay2/e",
+                "${workspaceFolder}/M2/Macaulay2/e/mathic",
+                "${workspaceFolder}/M2/Macaulay2/e/memtailor", 
+                "${workspaceFolder}/M2/Macaulay2/e/mathicgb",
+                "${workspaceFolder}/M2/Macaulay2/system",
+                "${workspaceFolder}/BUILD/cmake/include",
+                "${workspaceFolder}/BUILD/cmake/Macaulay2/d",
+                "${workspaceFolder}/BUILD/cmake/usr-host/include",
+                "/opt/homebrew/include",
+                "/opt/homebrew/opt/readline/include",
+                "/opt/homebrew/opt/gdbm/include",
+                "/opt/homebrew/Cellar/tbb/2022.2.0/include",
+                "/usr/local/include",
+                "/usr/local/include/eigen3",
+                "/usr/local/opt/libomp/include",
+                "/Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/libxml2",
+                "/Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/include/ffi"
+            ],
+            "defines": [
+                "NDEBUG",
+                "DOM_NDEBUG",
+                "DSING_NDEBUG"
+            ],
+            "macFrameworkPath": [
+                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"
+            ],
+            "compilerPath": "/usr/bin/clang++",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "macos-clang-arm64",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "compilerArgs": [
+                "-arch",
+                "arm64",
+                "-march=native"
+            ]
+        }
+    ],
+    "version": 4
+}

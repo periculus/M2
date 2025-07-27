@@ -1,0 +1,247 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "M2: Configure Build",
+            "type": "shell",
+            "command": "arch",
+            "args": [
+                "-arm64",
+                "cmake",
+                "-GNinja",
+                "-S",
+                "M2",
+                "-B",
+                "BUILD/cmake",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_OSX_ARCHITECTURES=arm64",
+                "-DBOOST_ROOT=/opt/homebrew",
+                "-DBoost_NO_BOOST_CMAKE=ON",
+                "-DCMAKE_PREFIX_PATH=/opt/homebrew;/usr/local",
+                "-DCMAKE_INCLUDE_PATH=/opt/homebrew/include;/opt/homebrew/Cellar/tbb/2022.2.0/include",
+                "-DCMAKE_LIBRARY_PATH=/opt/homebrew/lib",
+                "-DTBB_DIR=/opt/homebrew/Cellar/tbb/2022.2.0/lib/cmake/TBB"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "M2: Build Libraries",
+            "type": "shell",
+            "command": "arch",
+            "args": [
+                "-arm64",
+                "cmake",
+                "--build",
+                "BUILD/cmake",
+                "--target",
+                "build-libraries"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "M2: Build Engine",
+            "type": "shell",
+            "command": "arch",
+            "args": [
+                "-arm64",
+                "cmake",
+                "--build",
+                "BUILD/cmake",
+                "--target",
+                "M2-engine",
+                "--parallel",
+                "12"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "M2: Build Interpreter",
+            "type": "shell",
+            "command": "arch",
+            "args": [
+                "-arm64",
+                "cmake",
+                "--build",
+                "BUILD/cmake",
+                "--target",
+                "M2-interpreter",
+                "--parallel",
+                "12"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "M2: Build Binary",
+            "type": "shell",
+            "command": "arch",
+            "args": [
+                "-arm64",
+                "cmake",
+                "--build",
+                "BUILD/cmake",
+                "--target",
+                "M2-binary",
+                "--parallel",
+                "12"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "M2: Full Build",
+            "type": "shell",
+            "command": "arch",
+            "args": [
+                "-arm64",
+                "cmake",
+                "--build",
+                "BUILD/cmake",
+                "--parallel",
+                "12"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "M2: Clean Build",
+            "type": "shell",
+            "command": "rm",
+            "args": [
+                "-rf",
+                "BUILD/cmake"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "M2: Test Basic",
+            "type": "shell",
+            "command": "${workspaceFolder}/BUILD/cmake/usr-dist/arm64-Darwin-macOS-15.5/bin/M2",
+            "args": [
+                "-e",
+                "2+2"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "M2: Install Package",
+            "type": "shell",
+            "command": "${workspaceFolder}/BUILD/cmake/usr-dist/arm64-Darwin-macOS-15.5/bin/M2",
+            "args": [
+                "-e",
+                "installPackage \"${input:packageName}\""
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "M2: Check Package",
+            "type": "shell",
+            "command": "${workspaceFolder}/BUILD/cmake/usr-dist/arm64-Darwin-macOS-15.5/bin/M2",
+            "args": [
+                "-e",
+                "check \"${input:packageName}\""
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "M2: Interactive Session",
+            "type": "shell",
+            "command": "${workspaceFolder}/BUILD/cmake/usr-dist/arm64-Darwin-macOS-15.5/bin/M2",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "isBackground": false,
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "packageName",
+            "type": "promptString",
+            "description": "Package name to install/check"
+        }
+    ]
+}

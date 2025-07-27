@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug M2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/BUILD/cmake/usr-dist/arm64-Darwin-macOS-15.5/bin/M2",
+            "args": ["-e", "2+2"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "M2: Build Binary"
+        },
+        {
+            "name": "Debug M2 Engine",
+            "type": "cppdbg", 
+            "request": "launch",
+            "program": "${workspaceFolder}/BUILD/cmake/Macaulay2/e/libM2-engine.a",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "M2: Build Engine"
+        },
+        {
+            "name": "Debug M2 with Package",
+            "type": "cppdbg",
+            "request": "launch", 
+            "program": "${workspaceFolder}/BUILD/cmake/usr-dist/arm64-Darwin-macOS-15.5/bin/M2",
+            "args": [
+                "-e",
+                "needsPackage \"Normaliz\"; normaliz(matrix {{1,0},{0,1},{1,1}}, \"cone\")"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "M2: Build Binary"
+        }
+    ]
+}

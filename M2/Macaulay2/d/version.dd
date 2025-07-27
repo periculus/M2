@@ -43,9 +43,15 @@ header "
      const char* const frobby_version = constants::version;
    #endif
 
-   #include <mps/version.h>
-   #ifndef MPS_MAJOR_VERSION
-     #error \"MPS_MAJOR_VERSION undefined\"
+   #ifdef HAVE_MPS
+     #include <mps/version.h>
+     #ifndef MPS_MAJOR_VERSION
+       #error \"MPS_MAJOR_VERSION undefined\"
+     #endif
+   #else
+     #define MPS_MAJOR_VERSION 0
+     #define MPS_MINOR_VERSION 0
+     #define MPS_PATCH_VERSION 0
    #endif
 
    #undef ASSERT
@@ -90,12 +96,10 @@ header "#include <fflas-ffpack/config.h>";
 ffpackVersion():constcharstar := Ccode(constcharstar,"__FFLASFFPACK_PACKAGE_VERSION");
 
 header"
-#pragma push_macro(\"PACKAGE_VERSION\")
-#undef PACKAGE_VERSION
 #include <factory/factoryconf.h>
-const char * factory_version () { return PACKAGE_VERSION; }
+const char * factory_version () { return FACTORYVERSION; }
 extern const char factoryVersion[]; /* extracted from factory's factory.h */
-#pragma pop_macro(\"PACKAGE_VERSION\")";
+";
 factoryversion():constcharstar := Ccode(returns,"
      return factory_version();
      // the following way used to work, but now it gives 4.0.1 instead of 4.1.0:
@@ -173,7 +177,13 @@ setupconst("version", Expr(toHashTable(Sequence(
 	   \"not present\"
        #endif
        "),
-   "mpsolve version" => Ccode(constcharstar, "stringize(MPS_MAJOR_VERSION) \".\" stringize(MPS_MINOR_VERSION) \".\" stringize(MPS_PATCH_VERSION)" ),
+   "mpsolve version" => Ccode(constcharstar, "
+	#ifdef HAVE_MPS
+		stringize(MPS_MAJOR_VERSION) \".\" stringize(MPS_MINOR_VERSION) \".\" stringize(MPS_PATCH_VERSION)
+	#else
+		\"not present\"
+	#endif
+	"),
    "python version" => Ccode(constcharstar,"
 	#ifdef WITH_PYTHON
 		 PY_VERSION
@@ -183,7 +193,9 @@ setupconst("version", Expr(toHashTable(Sequence(
 	"),
    "gdbm version" => gdbmversion(),
    "gmp version" => Ccode(constcharstar,"__gmp_version"),
-   "normaliz version" => Ccode(constcharstar,"stringize(NMZ_VERSION)"),
+   "normaliz version" => Ccode(constcharstar,"
+		stringize(NMZ_VERSION)
+	"),
    "ntl version" => Ccode(constcharstar,"NTL_VERSION"),
    "frobby version" => Ccode(constcharstar,"frobby_version"),
    "flint version" => Ccode(constcharstar,"FLINT_VERSION"),

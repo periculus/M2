@@ -86,7 +86,7 @@ if(NOT FACTORY_FOUND)
   endif()
 
   if(NOT FACTORY_LIBRARIES)
-    find_library(FACTORY_LIBRARIES NAMES factory singular-factory cf
+    find_library(FACTORY_LIBRARIES NAMES factory singular-factory
       HINTS ENV FACTORYDIR
       PATHS ${LIB_INSTALL_DIR} ${CMAKE_INSTALL_PREFIX}/lib
       )

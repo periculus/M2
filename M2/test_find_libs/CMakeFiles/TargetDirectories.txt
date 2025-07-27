@@ -1,0 +1,2 @@
+/Users/sverrir/Documents/GitHub/M2/M2/test_find_libs/CMakeFiles/edit_cache.dir
+/Users/sverrir/Documents/GitHub/M2/M2/test_find_libs/CMakeFiles/rebuild_cache.dir

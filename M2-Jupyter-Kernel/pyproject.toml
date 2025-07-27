@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "macaulay2-jupyter-kernel"
+version = "2.0.0"
+description = "A modern, robust Jupyter kernel for Macaulay2"
+authors = [{name = "M2 Development Team", email = "m2-dev@example.com"}]
+license = {text = "GPL-3.0-or-later"}
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Framework :: Jupyter",
+]
+keywords = ["macaulay2", "jupyter", "kernel", "mathematics", "algebra"]
+dependencies = [
+    "ipykernel>=6.25.0,<7.0.0",
+    "jupyter-client>=8.0.0,<9.0.0", 
+    "traitlets>=5.0.0",
+    "pexpect>=4.8.0",
+    "pygments>=2.13.0",  # For syntax highlighting
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "flake8", "mypy", "jupyter"]
+test = ["pytest", "pytest-cov"]
+
+[project.urls]
+Homepage = "https://github.com/Macaulay2/M2-Jupyter-Kernel"
+Repository = "https://github.com/Macaulay2/M2-Jupyter-Kernel.git"
+Documentation = "https://github.com/Macaulay2/M2-Jupyter-Kernel#readme"
+"Bug Tracker" = "https://github.com/Macaulay2/M2-Jupyter-Kernel/issues"
+
+[project.scripts]
+install-m2-kernel = "m2_kernel.install:main"
+
+[tool.setuptools]
+packages = ["m2_kernel"]
+
+[tool.setuptools.package-data]
+m2_kernel = ["kernel.json", "logo-*.png"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

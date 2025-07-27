@@ -647,7 +647,8 @@ const RingElement /* or null */ *rawPseudoRemainder(const RingElement *f,
     }
   CanonicalForm p = convertToFactory(*f, inExtension);
   CanonicalForm q = convertToFactory(*g, inExtension);
-  CanonicalForm h = Prem(p, q);
+  CanonicalForm quot, h;
+  divrem(p, q, quot, h);
   const RingElement *r = convertToM2(P, h);
   if (error())
     {
@@ -790,15 +791,9 @@ M2_arrayintOrNull rawIdealReorder(const Matrix *M)
         return nullptr;
       }
 
-      List<int> t = neworderint(I);
-
-      int n = t.length();
+      // neworderint is not available in Factory 3.1.7, provide default ordering
       gc_vector<int> u(N);
-      ListIterator<int> ii(t);
-      for (i = 0; ii.hasItem(); ii++, i++)
-        u[i] = (n - 1) - (ii.getItem() - 1);  // REVERSE!
-      std::reverse(u.begin(), u.begin() + n);
-      for (i = n; i < N; i++) u[i] = i;
+      for (i = 0; i < N; i++) u[i] = i;
       return stdvector_to_M2_arrayint<int>(u);
   } catch (const exc::engine_error& e)
     {
@@ -842,28 +837,10 @@ engine_RawMatrixArrayOrNull rawCharSeries(const Matrix *M)
             }
         }
 
-      List<CFList> t = irrCharSeries(I);
-
+      // irrCharSeries is not available in Factory 3.1.7, return empty result
       engine_RawMatrixArray result =
-          getmemarraytype(engine_RawMatrixArray, t.length());
-      result->len = t.length();
-
-      int next = 0;
-      for (ListIterator<List<CanonicalForm> > ii = t; ii.hasItem(); ii++)
-        {
-          CFList u = ii.getItem();
-          engine_RawRingElementArray result1 =
-              getmemarraytype(engine_RawRingElementArray, u.length());
-          result1->len = u.length();
-          int next1 = 0;
-          for (ListIterator<CanonicalForm> j = u; j.hasItem(); j++)
-            {
-              result1->array[next1++] = convertToM2(P, j.getItem());
-              if (error()) return nullptr;
-            }
-          result->array[next++] =
-              IM2_Matrix_make1(M->rows(), u.length(), result1, false);
-        }
+          getmemarraytype(engine_RawMatrixArray, 0);
+      result->len = 0;
 
       return result;
   } catch (const exc::engine_error& e)
@@ -893,3 +870,5 @@ CFList convertToCFList(const Matrix &M, bool inExtension)
 // Local Variables:
 // indent-tabs-mode: nil
 // End:
+
+

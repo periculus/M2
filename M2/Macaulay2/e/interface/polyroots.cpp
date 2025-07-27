@@ -4,7 +4,19 @@
 // mps uses the c++ keyword register, which is no longer allowed in the C++17
 // standard, so we disable it by defining an empty macro.
 #define register
+
+// MPSolve defines isnan/isinf macros that conflict with C++17 std::isnan/std::isinf
+// We need to undefine these before including mps.h to avoid conflicts
+#ifdef isnan
+#undef isnan
+#endif
+#ifdef isinf
+#undef isinf
+#endif
+
+#ifdef HAVE_MPS
 #include <mps/mps.h>
+#endif
 #undef register
 #include <stdlib.h>
 
@@ -20,6 +32,7 @@
 #define abs(x) (((x) < 0) ? -(x) : (x))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 
+#ifdef HAVE_MPS
 engine_RawRingElementArrayOrNull rawRoots(const RingElement *p,
                                           long prec,
                                           int unique)
@@ -160,6 +173,17 @@ engine_RawRingElementArrayOrNull rawRoots(const RingElement *p,
   mps_context_free(s);
   return result;
 }
+
+#else
+// Dummy implementation when MPSolve is not available
+engine_RawRingElementArrayOrNull rawRoots(const RingElement *p,
+                                          long prec,
+                                          int unique)
+{
+  ERROR("MPSolve not available");
+  return nullptr;
+}
+#endif
 
 // Local Variables:
 // compile-command: "make -C $M2BUILDDIR/Macaulay2/e  "

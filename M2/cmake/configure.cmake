@@ -180,8 +180,21 @@ message("\n## Staging area prefixes
 #  - gcc -march=native -Q --help=target
 #  - gcc -march=native -E - -###
 if(BUILD_NATIVE)
-  add_compile_options(-march=native)
-  add_link_options(-march=native)
+  if(CMAKE_C_COMPILER_ID STREQUAL AppleClang)
+    # Apple clang doesn't support -march=native, use -mcpu for Apple Silicon
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+      add_compile_options(-mcpu=apple-m2)
+      add_link_options(-mcpu=apple-m2)
+    else()
+      # For x86_64 on macOS, use -march=x86-64
+      add_compile_options(-march=x86-64)
+      add_link_options(-march=x86-64)
+    endif()
+  else()
+    # GCC and other compilers support -march=native
+    add_compile_options(-march=native)
+    add_link_options(-march=native)
+  endif()
 else()
   # TODO
 endif()

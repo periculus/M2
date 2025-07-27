@@ -1,0 +1,1098 @@
+"""
+Macaulay2 process management for the Jupyter kernel.
+
+This module handles starting, communicating with, and managing M2 processes.
+"""
+
+import os
+import re
+import subprocess
+import threading
+import time
+import signal
+from queue import Queue, Empty
+from typing import Optional, Tuple, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class M2ProcessError(Exception):
+    """Exception raised when M2 process encounters an error."""
+    pass
+
+
+class M2TimeoutError(Exception):
+    """Exception raised when M2 execution times out."""
+    pass
+
+
+class M2Process:
+    """
+    Manages a Macaulay2 process for kernel communication.
+    
+    Features:
+    - Robust process management with automatic restart
+    - Configurable timeouts with magic command support
+    - LaTeX output capture
+    - Error detection and formatting
+    - Thread-safe execution
+    """
+    
+    def __init__(self, m2_command: Optional[str] = None, default_timeout: float = 30.0, 
+                 progress_callback: Optional[callable] = None, kernel=None):
+        """
+        Initialize M2 process manager.
+        
+        Args:
+            m2_command: Path to M2 executable (default: "M2")
+            default_timeout: Default execution timeout in seconds
+            progress_callback: Optional callback for progress updates
+            kernel: Reference to the kernel for settings
+        """
+        self.m2_command = m2_command or self._find_m2_executable()
+        self.default_timeout = default_timeout
+        self.current_timeout = default_timeout
+        self.progress_callback = progress_callback
+        self.kernel = kernel
+        
+        self.process: Optional[subprocess.Popen] = None
+        self.output_queue: Queue = Queue()
+        self.error_queue: Queue = Queue()
+        self.output_thread: Optional[threading.Thread] = None
+        self.error_thread: Optional[threading.Thread] = None
+        
+        self._lock = threading.Lock()
+        self._execution_counter = 0
+        self._logging_enabled = True  # Logging enabled by default
+        
+        # Progress indicator settings
+        self._progress_mode = 'off'  # 'off', 'line', 'cell'
+        self._progress_level = 1     # Verbosity level 1-3
+        self._cell_progress_mode = False
+        
+        # Initialize process
+        self.start_process()
+    
+    def _find_m2_executable(self) -> str:
+        """Find M2 executable in PATH or common locations."""
+        # Check PATH first
+        if subprocess.run(["which", "M2"], capture_output=True).returncode == 0:
+            return "M2"
+        
+        # Check common locations
+        common_paths = [
+            "/usr/local/bin/M2",
+            "/opt/homebrew/bin/M2",
+            "/usr/bin/M2",
+        ]
+        
+        for path in common_paths:
+            if os.path.exists(path):
+                return path
+        
+        # Check if we're in the M2 development environment
+        build_m2 = "BUILD/cmake/usr-dist/arm64-Darwin-macOS-15.5/bin/M2"
+        if os.path.exists(build_m2):
+            return os.path.abspath(build_m2)
+        
+        raise M2ProcessError("Could not find M2 executable. Please ensure Macaulay2 is installed.")
+    
+    def start_process(self) -> None:
+        """Start the M2 process with appropriate flags."""
+        with self._lock:
+            if self.process and self.process.poll() is None:
+                return  # Process already running
+            
+            # Create log files for M2 stdout/stderr
+            import os
+            import datetime
+            log_dir = os.path.expanduser("~/.m2_kernel_logs")
+            os.makedirs(log_dir, exist_ok=True)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            self.m2_stdout_log = os.path.join(log_dir, f"m2_stdout_{timestamp}.log")
+            self.m2_stderr_log = os.path.join(log_dir, f"m2_stderr_{timestamp}.log")
+            
+            cmd = [
+                self.m2_command,
+                "--webapp",
+                "--no-prompts",
+                "--no-randomize",
+                "--no-readline",
+                "--no-tty"
+            ]
+            
+            logger.info(f"Starting M2 process: {' '.join(cmd)}")
+            logger.info(f"M2 stdout log: {self.m2_stdout_log}")
+            logger.info(f"M2 stderr log: {self.m2_stderr_log}")
+            
+            try:
+                self.process = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=0,
+                    preexec_fn=os.setsid  # Create new process group
+                )
+                
+                # Start output capture threads
+                self._start_output_threads()
+                
+                # Send initialization commands
+                self._initialize_session()
+                
+                logger.info(f"M2 process started with PID {self.process.pid}")
+                
+            except Exception as e:
+                raise M2ProcessError(f"Failed to start M2 process: {e}")
+    
+    def _start_output_threads(self) -> None:
+        """Start threads to capture stdout and stderr."""
+        def read_stdout():
+            # Only open log file if logging is enabled
+            log_file = open(self.m2_stdout_log, 'a') if self._logging_enabled and hasattr(self, 'm2_stdout_log') else None
+            try:
+                while self.process and self.process.poll() is None:
+                    try:
+                        line = self.process.stdout.readline()
+                        if line:
+                            # Write to log file if enabled
+                            if log_file:
+                                log_file.write(line)
+                                log_file.flush()
+                            self.output_queue.put(('stdout', line))
+                            # Log M2 errors immediately
+                            if 'error' in line.lower() or 'terminated' in line.lower():
+                                logger.warning(f"M2 output error: {line.strip()}")
+                    except Exception as e:
+                        logger.error(f"Error reading stdout: {e}")
+                        if log_file:
+                            log_file.write(f"\n[ERROR reading stdout: {e}]\n")
+                        break
+                # Log when thread exits
+                exit_code = self.process.poll() if self.process else "None"
+                logger.info(f"stdout reader thread exiting, M2 exit code: {exit_code}")
+                if log_file:
+                    log_file.write(f"\n[M2 process exited with code: {exit_code}]\n")
+            finally:
+                if log_file:
+                    log_file.close()
+        
+        def read_stderr():
+            # Only open log file if logging is enabled
+            log_file = open(self.m2_stderr_log, 'a') if self._logging_enabled and hasattr(self, 'm2_stderr_log') else None
+            try:
+                while self.process and self.process.poll() is None:
+                    try:
+                        line = self.process.stderr.readline()
+                        if line:
+                            # Write to log file if enabled
+                            if log_file:
+                                log_file.write(line)
+                                log_file.flush()
+                            self.error_queue.put(('stderr', line))
+                            # Log all stderr immediately
+                            logger.warning(f"M2 stderr: {line.strip()}")
+                    except Exception as e:
+                        logger.error(f"Error reading stderr: {e}")
+                        if log_file:
+                            log_file.write(f"\n[ERROR reading stderr: {e}]\n")
+                        break
+                # Log when thread exits
+                exit_code = self.process.poll() if self.process else "None"
+                logger.info(f"stderr reader thread exiting, M2 exit code: {exit_code}")
+                if log_file:
+                    log_file.write(f"\n[M2 process exited with code: {exit_code}]\n")
+            finally:
+                if log_file:
+                    log_file.close()
+        
+        self.output_thread = threading.Thread(target=read_stdout, daemon=True)
+        self.error_thread = threading.Thread(target=read_stderr, daemon=True)
+        
+        self.output_thread.start()
+        self.error_thread.start()
+    
+    def _initialize_session(self) -> None:
+        """Send initialization commands to M2."""
+        init_commands = [
+            '-- Jupyter kernel initialization',
+            'printWidth = 80;',
+            'debugLevel = 1;',  # Enable debug output for progress tracking
+            'gbTrace = 1;',     # Enable Gröbner basis progress output
+            'resTrace = 1;',    # Enable resolution progress output  
+            ''  # Empty line to complete initialization
+        ]
+        
+        logger.info("Initializing M2 session with settings:")
+        for cmd in init_commands:
+            if cmd:
+                logger.info(f"  {cmd}")
+        
+        for cmd in init_commands:
+            self._send_raw(cmd)
+        
+        # Clear any initialization output
+        time.sleep(0.1)
+        self._clear_output_queues()
+    
+    def _send_raw(self, code: str) -> None:
+        """Send raw code to M2 process."""
+        if not self.process or self.process.poll() is not None:
+            exit_code = self.process.poll() if self.process else "None"
+            logger.error(f"M2 process not running! Exit code: {exit_code}")
+            raise M2ProcessError(f"M2 process is not running (exit code: {exit_code})")
+        
+        try:
+            logger.info(f"[SEND TO M2] {code[:200]}")
+            # Also log to stdout file
+            if hasattr(self, 'm2_stdout_log'):
+                with open(self.m2_stdout_log, 'a') as f:
+                    f.write(f"\n[INPUT] {code}\n")
+                    f.flush()
+            
+            self.process.stdin.write(code + '\n')
+            self.process.stdin.flush()
+            logger.debug("Successfully sent to M2")
+        except BrokenPipeError as e:
+            exit_code = self.process.poll()
+            logger.error(f"BrokenPipeError: M2 died with exit code {exit_code}")
+            raise M2ProcessError(f"M2 process terminated (exit code: {exit_code})")
+    
+    def _clear_output_queues(self) -> None:
+        """Clear output queues."""
+        while not self.output_queue.empty():
+            try:
+                self.output_queue.get_nowait()
+            except Empty:
+                break
+        
+        while not self.error_queue.empty():
+            try:
+                self.error_queue.get_nowait()
+            except Empty:
+                break
+    
+    def execute(self, code: str, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """
+        Execute M2 code and return results with HTML/LaTeX output from webapp mode.
+        
+        Args:
+            code: M2 code to execute
+            timeout: Execution timeout (uses current_timeout if None)
+            
+        Returns:
+            Dictionary with 'text', 'html', 'latex', 'error', and 'success' keys
+        """
+        with self._lock:
+            effective_timeout = timeout or self.current_timeout
+            
+            # Handle magic commands
+            if code.strip().startswith('%'):
+                return self._handle_magic_command(code.strip())
+            
+            # Check if process is running
+            if not self.process or self.process.poll() is not None:
+                self.start_process()
+            
+            self._execution_counter += 1
+            execution_id = self._execution_counter
+            
+            logger.debug(f"Executing #{execution_id}: {code[:50]}...")
+            
+            # Check if progress indicators are enabled and modify code accordingly
+            modified_code = code
+            progress_info = None
+            
+            if self._progress_mode != 'off':
+                # Add verbosity to supported operations
+                modified_code, progress_info = self._add_progress_verbosity(code, self._progress_level)
+                
+                # Reset line magic mode after use (cell magic persists)
+                if self._progress_mode == 'line':
+                    self._progress_mode = 'off'
+            
+            try:
+                logger.debug(f"Sending code to M2 with timeout {effective_timeout}s: {modified_code[:50]}...")
+                result = self._execute_with_timeout(modified_code, effective_timeout, execution_id)
+                
+                # Add progress information to result if available
+                if progress_info:
+                    result['progress_info'] = progress_info
+                
+                # Parse webapp HTML output if execution was successful
+                if result['success'] and result['text'].strip():
+                    parsed_output = self._parse_webapp_output(result['text'])
+                    result.update(parsed_output)
+                
+                return result
+                
+            except M2TimeoutError:
+                logger.warning(f"Execution #{execution_id} timed out after {effective_timeout}s")
+                self._handle_timeout()
+                return {
+                    'text': f"Execution timed out after {effective_timeout} seconds",
+                    'html': '',
+                    'latex': '',
+                    'error': f"TimeoutError: Execution exceeded {effective_timeout} seconds",
+                    'success': False
+                }
+            
+            except Exception as e:
+                logger.error(f"Execution #{execution_id} failed: {e}")
+                return {
+                    'text': '',
+                    'html': '',
+                    'latex': '',
+                    'error': str(e),
+                    'success': False
+                }
+    
+    def _execute_with_timeout(self, code: str, timeout: float, execution_id: int) -> Dict[str, Any]:
+        """Execute code with timeout handling."""
+        # Clear output queues
+        self._clear_output_queues()
+        
+        # Add execution marker
+        marker = f"-- EXECUTION_START_{execution_id}"
+        end_marker = f"-- EXECUTION_END_{execution_id}"
+        
+        # Send code with markers
+        logger.debug(f"Sending marker: {marker}")
+        self._send_raw(marker)
+        logger.debug(f"Sending code: {code}")
+        self._send_raw(code)
+        logger.debug(f"Sending end marker: {end_marker}")
+        self._send_raw(end_marker)
+        
+        # Collect output until end marker or timeout
+        start_time = time.time()
+        output_lines = []
+        error_lines = []
+        found_start = False
+        found_end = False
+        
+        while time.time() - start_time < timeout and not found_end:
+            # Check stdout
+            try:
+                source, line = self.output_queue.get(timeout=0.1)
+                if marker in line:
+                    found_start = True
+                    continue
+                elif end_marker in line:
+                    found_end = True
+                    break
+                elif found_start:
+                    output_lines.append(line.rstrip())
+                    # Call progress callback if available
+                    if self.progress_callback:
+                        self.progress_callback(line.rstrip())
+            except Empty:
+                pass
+            
+            # Check stderr
+            try:
+                source, line = self.error_queue.get(timeout=0.1)
+                if found_start and not found_end:
+                    error_lines.append(line.rstrip())
+            except Empty:
+                pass
+            
+            # Check if process died
+            if self.process.poll() is not None:
+                exit_code = self.process.poll()
+                logger.error(f"M2 process died with exit code: {exit_code}")
+                logger.error(f"Last output lines: {output_lines[-10:]}")
+                logger.error(f"Last error lines: {error_lines[-10:]}")
+                
+                # Log to file as well
+                if hasattr(self, 'm2_stdout_log'):
+                    with open(self.m2_stdout_log, 'a') as f:
+                        f.write(f"\n[CRASH] M2 died with exit code {exit_code}\n")
+                        f.write(f"Last output: {output_lines[-10:]}\n")
+                    with open(self.m2_stderr_log, 'a') as f:
+                        f.write(f"\n[CRASH] M2 died with exit code {exit_code}\n")
+                        f.write(f"Last errors: {error_lines[-10:]}\n")
+                
+                raise M2ProcessError(f"M2 process terminated unexpectedly with code {exit_code}")
+        
+        if not found_end:
+            raise M2TimeoutError(f"Execution timed out after {timeout} seconds")
+        
+        # Process results
+        output_text = '\n'.join(output_lines).strip()
+        error_text = '\n'.join(error_lines).strip()
+        
+        # Filter out comment lines and progress messages from output text
+        if output_text:
+            output_text = self._filter_output_comments(output_text)
+        
+        # Filter out informational messages from stderr that aren't actual errors
+        if error_text:
+            error_text = self._filter_stderr_info(error_text)
+        
+        success = not error_text and not self._contains_error(output_text)
+        
+        return {
+            'text': output_text,
+            'latex': '',
+            'error': error_text if error_text else (output_text if not success else ''),
+            'success': success
+        }
+    
+    def _parse_webapp_output(self, webapp_output: str) -> Dict[str, str]:
+        """Parse M2 webapp mode HTML output using control character delimiters."""
+        result = {'html': '', 'latex': '', 'output_var': ''}
+        
+        try:
+            import html
+            
+            # Clean control characters except M2's structural ones
+            # Keep \x0e, \x11, \x12, \x15 which are M2's delimiters
+            cleaned_output = re.sub(r'[\x00-\x0d\x0f-\x10\x13-\x14\x16-\x1f\x7f]', '', webapp_output)
+            
+            # 1. Remove input line numbers (i1, i2, etc.) - these are not output variables  
+            cleaned_output = re.sub(r'\x0ei\d+\x12[^:]*:', '', cleaned_output)
+            
+            # 2. Remove input echoes (everything between \x15...\x12)
+            cleaned_output = re.sub(r'\x15\d+:\d+\x12[^\x0e]*?(?=\x0e|$)', '', cleaned_output)
+            
+            # 3. Find ALL output variables (o1, o2, etc.) and their content
+            output_patterns = list(re.finditer(r'\x0e(o\d+)\x12\s*=\s*\x11(.*?)\x12', cleaned_output, re.DOTALL))
+            type_patterns = list(re.finditer(r'\x0eo\d+\x12\s*:\s*\x11(.*?)\x12', cleaned_output, re.DOTALL))
+            
+            # 4. Extract LaTeX content from $...$ delimiters
+            latex_matches = re.findall(r'\$([^$]+)\$', cleaned_output)
+            if latex_matches:
+                latex_content = '\\quad '.join(latex_matches)
+                latex_content = html.unescape(latex_content)
+                result['latex'] = latex_content.strip()
+            
+            # 5. Extract context (comments, progress) - everything outside delimited sections
+            context = cleaned_output
+            context = re.sub(r'\x0eo\d+\x12\s*=\s*\x11.*?\x12', '', context)
+            context = re.sub(r'\x0eo\d+\x12\s*:\s*\x11.*?\x12', '', context)
+            context = re.sub(r'[\x0e\x11\x12\x15]', '', context)
+            context = re.sub(r'\n\s*\n+', '\n', context)
+            context = context.strip()
+            
+            # 6. Build HTML output for ALL output variables
+            html_parts = []
+            
+            # Add context as a subtle header (if present and meaningful)
+            if context and context != '--' and not context.isspace():
+                html_parts.append(f'<div class="m2-context">{html.escape(context)}</div>')
+            
+            # Process each output variable
+            for i, output_match in enumerate(output_patterns):
+                output_var = output_match.group(1)
+                output_content_raw = output_match.group(2).strip()
+                
+                # Set the first output variable as the main one for LaTeX extraction
+                if i == 0:
+                    result['output_var'] = output_var
+                
+                # Process the output content
+                has_latex = '$' in output_content_raw
+                
+                if has_latex:
+                    # For LaTeX content, clean HTML but keep math
+                    output_content = re.sub(r'<span[^>]*>', '', output_content_raw)
+                    output_content = re.sub(r'</span>', '', output_content)
+                    output_content = re.sub(r'<samp[^>]*>', '', output_content)
+                    output_content = re.sub(r'</samp>', '', output_content)
+                    output_content = html.unescape(output_content)
+                else:
+                    # For non-LaTeX content, handle special cases
+                    output_content = re.sub(r'<[^>]*>', '', output_content_raw)
+                    output_content = html.unescape(output_content)
+                    
+                    # Handle constructs like GroebnerBasis[...] where GroebnerBasis is tt and [...] is sans-serif
+                    if re.match(r'^[A-Za-z]+\[.*\]$', output_content.strip()):
+                        # Extract the type name and the bracketed content
+                        match = re.match(r'^([A-Za-z]+)(\[.*\])$', output_content.strip())
+                        if match:
+                            type_name = match.group(1)
+                            bracket_content = match.group(2)
+                            output_content = f'<code class="m2-nonmath">{html.escape(type_name)}</code> <span class="m2-description">{html.escape(bracket_content)}</span>'
+                        else:
+                            output_content = f'<code class="m2-nonmath">{html.escape(output_content)}</code>'
+                    else:
+                        # Default to typewriter font for other non-math content
+                        output_content = f'<code class="m2-nonmath">{html.escape(output_content)}</code>'
+                
+                # Build the main output line: oN = value
+                if output_content:
+                    output_line = f'<span class="m2-output-var" style="font-weight: normal !important;">{output_var}</span><span class="m2-output-punct"> = </span>{output_content}'
+                    html_parts.append(f'<div class="m2-output-line">{output_line}</div>')
+                
+                # Find corresponding type information
+                if i < len(type_patterns):
+                    type_content_raw = type_patterns[i].group(1).strip()
+                    
+                    # Check if type contains math (like "Ideal of R" where R should be math)
+                    if '$' in type_content_raw:
+                        # Keep LaTeX content but clean HTML
+                        type_content = re.sub(r'<span[^>]*>', '', type_content_raw)
+                        type_content = re.sub(r'</span>', '', type_content_raw)
+                        type_content = re.sub(r'<samp[^>]*>', '', type_content_raw)
+                        type_content = re.sub(r'</samp>', '', type_content_raw)
+                        type_content = html.unescape(type_content)
+                    else:
+                        # For non-math types (like PolynomialRing, GroebnerBasis), use monospace
+                        type_content = re.sub(r'<[^>]*>', '', type_content_raw)
+                        type_content = html.unescape(type_content)
+                        type_content = f'<span class="m2-type">{html.escape(type_content)}</span>'
+                    
+                    # Add type line: oN : Type  
+                    type_line = f'<span class="m2-output-var" style="font-weight: normal !important;">{output_var}</span><span class="m2-output-punct"> : </span>{type_content}'
+                    html_parts.append(f'<div class="m2-type-line">{type_line}</div>')
+            
+            if html_parts:
+                result['html'] = f'<div class="m2-output">{"".join(html_parts)}</div>'
+            
+        except Exception as e:
+            logger.debug(f"Failed to parse webapp output: {e}")
+            # Fallback to simple cleaning
+            simple_output = re.sub(r'[\x00-\x1f\x7f]', '', webapp_output)
+            if simple_output.strip():
+                result['html'] = f'<div class="m2-output"><pre>{html.escape(simple_output)}</pre></div>'
+        
+        return result
+    
+    def _filter_output_comments(self, output_text: str) -> str:
+        """Filter out comment lines and progress messages from M2 output."""
+        if not output_text:
+            return output_text
+        
+        # Lines to filter out (comments and progress messages)
+        filter_patterns = [
+            r'^--\s+.*',           # All comment lines starting with --
+            r'.*\[gb\].*',         # Gröbner basis progress messages
+            r'.*number of \(nonminimal\).*',  # Progress counters
+            r'.*This may take several minutes.*',  # Timeout warnings
+            r'.*Running.*should show progress.*',  # Progress headers
+            r'^\s*$',              # Empty lines
+        ]
+        
+        filtered_lines = []
+        for line in output_text.split('\n'):
+            should_filter = False
+            for pattern in filter_patterns:
+                if re.match(pattern, line.strip()):
+                    should_filter = True
+                    break
+            
+            if not should_filter and line.strip():
+                filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines).strip()
+    
+    def _filter_stderr_info(self, stderr_text: str) -> str:
+        """Filter out informational messages from stderr that aren't errors."""
+        if not stderr_text:
+            return stderr_text
+        
+        # Lines that are informational, not errors
+        info_patterns = [
+            r'^--\s+using resolution by homogenization',
+            r'^--\s+resolution Strategy',
+            r'^--\s+\[gb\]',
+            r'^--\s+number of',
+            r'^--\s+\{\d+\}',
+            r'^--\s+$',  # Just "--" on a line
+            r'^\s*$',    # Empty lines
+        ]
+        
+        filtered_lines = []
+        for line in stderr_text.split('\n'):
+            is_info = False
+            for pattern in info_patterns:
+                if re.match(pattern, line.strip()):
+                    is_info = True
+                    break
+            
+            if not is_info and line.strip():
+                filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines).strip()
+    
+    def _contains_error(self, text: str) -> bool:
+        """Check if output contains M2 error messages."""
+        error_patterns = [
+            r'error:',
+            r'Error:',
+            r'ERROR:',
+            r'stdio:\d+:\d+:\s*error',
+            r'warning.*error'
+        ]
+        
+        for pattern in error_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+        
+        return False
+    
+    def _handle_magic_command(self, code: str) -> Dict[str, Any]:
+        """Handle kernel magic commands."""
+        code = code.strip()
+        
+        if code.startswith('%timeout'):
+            return self._handle_timeout_magic(code)
+        elif code.startswith('%help'):
+            return self._handle_help_magic()
+        elif code.startswith('%debug'):
+            return self._handle_debug_magic(code)
+        elif code.startswith('%logging'):
+            return self._handle_logging_magic(code)
+        elif code.startswith('%latex'):
+            return self._handle_latex_magic(code)
+        elif code.startswith('%pi'):
+            return self._handle_progress_magic(code)
+        else:
+            return {
+                'text': f"Unknown magic command: {code}",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': False
+            }
+    
+    def _handle_timeout_magic(self, code: str) -> Dict[str, Any]:
+        """Handle %timeout magic command."""
+        if '=' in code:
+            try:
+                timeout_str = code.split('=')[1].strip()
+                new_timeout = float(timeout_str)
+                
+                if new_timeout <= 0:
+                    raise ValueError("Timeout must be positive")
+                
+                self.current_timeout = new_timeout
+                return {
+                    'text': f"Timeout set to {new_timeout} seconds",
+                    'html': '',
+                    'latex': '',
+                    'error': '',
+                    'success': True
+                }
+            except (ValueError, IndexError) as e:
+                return {
+                    'text': '',
+                    'html': '',
+                    'latex': '',
+                    'error': f"Invalid timeout value: {e}",
+                    'success': False
+                }
+        else:
+            return {
+                'text': f"Current timeout: {self.current_timeout} seconds",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+    
+    def _handle_help_magic(self) -> Dict[str, Any]:
+        """Handle %help magic command."""
+        help_text = """
+Macaulay2 Jupyter Kernel Magic Commands
+======================================
+
+%help              Show this help message
+
+Timeout Management:
+  %timeout=<seconds>   Set execution timeout (e.g., %timeout=600 for 10 minutes)
+  %timeout            Show current timeout setting
+  
+  Examples:
+    %timeout=300      # Set 5-minute timeout
+    %timeout          # Show current timeout
+
+Debug and Logging:
+  %debug on/off       Enable/disable debug mode for kernel
+  %logging on/off     Enable/disable M2 process logging to files
+  
+  Examples:
+    %debug on         # Enable debug logging
+    %logging off      # Disable file logging (cleaner output)
+    
+  Log files are saved to: ~/.m2_kernel_logs/
+
+LaTeX Display:
+  %latex on/off       Enable/disable LaTeX rendering
+  
+  Examples:
+    %latex off        # Use plain text output
+
+Progress Indicators:
+  %pi [level]         Enable progress for next command (line magic)
+  %%pi [level]        Enable progress for entire cell (cell magic)
+  %pi off             Disable progress indicators
+  
+  Levels:
+    1 = Basic progress (steps and completion)
+    2 = Detailed progress (with intermediate results)  
+    3 = Verbose progress (all M2 debug output)
+  
+  Examples:
+    %pi 2             # Enable level 2 progress for next command
+    %%pi 1            # Enable level 1 progress for whole cell
+    %pi off           # Disable progress
+
+Notes:
+- Magic commands must be at the start of a cell
+- Settings persist for the session
+- Use %logging off to reduce disk usage during normal work
+- Default timeout is 300 seconds (5 minutes)
+- Use Jupyter's zoom feature (Ctrl/Cmd +/-) to adjust font sizes
+
+For Macaulay2 help, use: help "topic" or viewHelp "topic"
+        """.strip()
+        
+        return {
+            'text': help_text,
+            'html': '',
+            'latex': '',
+            'error': '',
+            'success': True
+        }
+    
+    def _handle_debug_magic(self, code: str) -> Dict[str, Any]:
+        """Handle %debug magic command."""
+        if 'on' in code.lower():
+            logger.setLevel(logging.DEBUG)
+            return {
+                'text': "Debug mode enabled",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+        elif 'off' in code.lower():
+            logger.setLevel(logging.INFO)
+            return {
+                'text': "Debug mode disabled", 
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+        else:
+            current_level = "enabled" if logger.level == logging.DEBUG else "disabled"
+            return {
+                'text': f"Debug mode is {current_level}",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+    
+    def _handle_logging_magic(self, code: str) -> Dict[str, Any]:
+        """Handle %logging magic command."""
+        if 'on' in code.lower():
+            self._logging_enabled = True
+            return {
+                'text': "M2 logging to files enabled",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+        elif 'off' in code.lower():
+            self._logging_enabled = False
+            return {
+                'text': "M2 logging to files disabled", 
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+        else:
+            current_state = "enabled" if self._logging_enabled else "disabled"
+            return {
+                'text': f"M2 logging is {current_state}",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+    
+    def _handle_latex_magic(self, code: str) -> Dict[str, Any]:
+        """Handle %latex magic command."""
+        if self.kernel is None:
+            return {
+                'text': "LaTeX settings not available (kernel reference missing)",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': False
+            }
+            
+        if 'on' in code.lower():
+            self.kernel.enable_latex = True
+            return {
+                'text': "LaTeX output enabled",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+        elif 'off' in code.lower():
+            self.kernel.enable_latex = False
+            return {
+                'text': "LaTeX output disabled", 
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+        else:
+            current_state = "enabled" if self.kernel.enable_latex else "disabled"
+            return {
+                'text': f"LaTeX output is {current_state}",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+    
+    def _handle_progress_magic(self, code: str) -> Dict[str, Any]:
+        """Handle %pi magic command for progress indicators."""
+        # Check if this is a cell magic (%%pi)
+        if code.startswith('%%pi'):
+            self._cell_progress_mode = True
+            code = code[4:].strip()  # Remove %%pi prefix
+        else:
+            self._cell_progress_mode = False
+            code = code[3:].strip()  # Remove %pi prefix
+        
+        # Parse arguments (e.g., %pi 2, %pi on, %pi off)
+        code = code.strip()
+        
+        if code == '' or code == 'on':
+            # Default to level 1
+            self._progress_level = 1
+            self._progress_mode = 'cell' if self._cell_progress_mode else 'line'
+            mode_str = "cell magic" if self._cell_progress_mode else "line magic"
+            return {
+                'text': f"Progress indicators enabled ({mode_str}, level 1)",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+        elif code == 'off':
+            self._progress_mode = 'off'
+            return {
+                'text': "Progress indicators disabled",
+                'html': '',
+                'latex': '',
+                'error': '',
+                'success': True
+            }
+        elif code.isdigit():
+            level = int(code)
+            if 1 <= level <= 3:
+                self._progress_level = level
+                self._progress_mode = 'cell' if self._cell_progress_mode else 'line'
+                mode_str = "cell magic" if self._cell_progress_mode else "line magic"
+                return {
+                    'text': f"Progress indicators enabled ({mode_str}, level {level})",
+                    'html': '',
+                    'latex': '',
+                    'error': '',
+                    'success': True
+                }
+            else:
+                return {
+                    'text': '',
+                    'html': '',
+                    'latex': '',
+                    'error': "Progress level must be 1, 2, or 3",
+                    'success': False
+                }
+        else:
+            return {
+                'text': '',
+                'html': '',
+                'latex': '',
+                'error': f"Invalid progress command. Use: %pi [1-3|on|off] or %%pi [1-3|on|off]",
+                'success': False
+            }
+    
+    def _add_progress_verbosity(self, code: str, level: int) -> Tuple[str, Dict[str, Any]]:
+        """Add verbosity options to M2 operations that support progress tracking."""
+        import re
+        
+        # Operations that support Verbosity option
+        progress_operations = [
+            (r'\b(gb)\s+(\w+)', 'Gröbner basis computation'),
+            (r'\b(groebnerBasis)\s*\(', 'Gröbner basis computation'),
+            (r'\b(res)\s+(\w+)', 'Resolution computation'),
+            (r'\b(resolution)\s*\(', 'Resolution computation'),
+            (r'\b(decompose)\s+(\w+)', 'Primary decomposition'),
+            (r'\b(minimalPrimes)\s*\(', 'Primary decomposition'),
+            (r'\b(primaryDecomposition)\s*\(', 'Primary decomposition'),
+            (r'\b(syz)\s+(\w+)', 'Syzygy computation'),
+            (r'\b(syzygies)\s*\(', 'Syzygy computation'),
+            (r'\b(hilbertSeries)\s*\(', 'Hilbert function'),
+            (r'\b(hilbertPolynomial)\s*\(', 'Hilbert function'),
+            (r'\b(saturate)\s*\(', 'Ideal operation'),
+            (r'\b(quotient)\s*\(', 'Ideal operation'),
+        ]
+        
+        modified_code = code
+        progress_info = {
+            'level': level,
+            'operations': [],
+            'mode': 'flowing'  # Use flowing progress display
+        }
+        
+        for pattern, operation_name in progress_operations:
+            if re.search(pattern, code, re.IGNORECASE):
+                progress_info['operations'].append(operation_name)
+                
+                # Check if verbosity is already specified
+                if not re.search(r'Verbosity\s*=>', code, re.IGNORECASE):
+                    # Add verbosity based on level
+                    # Level 1: Basic progress (Verbosity => 1)
+                    # Level 2: Detailed progress (Verbosity => 2) 
+                    # Level 3: Verbose progress (Verbosity => 3)
+                    
+                    # Handle different patterns
+                    if r'\s+(\w+)' in pattern:  # Pattern like "gb I" 
+                        # Replace "gb I" with "gb(I, Verbosity => level)"
+                        def add_verbosity_arg(match):
+                            op = match.group(1)
+                            arg = match.group(2)
+                            return f"{op}({arg}, Verbosity => {level})"
+                        modified_code = re.sub(pattern, add_verbosity_arg, modified_code, flags=re.IGNORECASE)
+                    else:  # Pattern like "groebnerBasis("
+                        # Add verbosity as first parameter
+                        def add_verbosity_paren(match):
+                            op = match.group(1)
+                            return f"{op}(Verbosity => {level}, "
+                        modified_code = re.sub(pattern, add_verbosity_paren, modified_code, flags=re.IGNORECASE)
+                    
+                    break  # Only modify the first operation found
+        
+        return modified_code, progress_info
+    
+    def _handle_timeout(self) -> None:
+        """Handle execution timeout by interrupting M2 process."""
+        if self.process and self.process.poll() is None:
+            try:
+                # Send interrupt signal
+                os.killpg(os.getpgid(self.process.pid), signal.SIGINT)
+                
+                # Wait a bit for graceful shutdown
+                time.sleep(1.0)
+                
+                # Force kill if still running
+                if self.process.poll() is None:
+                    os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                
+                logger.info("M2 process terminated due to timeout")
+                
+            except ProcessLookupError:
+                pass  # Process already dead
+            except Exception as e:
+                logger.error(f"Failed to terminate M2 process: {e}")
+        
+        # Restart process for next execution
+        self.start_process()
+    
+    def interrupt(self) -> None:
+        """Interrupt the current M2 computation."""
+        with self._lock:
+            if not self.process or self.process.poll() is not None:
+                logger.info("No M2 process to interrupt")
+                return
+                
+            try:
+                logger.info(f"Interrupting M2 process {self.process.pid}")
+                
+                # Send SIGINT to the process group
+                os.killpg(os.getpgid(self.process.pid), signal.SIGINT)
+                logger.info("Sent SIGINT to M2 process")
+                
+                # Wait for process to respond to interrupt
+                start_time = time.time()
+                while time.time() - start_time < 2.0:  # Wait up to 2 seconds
+                    if self.process.poll() is not None:
+                        logger.info("M2 process terminated after interrupt")
+                        break
+                    time.sleep(0.1)
+                
+                # Clear output queues regardless of whether process died
+                self._clear_output_queues()
+                
+                # If process is still running, it handled interrupt gracefully
+                if self.process.poll() is None:
+                    logger.info("M2 process interrupted and still running")
+                    # Send a newline to get back to prompt
+                    try:
+                        self._send_raw("")
+                    except:
+                        pass
+                else:
+                    # Process died, need to restart it
+                    logger.warning("M2 process died during interrupt, restarting")
+                    self.process = None
+                    self.start_process()
+                        
+            except ProcessLookupError:
+                # Process already dead
+                logger.info("M2 process was already terminated")
+                self.process = None
+                self.start_process()
+            except Exception as e:
+                logger.error(f"Failed to interrupt M2 process: {e}")
+                # Last resort: force kill and restart
+                try:
+                    if self.process and self.process.poll() is None:
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                        self.process.wait(timeout=1.0)
+                except Exception:
+                    pass
+                finally:
+                    self.process = None
+                    self.start_process()
+    
+    def shutdown(self) -> None:
+        """Shutdown the M2 process gracefully."""
+        with self._lock:
+            if self.process and self.process.poll() is None:
+                try:
+                    # Send exit command
+                    self._send_raw("exit")
+                    
+                    # Wait for graceful shutdown
+                    try:
+                        self.process.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        # Force kill
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                        self.process.wait()
+                    
+                    logger.info("M2 process shutdown completed")
+                    
+                except Exception as e:
+                    logger.error(f"Error during M2 shutdown: {e}")
+                finally:
+                    self.process = None
+    
+    def is_alive(self) -> bool:
+        """Check if M2 process is running."""
+        return self.process is not None and self.process.poll() is None
+    
+    def __del__(self):
+        """Cleanup on object destruction."""
+        try:
+            self.shutdown()
+        except:
+            pass

@@ -1,0 +1,97 @@
+{
+    // M2 Development Settings for ARM64 macOS
+    
+    // C/C++ Configuration
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.intelliSenseMode": "macos-clang-arm64",
+    "C_Cpp.default.compilerPath": "/usr/bin/clang++",
+    "C_Cpp.default.cStandard": "c11",
+    "C_Cpp.default.cppStandard": "c++17",
+    
+    // Include paths for M2 and dependencies
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/M2/include",
+        "${workspaceFolder}/M2/Macaulay2/c",
+        "${workspaceFolder}/M2/Macaulay2/d", 
+        "${workspaceFolder}/M2/Macaulay2/e",
+        "${workspaceFolder}/M2/Macaulay2/system",
+        "${workspaceFolder}/BUILD/cmake/include",
+        "${workspaceFolder}/BUILD/cmake/Macaulay2/d",
+        "/opt/homebrew/include",
+        "/opt/homebrew/Cellar/tbb/2022.2.0/include",
+        "/usr/local/include",
+        "/usr/local/include/eigen3"
+    ],
+    
+    // Defines for M2 compilation
+    "C_Cpp.default.defines": [
+        "NDEBUG",
+        "DOM_NDEBUG", 
+        "DSING_NDEBUG"
+    ],
+    
+    // CMake Tools Configuration for ARM64 M2 Development
+    "cmake.sourceDirectory": "${workspaceFolder}/M2",
+    "cmake.buildDirectory": "${workspaceFolder}/BUILD/cmake",
+    "cmake.generator": "Ninja",
+    "cmake.configureArgs": [
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DCMAKE_OSX_ARCHITECTURES=arm64",
+        "-DCMAKE_SYSTEM_PROCESSOR=arm64",
+        "-DCMAKE_PREFIX_PATH=/opt/homebrew/normaliz;/opt/homebrew/givaro;/opt/homebrew",
+        "-DNORMALIZ_INCLUDE_DIR=/opt/homebrew/normaliz/include",
+        "-DNORMALIZ_LIBRARIES=/opt/homebrew/normaliz/lib/libnormaliz.dylib",
+        "-DNORMALIZ_EXECUTABLE=/opt/homebrew/normaliz/bin/normaliz",
+        "-DFACTORY_INCLUDE_DIR=/opt/homebrew/Cellar/singular/4.4.1p2/include",
+        "-DFACTORY_LIBRARIES=/opt/homebrew/Cellar/singular/4.4.1p2/lib/libfactory.dylib",
+        "-DGIVARO_INCLUDE_DIR=/opt/homebrew/givaro/include",
+        "-DGIVARO_LIBRARIES=/opt/homebrew/givaro/lib/libgivaro.dylib",
+        "-DOpenMP_C_FLAGS=-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include",
+        "-DOpenMP_C_LIB_NAMES=omp",
+        "-DOpenMP_CXX_FLAGS=-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include", 
+        "-DOpenMP_CXX_LIB_NAMES=omp",
+        "-DOpenMP_omp_LIBRARY=/opt/homebrew/opt/libomp/lib/libomp.dylib",
+        "-DWITH_OMP=ON",
+        "-DBUILD_NATIVE=ON",
+        "-DCMAKE_EXE_LINKER_FLAGS=-L/opt/homebrew/givaro/lib -lgivaro",
+        "-DCMAKE_SHARED_LINKER_FLAGS=-L/opt/homebrew/givaro/lib -lgivaro",
+        "-DPython3_ROOT_DIR=/opt/homebrew/opt/python@3.13",
+        "-DEigen3_ROOT=/opt/homebrew"
+    ],
+    
+    // File associations
+    "files.associations": {
+        "*.m2": "macaulay2",
+        "*.dd": "d",
+        "*.d": "d"
+    },
+    
+    // Search settings
+    "search.exclude": {
+        "**/BUILD/**": true,
+        "**/build/**": true,
+        "**/.git": true,
+        "**/bugs/**": false
+    },
+    
+    // Terminal settings for M2 development
+    "terminal.integrated.env.osx": {
+        "PATH": "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "CMAKE_PREFIX_PATH": "/opt/homebrew/normaliz:/opt/homebrew/givaro:/opt/homebrew",
+        "M2_BUILD_DIR": "${workspaceFolder}/BUILD/cmake",
+        "M2_BINARY": "${workspaceFolder}/BUILD/cmake/usr-dist/arm64-Darwin-macOS-15.5/bin/M2"
+    },
+    
+    // Editor settings for M2 development
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.rulers": [80, 100],
+    "editor.trimAutoWhitespace": true,
+    
+    // Extension recommendations
+    "extensions.recommendations": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "ms-vscode.makefile-tools"
+    ]
+}
