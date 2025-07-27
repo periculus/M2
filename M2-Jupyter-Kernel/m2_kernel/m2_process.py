@@ -332,6 +332,17 @@ class M2Process:
                         # Always preserve other_output from text filtering
                         if saved_other_output:
                             parsed_output['other_output'] = saved_other_output
+                        
+                        # For webapp mode, use cleaned text if no substantial output was produced
+                        if not parsed_output.get('html') and not parsed_output.get('latex') and not parsed_output.get('output_var'):
+                            # Clean the text of control characters for display
+                            clean_text = re.sub(r'[\x00-\x1f\x7f]', '', result['text']).strip()
+                            # If the cleaned text is just position info + input echo, make it empty
+                            if re.match(r'^\d+:\d+.*$', clean_text):
+                                result['text'] = ''
+                            else:
+                                result['text'] = clean_text
+                        
                         result.update(parsed_output)
                     else:
                         # Standard mode: Don't parse webapp control characters
@@ -501,7 +512,9 @@ class M2Process:
             result = self._process_webapp_segments(parsed_segments)
             
         except Exception as e:
+            import traceback
             logger.debug(f"Failed to parse webapp output: {e}")
+            logger.debug(f"Traceback: {traceback.format_exc()}")
             # Fallback to simple cleaning
             import html
             simple_output = re.sub(r'[\x00-\x1f\x7f]', '', webapp_output)
@@ -623,16 +636,16 @@ class M2Process:
                                     result['output_var'] = output_var
                                 
                                 # Look for Html content that follows
-                                html_content = ""
+                                variable_html = ""
                                 if assignment_segment['tag'] == 'Html':
                                     # The assignment content is in an Html block, look for the actual content after it
                                     if i + 3 < len(segments):
-                                        html_content = segments[i + 3]['content']
+                                        variable_html = segments[i + 3]['content']
                                 
                                 output_variables.append({
                                     'var': output_var,
                                     'assignment': assignment_content,
-                                    'html_content': html_content
+                                    'html_content': variable_html
                                 })
                     
                     # Also check for type information patterns
