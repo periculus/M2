@@ -1,155 +1,96 @@
-# Macaulay2 Jupyter Kernel
+# @m2_jupyter/jupyterlab_m2_codemirror
 
-A modern, robust Jupyter kernel for [Macaulay2](http://macaulay2.com/) with rich LaTeX output, intelligent timeout management, and comprehensive error handling.
+[![Github Actions Status](https://github.com/m2-jupyter/jupyterlab-m2-codemirror/workflows/Build/badge.svg)](https://github.com/m2-jupyter/jupyterlab-m2-codemirror/actions/workflows/build.yml)
+Macaulay2 syntax highlighting for JupyterLab
 
-## Features
+## Requirements
 
-✨ **Rich LaTeX Output**: Native integration with M2's `tex` and `texMath` functions  
-⚡ **Intelligent Timeouts**: Configurable timeouts with magic commands  
-🛠️ **Robust Error Handling**: Clear, formatted error messages and debugging support  
-📦 **Package Management**: Seamless M2 package installation and loading  
-🔍 **Tab Completion**: Context-aware code completion using M2's `apropos` function  
-🎨 **Syntax Highlighting**: Full M2 syntax highlighting with Pygments  
-🎯 **Modern Architecture**: Built on the latest Jupyter kernel protocol  
+- JupyterLab >= 4.0.0
 
-## Installation
+## Install
 
-### Prerequisites
-
-- Python 3.8 or later
-- Macaulay2 installed and accessible in PATH
-- Jupyter Notebook or JupyterLab
-
-### Install from Source
+To install the extension, execute:
 
 ```bash
-git clone https://github.com/Macaulay2/M2-Jupyter-Kernel.git
-cd M2-Jupyter-Kernel
-pip install -e .
-install-m2-kernel --user
+pip install @m2_jupyter/jupyterlab_m2_codemirror
 ```
 
-### Install from PyPI (coming soon)
+## Uninstall
+
+To remove the extension, execute:
 
 ```bash
-pip install macaulay2-jupyter-kernel
-install-m2-kernel --user
+pip uninstall @m2_jupyter/jupyterlab_m2_codemirror
 ```
-
-## Usage
-
-### Starting a Notebook
-
-```bash
-jupyter notebook
-# or
-jupyter lab
-```
-
-Create a new notebook and select "Macaulay2" as the kernel.
-
-### Magic Commands
-
-- `%timeout=30` - Set execution timeout to 30 seconds
-- `%debug on/off` - Enable/disable debug mode
-- `%help` - Show kernel help
-
-### Example Usage
-
-```macaulay2
--- Define a polynomial ring
-R = QQ[x,y,z]
-
--- Create an ideal
-I = ideal(x^2 + y^2 - 1, x*y - z^2)
-
--- Compute a Gröbner basis
-gb I
-
--- Get beautiful LaTeX output automatically
--- The kernel will display both text and rendered mathematics
-```
-
-## Advanced Features
-
-### LaTeX Output
-
-The kernel automatically renders mathematical objects using M2's built-in LaTeX capabilities:
-
-- Matrices display as proper mathematical matrices
-- Ideals show with mathematical notation
-- Polynomials render with proper formatting
-- Complex objects get both text and LaTeX representations
-
-### Syntax Highlighting and Code Completion
-
-The kernel provides rich code editing features:
-
-- **Syntax Highlighting**: Full Macaulay2 syntax highlighting using Pygments
-- **Tab Completion**: Press Tab to get context-aware completions based on M2's `apropos` function
-- **Keywords**: All M2 keywords are recognized and highlighted
-- **Built-in Functions**: Comprehensive support for M2's extensive function library
-
-### Timeout Management
-
-Set timeouts globally or per-execution:
-
-```macaulay2
--- Set a 60-second timeout for long computations
-%timeout=60
-
--- This computation will use the 60-second timeout
-gb ideal(random(3,R), random(3,R), random(3,R))
-```
-
-### Package Development
-
-The kernel seamlessly integrates with M2's package system:
-
-```macaulay2
--- Install a package
-installPackage "Graphs"
-
--- Load and use it
-needsPackage "Graphs"
-G = graph {{1,2},{2,3},{3,4},{4,1}}
-```
-
-## Development
-
-### Running Tests
-
-```bash
-pytest tests/
-```
-
-### Code Formatting
-
-```bash
-black m2_kernel/
-flake8 m2_kernel/
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**Kernel not found**: Run `install-m2-kernel --user` to register the kernel.
-
-**M2 not found**: Ensure Macaulay2 is installed and `M2` is in your PATH.
-
-**Timeout errors**: Increase timeout with `%timeout=60` or adjust default in kernel settings.
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+### Development install
 
-## License
+Note: You will need NodeJS to build the extension package.
 
-This project is licensed under the GPL License - see [LICENSE](LICENSE) for details.
+The `jlpm` command is JupyterLab's pinned version of
+[yarn](https://yarnpkg.com/) that is installed with JupyterLab. You may use
+`yarn` or `npm` in lieu of `jlpm` below.
 
-## Acknowledgments
+```bash
+# Clone the repo to your local environment
+# Change directory to the @m2_jupyter/jupyterlab_m2_codemirror directory
+# Install package in development mode
+pip install -e "."
+# Link your development version of the extension with JupyterLab
+jupyter labextension develop . --overwrite
+# Rebuild extension Typescript source after making changes
+jlpm build
+```
 
-- Built on the excellent [IPykernel](https://github.com/ipython/ipykernel) framework
-- Inspired by [Macaulay2Web](https://github.com/pzinn/Macaulay2Web) and the original [Macaulay2-Jupyter-Kernel](https://github.com/rz-c/Macaulay2-Jupyter-Kernel)
-- Thanks to the Macaulay2 development team for excellent LaTeX output support
+You can watch the source directory and run JupyterLab at the same time in different terminals to watch for changes in the extension's source and automatically rebuild the extension.
+
+```bash
+# Watch the source directory in one terminal, automatically rebuilding when needed
+jlpm watch
+# Run JupyterLab in another terminal
+jupyter lab
+```
+
+With the watch command running, every saved change will immediately be built locally and available in your running JupyterLab. Refresh JupyterLab to load the change in your browser (you may need to wait several seconds for the extension to be rebuilt).
+
+By default, the `jlpm build` command generates the source maps for this extension to make it easier to debug using the browser dev tools. To also generate source maps for the JupyterLab core extensions, you can run the following command:
+
+```bash
+jupyter lab build --minimize=False
+```
+
+### Development uninstall
+
+```bash
+pip uninstall @m2_jupyter/jupyterlab_m2_codemirror
+```
+
+In development mode, you will also need to remove the symlink created by `jupyter labextension develop`
+command. To find its location, you can run `jupyter labextension list` to figure out where the `labextensions`
+folder is located. Then you can remove the symlink named `@m2-jupyter/jupyterlab-m2-codemirror` within that folder.
+
+### Testing the extension
+
+#### Frontend tests
+
+This extension is using [Jest](https://jestjs.io/) for JavaScript code testing.
+
+To execute them, execute:
+
+```sh
+jlpm
+jlpm test
+```
+
+#### Integration tests
+
+This extension uses [Playwright](https://playwright.dev/docs/intro/) for the integration tests (aka user level tests).
+More precisely, the JupyterLab helper [Galata](https://github.com/jupyterlab/jupyterlab/tree/master/galata) is used to handle testing the extension in JupyterLab.
+
+More information are provided within the [ui-tests](./ui-tests/README.md) README.
+
+### Packaging the extension
+
+See [RELEASE](RELEASE.md)

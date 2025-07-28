@@ -36,7 +36,7 @@ class M2Kernel(Kernel):
     language_info = {
         'name': 'macaulay2',
         'codemirror_mode': {
-            'name': 'macaulay2',  # Use custom M2 mode
+            'name': 'macaulay2',  # Now using our custom CodeMirror mode
             'version': 1
         },
         'pygments_lexer': 'macaulay2',  # Use our custom lexer

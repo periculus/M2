@@ -201,13 +201,122 @@ The extension uses language data from:
    - Incremental parsing
    - Caching strategies
 
+## Recent Issues and Debugging (July 2025)
+
+### 6. Keywords and Types Not Highlighting in Live Editor
+
+**Problem**: After successful installation, only partial highlighting works
+- Comments (gray), strings (red), numbers, and some functions (`ideal`) are highlighted
+- Keywords (`if`, `then`, `else`, `for`) show as plain text
+- Types (`QQ`, `ZZ`, `RR`, `CC`, `Ring`) show as plain text
+- HTML exports via Pygments show correct highlighting, but live editor doesn't
+
+**Symptoms**:
+- Extension loads ("JupyterLab M2 CodeMirror extension activated!" in console)
+- Language registration verification message doesn't appear
+- Syntax errors with line endings (`syntax error at 'else'\n`)
+
+**Investigation Steps**:
+1. **Parser File Synchronization**:
+   - Discovered `lib/parser/` files were outdated
+   - Still had generic "Word" tokens instead of specific Keyword/Type/Function tokens
+   - Manually copied updated parser files: `cp src/parser/*.js lib/parser/`
+
+2. **Enhanced Extension Debugging**:
+   ```typescript
+   // Added detailed logging to track registration
+   console.log('Created language support:', languageSupport);
+   console.log('Language support structure:', {
+     'has language': !!languageSupport.language,
+     'has support': !!languageSupport.support,
+     'language name': languageSupport.language?.name
+   });
+   ```
+
+3. **Multiple Language Variants**:
+   - Registered multiple variants: `macaulay2`, `m2`, `Macaulay2`, `M2`
+   - Different kernels might use different identifiers
+   - Added timeout-based verification to check registration
+
+4. **Line Ending Issues**:
+   - User reported syntax errors with `\n` characters
+   - Suggests parser might have CR/LF handling issues
+   - M2 kernel shows errors like: `error: syntax error at 'else'\n`
+
+**Current Status**:
+- Extension loads but language registration might be incomplete
+- Basic highlighting works (comments, strings, numbers)
+- Specific token types (keywords, types) not recognized
+- Verification message doesn't appear in console
+
+### 7. Build System Complexities
+
+**Problem**: Yarn/npm conflicts in build process
+- `jlpm` (JupyterLab's yarn) shows workspace configuration errors
+- Had to use direct commands instead of npm scripts
+
+**Solution**: Use explicit build commands
+```bash
+npx tsc --skipLibCheck --esModuleInterop
+jupyter labextension build --dev-build
+```
+
+### 8. Extension Architecture Insights
+
+**Key Discoveries**:
+1. **Token Definition Location**: Parser tokens must be defined in multiple places:
+   - `src/parser/m2.grammar` - Grammar definition
+   - `src/parser/parser.terms.js` - Token constants
+   - `lib/parser/` - Compiled versions must match
+
+2. **Language Registration**: Must register with exact MIME type matching kernel:
+   - Kernel reports: `mimetype: 'text/x-macaulay2'`
+   - Extension must register same MIME type
+   - CodeMirror mode name must match
+
+3. **Debugging Approach**: Added comprehensive logging:
+   - Language support creation
+   - Registration attempts
+   - Post-registration verification
+   - Widget inspection for active notebooks
+
+## Debugging Checklist
+
+When syntax highlighting doesn't work:
+
+1. **Check Parser Files**:
+   ```bash
+   # Ensure lib matches src
+   diff src/parser/parser.terms.js lib/parser/parser.terms.js
+   ```
+
+2. **Verify Extension Loading**:
+   - Open browser console (F12)
+   - Look for "JupyterLab M2 CodeMirror extension activated!"
+   - Check for any error messages
+
+3. **Test Basic Elements**:
+   - Comments should be gray
+   - Strings should be red
+   - Numbers should be colored
+   - If these work, parser is loading
+
+4. **Check Language Registration**:
+   - Look for "Verified: macaulay2 language is registered"
+   - If missing, registration might have failed
+
+5. **Kernel Configuration**:
+   - Verify kernel shows as "Macaulay2" (not "M2")
+   - Check notebook metadata has correct `codemirror_mode`
+
 ## Success Metrics
 
 ✅ Live syntax highlighting in JupyterLab
-✅ Recognition of M2 keywords, types, and functions
+⚠️  Recognition of M2 keywords, types, and functions (partially working)
 ✅ Proper comment and string handling
 ✅ Integration with M2 kernel
 ✅ Easy installation via pip
+⚠️  Full token recognition (keywords/types need fixing)
 
 ## Key Commands Reference
 
@@ -229,6 +338,17 @@ which jupyter
 jupyter labextension list --verbose
 ```
 
+## Test Files Created
+
+During debugging, several test files were created:
+
+1. **`debug_codemirror.ipynb`** - Test notebook with M2 code samples
+2. **`test_syntax.ipynb`** - Clean test notebook for syntax highlighting
+3. **`SYNTAX_HIGHLIGHTING_DEBUG.md`** - Debug summary and checklist
+4. **`test_fixed_issues.html`** - HTML export showing Pygments works correctly
+
 ## Conclusion
 
-The journey from a failing standard extension to a working federated extension taught valuable lessons about JupyterLab's architecture, CodeMirror 6's capabilities, and the importance of proper development environment setup. The federated extension approach proved to be the key to success, allowing us to bypass webpack configuration limitations and create a fully functional M2 syntax highlighting extension.
+The journey from a failing standard extension to a working federated extension taught valuable lessons about JupyterLab's architecture, CodeMirror 6's capabilities, and the importance of proper development environment setup. The federated extension approach proved to be the key to success, allowing us to bypass webpack configuration limitations and create a functional M2 syntax highlighting extension.
+
+However, as of July 2025, the extension still has issues with recognizing specific token types (keywords and types) in the live editor, despite the parser being correctly configured. The investigation continues to determine why the language registration isn't completing successfully and why the verification messages don't appear in the console.
