@@ -1,67 +1,76 @@
 [build-system]
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.5.0", "jupyterlab>=4.0.0,<5", "hatch-nodejs-version"]
+build-backend = "hatchling.build"
 
 [project]
-name = "macaulay2-jupyter-kernel"
-version = "2.0.0"
-description = "A modern, robust Jupyter kernel for Macaulay2"
-authors = [{name = "M2 Development Team", email = "m2-dev@example.com"}]
-license = {text = "GPL-3.0-or-later"}
+name = "jupyterlab_m2_codemirror"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.8"
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-    "Operating System :: OS Independent",
+    "Framework :: Jupyter",
+    "Framework :: Jupyter :: JupyterLab",
+    "Framework :: Jupyter :: JupyterLab :: 4",
+    "Framework :: Jupyter :: JupyterLab :: Extensions",
+    "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-    "Topic :: Scientific/Engineering :: Mathematics",
-    "Framework :: Jupyter",
 ]
-keywords = ["macaulay2", "jupyter", "kernel", "mathematics", "algebra"]
 dependencies = [
-    "ipykernel>=6.25.0,<7.0.0",
-    "jupyter-client>=8.0.0,<9.0.0", 
-    "traitlets>=5.0.0",
-    "pexpect>=4.8.0",
-    "pygments>=2.13.0",  # For syntax highlighting
 ]
+dynamic = ["version", "description", "authors", "urls", "keywords"]
 
-[project.optional-dependencies]
-dev = ["pytest", "black", "flake8", "mypy", "jupyter"]
-test = ["pytest", "pytest-cov"]
+[tool.hatch.version]
+source = "nodejs"
 
-[project.urls]
-Homepage = "https://github.com/Macaulay2/M2-Jupyter-Kernel"
-Repository = "https://github.com/Macaulay2/M2-Jupyter-Kernel.git"
-Documentation = "https://github.com/Macaulay2/M2-Jupyter-Kernel#readme"
-"Bug Tracker" = "https://github.com/Macaulay2/M2-Jupyter-Kernel/issues"
+[tool.hatch.metadata.hooks.nodejs]
+fields = ["description", "authors", "urls"]
 
-[project.scripts]
-install-m2-kernel = "m2_kernel.install:main"
+[tool.hatch.build.targets.sdist]
+artifacts = ["@m2_jupyter/jupyterlab_m2_codemirror/labextension"]
+exclude = [".github", "binder"]
 
-[tool.setuptools]
-packages = ["m2_kernel"]
+[tool.hatch.build.targets.wheel.shared-data]
+"@m2_jupyter/jupyterlab_m2_codemirror/labextension" = "share/jupyter/labextensions/@m2-jupyter/jupyterlab-m2-codemirror"
+"install.json" = "share/jupyter/labextensions/@m2-jupyter/jupyterlab-m2-codemirror/install.json"
 
-[tool.setuptools.package-data]
-m2_kernel = ["kernel.json", "logo-*.png"]
+[tool.hatch.build.hooks.version]
+path = "@m2_jupyter/jupyterlab_m2_codemirror/_version.py"
 
-[tool.black]
-line-length = 88
-target-version = ['py38']
+[tool.hatch.build.hooks.jupyter-builder]
+dependencies = ["hatch-jupyter-builder>=0.5"]
+build-function = "hatch_jupyter_builder.npm_builder"
+ensured-targets = [
+    "@m2_jupyter/jupyterlab_m2_codemirror/labextension/static/style.js",
+    "@m2_jupyter/jupyterlab_m2_codemirror/labextension/package.json",
+]
+skip-if-exists = ["@m2_jupyter/jupyterlab_m2_codemirror/labextension/static/style.js"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --tb=short"
+[tool.hatch.build.hooks.jupyter-builder.build-kwargs]
+build_cmd = "build:prod"
+npm = ["jlpm"]
 
-[tool.mypy]
-python_version = "3.8"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
+[tool.hatch.build.hooks.jupyter-builder.editable-build-kwargs]
+build_cmd = "install:extension"
+npm = ["jlpm"]
+source_dir = "src"
+build_dir = "@m2_jupyter/jupyterlab_m2_codemirror/labextension"
+
+[tool.jupyter-releaser.options]
+version_cmd = "hatch version"
+
+[tool.jupyter-releaser.hooks]
+before-build-npm = [
+    "python -m pip install 'jupyterlab>=4.0.0,<5'",
+    "jlpm",
+    "jlpm build:prod"
+]
+before-build-python = ["jlpm clean:all"]
+
+[tool.check-wheel-contents]
+ignore = ["W002"]

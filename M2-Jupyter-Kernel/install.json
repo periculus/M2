@@ -1,0 +1,5 @@
+{
+  "packageManager": "python",
+  "packageName": "@m2_jupyter/jupyterlab_m2_codemirror",
+  "uninstallInstructions": "Use your Python package manager (pip, conda, etc.) to uninstall the package @m2_jupyter/jupyterlab_m2_codemirror"
+}

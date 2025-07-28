@@ -1,0 +1,20 @@
+/* M2 CodeMirror extension styles */
+
+/* Add any custom M2 syntax highlighting styles here if needed */
+
+.cm-editor .cm-m2-keyword {
+  color: var(--jp-mirror-editor-keyword-color);
+  font-weight: bold;
+}
+
+.cm-editor .cm-m2-type {
+  color: var(--jp-mirror-editor-def-color);
+}
+
+.cm-editor .cm-m2-function {
+  color: var(--jp-mirror-editor-builtin-color);
+}
+
+.cm-editor .cm-m2-constant {
+  color: var(--jp-mirror-editor-number-color);
+}
