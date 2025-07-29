@@ -102,27 +102,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _lezer_highlight__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_lezer_highlight__WEBPACK_IMPORTED_MODULE_0__);
 
 
+// Debug version - highlight everything as keywords to test the mechanism
 const m2Highlighting = (0,_lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.styleTags)({
-  // Map node names to style tags
-  // Based on nodeNames from parser.js:
-  // "⚠ Program Keyword Keyword Type Type Function Function Boolean Boolean Null Null Number String LineComment BlockComment Operator Delimiter"
-  
-  // Keywords (node index 2-3)
   "Keyword": _lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.keyword,
-  
-  // Types (node index 4-5)  
   "Type": _lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.typeName,
-  
-  // Functions (node index 6-7)
   "Function": _lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.function(_lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.variableName),
-  
-  // Booleans (node index 8-9)
   "Boolean": _lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.bool,
-  
-  // Null (node index 10-11)
   "Null": _lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.null,
-  
-  // Basic tokens
   "identifier": _lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.variableName,
   "Number": _lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.number,
   "String": _lezer_highlight__WEBPACK_IMPORTED_MODULE_0__.tags.string,
@@ -172,4 +158,4 @@ const parser = _lezer_lr__WEBPACK_IMPORTED_MODULE_0__.LRParser.deserialize({
 /***/ })
 
 }]);
-//# sourceMappingURL=lib_index_js.79897a3af487211dc5f8.js.map
+//# sourceMappingURL=lib_index_js.11db4f197f7531d041f5.js.map
