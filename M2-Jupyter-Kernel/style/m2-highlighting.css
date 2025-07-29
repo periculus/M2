@@ -14,7 +14,8 @@
 
 /* Functions - Using JupyterLab CSS variables */
 .cm-functionName,
-.cm-function {
+.cm-function,
+.cm-variableName.cm-function {
   color: var(--jp-mirror-editor-builtin-color, #800080) !important;
 }
 
@@ -66,16 +67,4 @@
   color: var(--jp-mirror-editor-punctuation-color, var(--jp-content-font-color1)) !important;
 }
 
-/* Debug: Add borders to see what's being styled */
-.jp-CodeMirrorEditor .cm-keyword {
-  border-bottom: 1px dashed blue;
-}
-
-.jp-CodeMirrorEditor .cm-typeName {
-  border-bottom: 1px dashed teal;
-}
-
-.jp-CodeMirrorEditor .cm-functionName,
-.jp-CodeMirrorEditor .cm-function {
-  border-bottom: 1px dashed purple;
-}
+/* Debug borders removed - styles are working */

@@ -1,0 +1,186 @@
+@precedence {
+  call,
+  member,
+  unary,
+  exp @right,
+  times @left,
+  plus @left,
+  shift @left,
+  rel @left,
+  equal @left,
+  and @left,
+  or @left,
+  assign @right,
+  comma @left
+}
+
+@top Program { statement* }
+
+statement {
+  expression |
+  Comment
+}
+
+Comment {
+  LineComment |
+  BlockComment
+}
+
+expression {
+  Number |
+  String |
+  Boolean |
+  Null |
+  Identifier |
+  BinaryExpression |
+  UnaryExpression |
+  ParenthesizedExpression |
+  ArrayExpression
+}
+
+Identifier {
+  word
+}
+
+BinaryExpression {
+  expression !exp "^" expression |
+  expression !times (divide | times) expression |
+  expression !plus (plus | minus) expression |
+  expression !shift ("<<" | ">>") expression |
+  expression !rel (lt | gt | leq | geq) expression |
+  expression !equal (eq | neq | "===" | "=!=") expression |
+  expression !and "and" expression |
+  expression !or "or" expression |
+  expression !assign (assign | ":=") expression |
+  expression !comma comma expression
+}
+
+UnaryExpression {
+  !unary (minus | "not") expression
+}
+
+ParenthesizedExpression {
+  "(" expression ")"
+}
+
+ArrayExpression {
+  "[" commaSep<expression> "]" |
+  "{" commaSep<expression> "}"
+}
+
+Boolean {
+  @specialize[@name=Boolean]<word, "true" | "false">
+}
+
+Null {
+  @specialize[@name=Null]<word, "null">
+}
+
+commaSep<content> {
+  (content (comma content)*)?
+}
+
+kw<term> { @specialize[@name={term}]<word, term> }
+
+Keyword {
+  kw<"if"> | kw<"then"> | kw<"else"> | kw<"when"> | kw<"do"> | kw<"while"> | 
+  kw<"for"> | kw<"from"> | kw<"to"> | kw<"in"> | kw<"break"> | kw<"continue"> | 
+  kw<"return"> | kw<"try"> | kw<"catch"> | kw<"throw"> | kw<"local"> | 
+  kw<"global"> | kw<"export"> | kw<"exportMutable"> | kw<"protect"> | 
+  kw<"private"> | kw<"package"> | kw<"use"> | kw<"new"> | kw<"method">
+}
+
+Type {
+  @specialize[@name=Type]<word,
+    "ZZ" | "QQ" | "RR" | "CC" | "Ring" | "Ideal" | "Module" | "Matrix" |
+    "ChainComplex" | "PolynomialRing" | "QuotientRing" |
+    "List" | "Array" | "HashTable" | "String" | "Symbol" |
+    "Boolean" | "Thing" | "Nothing" | "MutableList" | "MutableHashTable"
+  >
+}
+
+Function {
+  @specialize[@name=Function]<word,
+    "gb" | "res" | "ideal" | "matrix" | "ring" | "map" | "ker" | "coker" | "image" |
+    "decompose" | "primaryDecomposition" | "saturate" | "quotient" |
+    "hilbertFunction" | "hilbertPolynomial" | "hilbertSeries" |
+    "betti" | "regularity" | "codim" | "dim" | "degree" | "genus" |
+    "source" | "target" | "transpose" | "det" | "rank" | "trace" |
+    "factor" | "gcd" | "lcm" | "mod" | "divmod" |
+    "toString" | "print" | "error" | "assert" | "time" | "elapsedTime"
+  >
+}
+
+@context trackNewline from "./tokens.js"
+
+@external tokens operatorToken from "./tokens.js" {
+  "and",
+  "or",
+  "not"
+}
+
+@tokens {
+  word { $[a-zA-Z_$] $[a-zA-Z0-9_$]* }
+
+  Number { 
+    $[0-9]+ ("." $[0-9]+)? |
+    "." $[0-9]+
+  }
+  
+  String { 
+    '"' (!["\\] | "\\" _)* '"'
+  }
+  
+  LineComment { "--" ![\n]* }
+  
+  BlockComment { "-*" blockCommentRest }
+  
+  blockCommentRest {
+    ![*] blockCommentRest |
+    "*" blockCommentAfterStar
+  }
+  
+  blockCommentAfterStar {
+    blockCommentRest |
+    "*" blockCommentAfterStar |
+    "-"
+  }
+  
+  space { ($[ \t\n\r] | "\\" $[\n\r])+ }
+  
+  "(" ")" "[" "]" "{" "}" 
+  
+  "^"
+  
+  divide[@name=ArithOp] { "/" | "//" | "%" }
+  times[@name=ArithOp] { "*" }
+  plus[@name=ArithOp] { "+" }
+  minus[@name=ArithOp] { "-" }
+  
+  lt[@name=CompareOp] { "<" }
+  gt[@name=CompareOp] { ">" }
+  leq[@name=CompareOp] { "<=" }
+  geq[@name=CompareOp] { ">=" }
+  
+  "<<" ">>"
+  
+  eq[@name=CompareOp] { "==" }
+  neq[@name=CompareOp] { "!=" }
+  "===" "=!="
+  
+  assign[@name=AssignOp] { "=" }
+  ":="
+  
+  comma { "," }
+  ";" ":" "." ".." "@@" "#" "&" "_" "->" "=>"
+  
+  @precedence { BlockComment, divide }
+  @precedence { LineComment, minus }
+  @precedence { Number, "." }
+}
+
+@skip { space }
+
+@external propSource m2Highlight from "./highlight"
+
+@detectDelim

@@ -1,0 +1,105 @@
+@top Program { statement* }
+
+statement {
+  Keyword |
+  Type |
+  Function |
+  Boolean |
+  Null |
+  identifier |
+  Number |
+  String |
+  LineComment |
+  BlockComment |
+  Operator |
+  Delimiter
+}
+
+@skip { space }
+
+Keyword {
+  @specialize[@name=Keyword]<identifier, 
+    "if" | "then" | "else" | "when" | "do" | "while" | "for" | "from" | "to" | "in" |
+    "break" | "continue" | "return" | "try" | "catch" | "throw" |
+    "local" | "global" | "export" | "exportMutable" | "protect" | "private" | "package" | "use" |
+    "and" | "or" | "not" | "xor" |
+    "new" | "method"
+  >
+}
+
+Type {
+  @specialize[@name=Type]<identifier, 
+    "ZZ" | "QQ" | "RR" | "CC" |
+    "Ring" | "Ideal" | "Module" | "Matrix" |
+    "ChainComplex" | "PolynomialRing" | "QuotientRing" |
+    "List" | "Array" | "HashTable" | "String" | "Symbol" |
+    "Boolean" | "Thing" | "Nothing" | "MutableList" | "MutableHashTable"
+  >
+}
+
+Function {
+  @specialize[@name=Function]<identifier, 
+    "gb" | "res" | "ideal" | "matrix" | "ring" | "map" | "ker" | "coker" | "image" |
+    "decompose" | "primaryDecomposition" | "saturate" | "quotient" |
+    "hilbertFunction" | "hilbertPolynomial" | "hilbertSeries" |
+    "betti" | "regularity" | "codim" | "dim" | "degree" | "genus" |
+    "source" | "target" | "transpose" | "det" | "rank" | "trace" |
+    "factor" | "gcd" | "lcm" | "mod" | "divmod" |
+    "toString" | "print" | "error" | "assert" | "time" | "elapsedTime"
+  >
+}
+
+Boolean {
+  @specialize[@name=Boolean]<identifier, "true" | "false">
+}
+
+Null {
+  @specialize[@name=Null]<identifier, "null">
+}
+
+@tokens {
+  space { @whitespace+ }
+  
+  identifier { @asciiLetter (@asciiLetter | @digit | "_")* }
+  
+  Number {
+    @digit+ ("." @digit+)? |
+    "." @digit+
+  }
+  
+  String {
+    '"' (!["\\] | "\\" _)* '"'
+  }
+  
+  LineComment { "--" ![\n]* }
+  
+  BlockComment { "-*" blockCommentRest }
+  
+  blockCommentRest {
+    ![*] blockCommentRest |
+    "*" blockCommentAfterStar
+  }
+  
+  blockCommentAfterStar {
+    "-" |
+    "*" blockCommentAfterStar |
+    ![*\-] blockCommentRest
+  }
+  
+  Operator {
+    "+" | "-" | "*" | "/" | "^" | "%" | "//" | "<<" | ">>" |
+    "==" | "!=" | "<" | ">" | "<=" | ">=" | "===" | "=!=" |
+    "=" | ":=" | "->" | "=>" | ".." | "@@" | "#" | "&" | "_"
+  }
+  
+  Delimiter {
+    "(" | ")" | "[" | "]" | "{" | "}" | "," | ";" | ":" | "."
+  }
+  
+  
+  @precedence { 
+    LineComment, BlockComment, Number, String, Operator, Delimiter, identifier
+  }
+}
+
+@external propSource m2Highlighting from "./highlight.js"

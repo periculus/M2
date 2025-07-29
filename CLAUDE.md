@@ -205,3 +205,5 @@ Libraries are managed via CMake's `ExternalProject` with consistent compiler fla
 - I use fish, please have all shell instruction fish compatible
 - to memorize
 - Lets remember this todo list
+- lets not use claude references in github comments, we will attribute properly in a different way, there are many more that need attribution
+- Do not mention claude in commit messages, this will be attributed elsewhere

@@ -1,48 +1,31 @@
 import {styleTags, tags as t} from "@lezer/highlight"
 
 export const m2Highlighting = styleTags({
-  // Keywords
-  "if then else when do while for from to by in break continue return try catch finally new": t.controlKeyword,
-  "and or not xor": t.operatorKeyword,
-  "class method function symbol protect export threadVariable global local": t.definitionKeyword,
+  // Map node names to style tags
+  // Based on nodeNames from parser.js:
+  // "⚠ Program Keyword Keyword Type Type Function Function Boolean Boolean Null Null Number String LineComment BlockComment Operator Delimiter"
   
-  // The nested structure for our specialized nodes
-  "Keyword/Keyword": t.keyword,
+  // Keywords (node index 2-3)
   "Keyword": t.keyword,
   
-  // Types  
-  "Type/Type": t.typeName,
+  // Types (node index 4-5)  
   "Type": t.typeName,
-  "ZZ QQ RR CC Ring Ideal Matrix Module List Array String": t.typeName,
   
-  // Functions
-  "Function/Function": t.function(t.variableName),
+  // Functions (node index 6-7)
   "Function": t.function(t.variableName),
   
-  // Constants
-  "Boolean/Boolean": t.bool,
+  // Booleans (node index 8-9)
   "Boolean": t.bool,
-  "true false": t.bool,
   
-  "Null/Null": t.null,
+  // Null (node index 10-11)
   "Null": t.null,
-  "null": t.null,
   
   // Basic tokens
-  identifier: t.variableName,
-  VariableName: t.variableName,
-  Number: t.number,
-  String: t.string,
-  LineComment: t.lineComment,
-  BlockComment: t.blockComment,
-  
-  // Operators and punctuation
-  Operator: t.operator,
-  "= := => -> << >> ++ ** ^ .. ... | || & && == != < > <= >= + - * / // % \\\\": t.operator,
-  
-  Delimiter: t.punctuation,
-  "( ) [ ] { } , ; :": t.punctuation,
-  
-  // Special
-  "$ #": t.meta
+  "identifier": t.variableName,
+  "Number": t.number,
+  "String": t.string,
+  "LineComment": t.lineComment,
+  "BlockComment": t.blockComment,
+  "Operator": t.operator,
+  "Delimiter": t.punctuation
 })

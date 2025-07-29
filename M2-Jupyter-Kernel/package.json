@@ -58,9 +58,10 @@
     "watch:labextension": "jupyter labextension watch ."
   },
   "dependencies": {
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.10.0",
     "@jupyterlab/application": "^4.0.0",
     "@jupyterlab/codemirror": "^4.0.0",
-    "@codemirror/language": "^6.10.0",
     "@lezer/highlight": "^1.2.0",
     "@lezer/lr": "^1.4.0"
   },

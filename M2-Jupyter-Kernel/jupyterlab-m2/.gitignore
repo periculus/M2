@@ -1,0 +1,15 @@
+*.bundle.*
+lib/
+node_modules/
+*.log
+.eslintcache
+.stylelintcache
+jupyterlab_m2/labextension
+dist
+coverage
+**/*.egg-info
+__pycache__
+
+# Integration tests
+ui-tests/test-results/
+ui-tests/playwright-report/

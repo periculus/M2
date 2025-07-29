@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Minimal M2 Parser Test</title>
+  <style>
+    .cm-keyword { color: blue; font-weight: bold; }
+    .cm-typeName { color: teal; }
+    .cm-functionName { color: purple; }
+  </style>
+</head>
+<body>
+  <h1>Minimal M2 Parser Test</h1>
+  <div id="editor"></div>
+  
+  <script type="module">
+    // Inline the parser directly to test
+    import {EditorView, basicSetup} from "https://codemirror.net/try/mods/@codemirror-view.js";
+    import {LanguageSupport, LRLanguage} from "https://codemirror.net/try/mods/@codemirror-language.js";
+    import {styleTags, tags as t} from "https://codemirror.net/try/mods/@lezer-highlight.js";
+    // Use the built parser from lib directory
+    import {parser as m2Parser} from "./lib/parser/parser.js";
+    
+    // Create language
+    const m2Language = LRLanguage.define({
+      parser: m2Parser.configure({
+        props: [
+          styleTags({
+            "Keyword/Keyword": t.keyword,
+            "Keyword": t.keyword,
+            "Type/Type": t.typeName,
+            "Type": t.typeName,
+            "Function/Function": t.function(t.name),
+            "Function": t.function(t.name),
+            "Boolean/Boolean": t.bool,
+            "Boolean": t.bool,
+            "Null/Null": t.null,
+            "Null": t.null,
+            identifier: t.variableName,
+            Number: t.number,
+            String: t.string,
+            LineComment: t.lineComment,
+            BlockComment: t.blockComment,
+            Operator: t.operator,
+            Delimiter: t.punctuation,
+          })
+        ]
+      })
+    });
+    
+    const m2Support = new LanguageSupport(m2Language);
+    
+    // Test code
+    const code = `-- Keywords should be blue
+if true then print "hello"
+
+-- Types should be teal  
+R = QQ[x,y,z]
+T = Ring
+
+-- Functions should be purple
+I = ideal(x^2)
+G = gb I`;
+    
+    // Create editor
+    new EditorView({
+      doc: code,
+      extensions: [basicSetup, m2Support],
+      parent: document.getElementById('editor')
+    });
+    
+    console.log('Editor created with M2 support');
+  </script>
+</body>
+</html>

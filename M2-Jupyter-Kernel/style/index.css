@@ -3,18 +3,19 @@
 /* Import additional highlighting styles */
 @import './m2-highlighting.css';
 
-/* Standard CodeMirror token classes */
-.jp-CodeMirrorEditor .cm-keyword {
+/* Standard CodeMirror token classes - simplified selectors for JupyterLab 4 */
+.cm-keyword {
   color: var(--jp-mirror-editor-keyword-color, #0000ff) !important;
   font-weight: bold !important;
 }
 
-.jp-CodeMirrorEditor .cm-typeName {
+.cm-typeName {
   color: var(--jp-mirror-editor-def-color, #008080) !important;
   font-weight: 500 !important;
 }
 
-.jp-CodeMirrorEditor .cm-functionName {
+.cm-functionName,
+.cm-variableName.cm-function {
   color: var(--jp-mirror-editor-builtin-color, #800080) !important;
 }
 
@@ -28,7 +29,8 @@
   color: var(--jp-mirror-editor-def-color);
 }
 
-.cm-editor .cm-m2-function {
+.cm-editor .cm-m2-function,
+.cm-editor .cm-variableName.cm-function {
   color: var(--jp-mirror-editor-builtin-color);
 }
 

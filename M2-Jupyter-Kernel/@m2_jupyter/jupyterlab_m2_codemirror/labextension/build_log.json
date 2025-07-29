@@ -703,6 +703,7 @@
               "import": false,
               "singleton": true
             },
+            "@codemirror/lang-python": {},
             "@lezer/lr": {},
             "@m2-jupyter/jupyterlab-m2-codemirror": {
               "version": "0.1.0",

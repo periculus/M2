@@ -1,0 +1,146 @@
+@top Program { item* }
+
+item {
+  statement | 
+  LineComment |
+  BlockComment
+}
+
+statement {
+  expression (";" | "\n")?
+}
+
+expression {
+  Atom |
+  BinaryExpression |
+  UnaryExpression |
+  ParenExpression |
+  ArrayExpression
+}
+
+Atom {
+  identifier |
+  keyword |
+  type |
+  functionName |
+  Boolean |
+  Null |
+  Number |
+  String
+}
+
+ParenExpression {
+  "(" expression ")"
+}
+
+ArrayExpression {
+  "[" commaSep<expression> "]" |
+  "{" commaSep<expression> "}"
+}
+
+commaSep<content> {
+  (content ("," content)*)?
+}
+
+BinaryExpression {
+  expression !binary binOp expression
+}
+
+UnaryExpression {
+  unOp expression
+}
+
+binOp[@name=Operator] {
+  ArithOp { "+" | "-" | "*" | "/" | "^" | "%" | "//" } |
+  CompareOp { "==" | "!=" | "<" | ">" | "<=" | ">=" | "===" | "=!=" } |
+  AssignOp { "=" | ":=" } |
+  ArrowOp { "->" | "=>" } |
+  OtherOp { ".." | "@@" | "#" | "&" | "<<" | ">>" | "_" }
+}
+
+unOp[@name=Operator] {
+  "-" | "not"
+}
+
+// Keywords as nodes
+keyword {
+  @specialize[@name=Keyword]<identifier, 
+    "if" | "then" | "else" | "when" | "do" | "while" | "for" | "from" | "to" | "in" |
+    "break" | "continue" | "return" | "try" | "catch" | "throw" |
+    "local" | "global" | "export" | "exportMutable" | "protect" | "private" | "package" | "use" |
+    "and" | "or" | "not" | "xor" | "new" | "method"
+  >
+}
+
+// Types as nodes
+type {
+  @specialize[@name=Type]<identifier,
+    "ZZ" | "QQ" | "RR" | "CC" |
+    "Ring" | "Ideal" | "Module" | "Matrix" |
+    "ChainComplex" | "PolynomialRing" | "QuotientRing" |
+    "List" | "Array" | "HashTable" | "String" | "Symbol" |
+    "Boolean" | "Thing" | "Nothing" | "MutableList" | "MutableHashTable"
+  >
+}
+
+// Functions as nodes
+functionName {
+  @specialize[@name=Function]<identifier,
+    "gb" | "res" | "ideal" | "matrix" | "ring" | "map" | "ker" | "coker" | "image" |
+    "decompose" | "primaryDecomposition" | "saturate" | "quotient" |
+    "hilbertFunction" | "hilbertPolynomial" | "hilbertSeries" |
+    "betti" | "regularity" | "codim" | "dim" | "degree" | "genus" |
+    "source" | "target" | "transpose" | "det" | "rank" | "trace" |
+    "factor" | "gcd" | "lcm" | "mod" | "divmod" |
+    "toString" | "print" | "error" | "assert" | "time" | "elapsedTime"
+  >
+}
+
+Boolean {
+  @specialize[@name=Boolean]<identifier, "true" | "false">
+}
+
+Null {
+  @specialize[@name=Null]<identifier, "null">
+}
+
+@skip { space }
+
+@tokens {
+  identifier { $[a-zA-Z_] $[a-zA-Z0-9_]* }
+  
+  Number { 
+    $[0-9]+ ("." $[0-9]+)? |
+    "." $[0-9]+
+  }
+  
+  String { 
+    '"' (!["\\] | "\\" _)* '"'
+  }
+  
+  LineComment { "--" ![\n]* }
+  
+  BlockComment { "-*" blockCommentRest }
+  
+  blockCommentRest {
+    ![*] blockCommentRest |
+    "*" blockCommentAfterStar
+  }
+  
+  blockCommentAfterStar {
+    "-" |
+    "*" blockCommentAfterStar |
+    ![*\-] blockCommentRest
+  }
+  
+  space { $[ \t\n\r]+ }
+  
+  "(" ")" "[" "]" "{" "}" "," ";" ":"
+  "+" "-" "*" "/" "^" "%" "//"
+  "=" ":=" "==" "!=" "<" ">" "<=" ">=" "===" "=!="
+  "->" "=>" ".." "@@" "#" "&" "<<" ">>" "_" "."
+}
+
+@precedence {
+  binary @left
+}

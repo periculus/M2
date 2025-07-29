@@ -30,12 +30,12 @@ We've conducted extensive testing of the M2 syntax highlighting system with auto
    - Autocomplete works with Tab completion
    - Kernel properly configured with language_info
 
-### ❌ What's Not Working
+### ⚠️ Partially Working
 
 1. **Live Syntax Highlighting in JupyterLab**
-   - Keywords, types, and functions are not highlighted while typing
-   - Only basic tokens (strings, comments, numbers) get highlighted
-   - CodeMirror extension loads but parser tokens don't map to styles
+   - ✅ Keywords, types, functions, booleans, numbers, strings, comments ARE highlighted
+   - ❌ Plain identifiers (variable names) are NOT highlighted due to parser limitation
+   - ✅ CodeMirror extension loads and applies styles to recognized tokens
 
 ### 🔍 Deep Investigation Results (2025-07-29)
 
@@ -46,21 +46,31 @@ We've conducted extensive testing of the M2 syntax highlighting system with auto
    - ✅ Listed in `jupyter labextension list`
 
 2. **Parser Analysis**
-   - ✅ Parser correctly identifies tokens (verified with unit tests)
+   - ✅ Parser correctly identifies known tokens (keywords, types, functions)
    - ✅ Grammar uses `@external propSource` pattern
-   - ❌ Style tags not applied to parsed tokens
-   - ❌ Token-to-style mapping fails
+   - ✅ Style tags correctly applied to parsed tokens
+   - ❌ Parser has no fallback for generic identifiers
+   - ❌ Variables like `R`, `x`, `I` are completely skipped by parser
 
 3. **Test Framework Created**
    - Playwright browser automation for screenshot capture
-   - Parser unit tests showing correct token identification
-   - DOM inspection revealing missing CSS classes
+   - Parser unit tests revealing identifier parsing failure
+   - DOM inspection showing CSS classes applied to recognized tokens
    - Console monitoring for debugging
 
 4. **Python Parser Experiment**
-   - Attempted to replace M2 parser with Python parser
-   - Goal: Verify infrastructure works with known-good parser
-   - Result: Build succeeded but old extension cached
+   - ✅ Replaced M2 parser with Python parser as test
+   - ✅ Python syntax highlighting worked PERFECTLY
+   - ✅ Proved infrastructure is correct, issue is M2 parser-specific
+   - Key insight: User noticed Python highlighting in test screenshot!
+
+### 🎯 Root Cause Identified
+
+The M2 parser grammar uses `@specialize` rules that consume all identifiers. If an identifier doesn't match a known keyword, type, or function, it's discarded instead of being parsed as a generic variable name. The parser has these node types:
+
+- Program, Keyword, Type, Function, Boolean, Null, Number, String, LineComment, BlockComment, Operator, Delimiter
+
+But NO generic "identifier" node type for variables.
 
 ### How JupyterLab Syntax Highlighting Works
 
