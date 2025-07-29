@@ -1,7 +1,24 @@
 /* M2 CodeMirror extension styles */
 
-/* Add any custom M2 syntax highlighting styles here if needed */
+/* Import additional highlighting styles */
+@import './m2-highlighting.css';
 
+/* Standard CodeMirror token classes */
+.jp-CodeMirrorEditor .cm-keyword {
+  color: var(--jp-mirror-editor-keyword-color, #0000ff) !important;
+  font-weight: bold !important;
+}
+
+.jp-CodeMirrorEditor .cm-typeName {
+  color: var(--jp-mirror-editor-def-color, #008080) !important;
+  font-weight: 500 !important;
+}
+
+.jp-CodeMirrorEditor .cm-functionName {
+  color: var(--jp-mirror-editor-builtin-color, #800080) !important;
+}
+
+/* Legacy M2-specific classes (kept for compatibility) */
 .cm-editor .cm-m2-keyword {
   color: var(--jp-mirror-editor-keyword-color);
   font-weight: bold;

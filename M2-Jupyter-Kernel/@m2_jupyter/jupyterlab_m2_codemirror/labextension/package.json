@@ -102,7 +102,7 @@
     "extension": true,
     "outputDir": "@m2_jupyter/jupyterlab_m2_codemirror/labextension",
     "_build": {
-      "load": "static/remoteEntry.135799ce332a61232ece.js",
+      "load": "static/remoteEntry.181f3ef14ca7de52274d.js",
       "extension": "./extension",
       "style": "./style"
     }
