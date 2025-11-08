@@ -469,7 +469,7 @@ doc ///
 			products of disks and circles: $$\mathcal{Z_K} = \bigcup_{\sigma \in K}
 			\left( (D^2)^\sigma \times (S^1)^{[m] \setminus \sigma} \right).$$ These
 			spaces admit a natural action of the torus $T^m = (S^1)^m$. Non-singular
-			toric varities (not necessarily complete) are homotopy equivalent to
+			toric varieties (not necessarily complete) are homotopy equivalent to
 			partial quotients of moment-angle complexes by freely acting subtori of
 			$T^m$. Thus, moment-angle complexes are an important class of spaces
 			studied in Toric Topology. Their topological properties can be determined
@@ -587,7 +587,7 @@ doc ///
 	Description
 		Text
 			Compute the equivariant cohomology of a moment-angle complex over the
-			polynomial ring k[x_1, ..., x_m] where k is the coeffcient ring of the
+			polynomial ring k[x_1, ..., x_m] where k is the coefficient ring of the
 			polynomial ring over which the underlying simplicial complex was
 			created.
 		Text
