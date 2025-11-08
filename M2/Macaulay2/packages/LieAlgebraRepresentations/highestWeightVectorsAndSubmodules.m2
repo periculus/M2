@@ -444,12 +444,12 @@ VInWedgekW(LieAlgebraRepresentation,ZZ,LieAlgebraRepresentation,Matrix) := o -> 
 
 
 
-csOnDeg2PureTensor = memoize((cas1,cas2,XftensorXstarg,XftensorXstarg,m) -> (
-    (cas1+cas2)*m + sum apply(#XftensorXstarg, i -> (XftensorXstarg_i)(m) + (XftensorXstarg_i)(m))
+csOnDeg2PureTensor = memoize((cas1,cas2,XftensorXstarg,XstarftensorXg,m) -> (
+    (cas1+cas2)*m + sum apply(#XftensorXstarg, i -> (XftensorXstarg_i)(m) + (XstarftensorXg_i)(m))
 ));
 
-csOnDeg2Tensor = (cas1,cas2,XftensorXstarg,XftensorXstarg,f) -> (
-    sum apply(terms f, t -> leadCoefficient(t)*csOnDeg2PureTensor(cas1,cas2,XftensorXstarg,XftensorXstarg,leadMonomial(t)))
+csOnDeg2Tensor = (cas1,cas2,XftensorXstarg,XstarftensorXg,f) -> (
+    sum apply(terms f, t -> leadCoefficient(t)*csOnDeg2PureTensor(cas1,cas2,XftensorXstarg,XstarftensorXg,leadMonomial(t)))
 );
 
 
@@ -508,7 +508,7 @@ weightNuHighestWeightVectorsInVtensorW(List,LieAlgebraRepresentation,LieAlgebraR
 	print concatenate("    j=",toString(j),":") << endl;
         f = WtnuTensorBasis_j;
         for c in otherEVs do (
-            f = scale(csOnDeg2Tensor(cas1,cas2,XftensorXstarg,XftensorXstarg,f)-c*f);
+            f = scale(csOnDeg2Tensor(cas1,cas2,XftensorXstarg,XstarftensorXg,f)-c*f);
 	    if f==0 then break;
             print concatenate("        EV ",toString(c)," complete") << endl;
         );
