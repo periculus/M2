@@ -21,12 +21,12 @@
 
 newPackage(
 	"ToricTopology",
-    	Version => "1.0", 
+    	Version => "1.0",
     	Date => "September 1, 2015",
     	Authors => {
     		{Name => "Alvise Trevisan", Email => "a.trevisan@enpicom.com", HomePage => "http://www.enpicom.com"},
     		{Name => "Alexander I. Suciu", Email => "a.suciu@neu.edu"}
-		},  
+		},
         Keywords => {"Toric Geometry"},
      	PackageImports => { "OldChainComplexes", "SimplicialComplexes" },
     	Headline => "toric topology"
@@ -35,16 +35,18 @@ newPackage(
 protect QTMSimplicialComplex
 protect QTMCharacteristicMatrix
 protect QTMDimension
-		
-export{
-	"SmallCover", "QuasiToricManifold",
+protect MACSimplicialComplex
+
+export {
+	"SmallCover", "QuasiToricManifold", "MomentAngleComplex",
 	"isValidChar",
-	"smallCover", "quasiToricManifold",
-	"cohomologyRing",
+	"smallCover", "quasiToricManifold", "momentAngleComplex",
+	"cohomologyRing", "equivariantCohomology",
 	"chern", "stiefelWhitney",
-	"bettiSmallCover", "bettiQTM",
+	"bettiSmallCover", "bettiQTM", "bettiMAC",
 	"realProjectiveSpace", "hessenbergVariety", "complexProjectiveSpace",
-	"QTMSimplicialComplex", "QTMCharacteristicMatrix", "QTMDimension"
+	"QTMSimplicialComplex", "QTMCharacteristicMatrix", "QTMDimension",
+	"eulerMAC"
 }
 
 -- type definitions --
@@ -52,38 +54,47 @@ SmallCover = new Type of HashTable
 SmallCover.synonym = "small cover"
 QuasiToricManifold = new Type of HashTable
 QuasiToricManifold.synonym = "quasi-toric manifold"
+MomentAngleComplex = new Type of HashTable
+MomentAngleComplex.synonym = "moment-angle complex"
 
 -- constructors --
 -- note: if not mod 2, first reduce
 smallCover = method(TypicalValue => SmallCover)
-smallCover(SimplicialComplex,Matrix) := SmallCover => (sc,chi) -> (
-	chimod2 := sub(chi,ZZ/2);
-	if not isValidChar(sc,chi) then error "expected characteristic matrix";
+smallCover(SimplicialComplex,Matrix) := SmallCover => (sc,lambda) -> (
+	lambdamod2 := sub(lambda,ZZ/2);
+	if not isValidChar(sc,lambda) then error "expected characteristic matrix";
 	new SmallCover from {
 		QTMSimplicialComplex => sc,
-		QTMCharacteristicMatrix => chimod2,
-		QTMDimension => rank( target (chi) )
+		QTMCharacteristicMatrix => lambdamod2,
+		QTMDimension => rank( target (lambda) )
 	}
-) 
+)
 
 quasiToricManifold = method(TypicalValue => QuasiToricManifold)
-quasiToricManifold(SimplicialComplex,Matrix) := QuasiToricManifold => (sc,chi) -> (
-	if not isValidChar(sc,chi) then error "expected characteristic matrix";
-	new QuasiToricManifold from { 
-		QTMSimplicialComplex => sc, 
-		QTMCharacteristicMatrix => chi,
-		QTMDimension => 2*rank( target (chi) )
+quasiToricManifold(SimplicialComplex,Matrix) := QuasiToricManifold => (sc,lambda) -> (
+	if not isValidChar(sc,lambda) then error "expected characteristic matrix";
+	new QuasiToricManifold from {
+		QTMSimplicialComplex => sc,
+		QTMCharacteristicMatrix => lambda,
+		QTMDimension => 2*rank( target (lambda) )
 	}
-) 
-	 
+)
+
+momentAngleComplex = method(TypicalValue => MomentAngleComplex)
+momentAngleComplex(SimplicialComplex) := MomentAngleComplex => (sc) -> (
+	R := newRing(sc.ring, Degrees=>{#vertices sc:2});
+	new MomentAngleComplex from {
+		MACSimplicialComplex => substitute(sc, R)
+	}
+)
 
 -- methods --
 
--- check whether a matrix is characteristic for a given simplicial complex 
+-- check whether a matrix is characteristic for a given simplicial complex
 isValidChar = method(TypicalValue=>Boolean);
-isValidChar(SimplicialComplex,Matrix) := Boolean => (sc,chi) -> (
+isValidChar(SimplicialComplex,Matrix) := Boolean => (sc,lambda) -> (
 	flag := true;
-	mins := listMinors(sc,chi);
+	mins := listMinors(sc,lambda);
 	for i in mins do if (i!=1 and i!=-1) then flag=false;
 	flag
 )
@@ -92,26 +103,26 @@ cohomologyRing = method(TypicalValue=>QuotientRing,Options=>true)
 -- cohomology ring over the integers mod 2 of a small cover
 cohomologyRing(SmallCover) := QuotientRing => {CoefficientRing=>ZZ/2} >> opts -> (N) -> (
 	if not opts.CoefficientRing===ZZ/2 then error "Expected ZZ/2 as coefficient ring";
-	sc := N.QTMSimplicialComplex; 
-	chi := N.QTMCharacteristicMatrix;
+	sc := N.QTMSimplicialComplex;
+	lambda := N.QTMCharacteristicMatrix;
 	S := (opts.CoefficientRing)[(entries(vars(ring sc)))_0];
 	newgens:={};
 	scan( (entries(gens(ideal sc)))_0, i->newgens=append(newgens,sub(i,S)) );
 	I := ideal( newgens );
-	J := ideal ((vars S)*(transpose chi));
+	J := ideal ((vars S)*(transpose lambda));
 	S/(I+J)
 )
 
 -- cohomology ring over the integers of a quasi-toric manifold
 cohomologyRing(QuasiToricManifold) := QuotientRing =>  {CoefficientRing=>ZZ} >> opts -> (M) -> (
 	sc := M.QTMSimplicialComplex;
-	chi := M.QTMCharacteristicMatrix;
+	lambda := M.QTMCharacteristicMatrix;
 	C := opts.CoefficientRing;
 	S := C[(entries(vars(ring sc)))_0];
 	newgens:={};
 	scan( (entries(gens(ideal sc)))_0, i->newgens=append(newgens,sub(i,S)) );
 	I := ideal( newgens );
-	J := ideal ((vars S)*(transpose chi));
+	J := ideal ((vars S)*(transpose lambda));
 	S/(I+J)
 )
 
@@ -143,11 +154,11 @@ bettiSmallCover = method()
 -- k-th betti number of a small cover
 bettiSmallCover(ZZ,SmallCover) := ZZ => (k,N) -> (
 	sc := N.QTMSimplicialComplex;
-	chi := N.QTMCharacteristicMatrix;
-	n := numgens(target(chi));
+	lambda := N.QTMCharacteristicMatrix;
+	n := numgens(target(lambda));
 	ind := drop( subsets(toList(1..n)), 1);
 	cclist := {};
-	scan(ind, I-> cclist=append(cclist,chainComplex(subComplex(sc,supportChi(chi,I) ) ) ) );
+	scan(ind, I-> cclist=append(cclist,chainComplex(subComplex(sc,supportChi(lambda,I) ) ) ) );
 	b := 0;
 	scan(cclist, cc -> b = b + rank( HH_(k-1)( cc) ) );
 	b
@@ -165,7 +176,7 @@ bettiQTM = method()
 bettiQTM(ZZ,QuasiToricManifold) := ZZ => (k, M) -> (
 	if ((k < 0) or (k > M.QTMDimension) or (k % 2 == 1)) then (
 		0
-	) 
+	)
 	else (
 		coho := cohomologyRing M;
 		(((coefficients numerator reduceHilbert hilbertSeries coho)_1)_0)_(sub(k/2,ZZ))
@@ -174,7 +185,7 @@ bettiQTM(ZZ,QuasiToricManifold) := ZZ => (k, M) -> (
 
 -- all the betti numbers up to 2n of an 2n-dimensional quasi-toric manifold
 bettiQTM(QuasiToricManifold) := List => (M) -> (
-	b := {};
+	b := {1};
 	for i in 1..(M.QTMDimension) do b = append(b, bettiQTM(i, M));
 	b
 )
@@ -191,7 +202,7 @@ realProjectiveSpace(ZZ) := SmallCover => (n) -> (
 hessenbergVariety = method(TypicalValue=>SmallCover)
 -- Hessenberg variety associated to the (dual of the) n-dimensional permutahedron
 hessenbergVariety(ZZ) := SmallCover => (n) -> (
-    smallCover(permutahedronDual(n),chiHessenberg(n))
+    smallCover(permutahedronDual(n),lambdaHessenberg(n))
 )
 
 
@@ -217,44 +228,44 @@ projectiveSpace = (n, base) -> (
 	(K,I|ones)
 )
 
-listMinors = (sc,chi) -> (
+listMinors = (sc,lambda) -> (
 	listminors:={};
 	for mon in facets(sc) do (
-		listminors=append(listminors,determinant(submatrix(chi,indices(mon))));
+		listminors=append(listminors,determinant(submatrix(lambda,indices(mon))));
 	);
 	listminors
 )
 
 subComplex = (sc, V) -> (
             varlist := (entries(vars(ring sc)))_0;
-            mV := sub(varlist_(V_0-1),ring sc); 
+            mV := sub(varlist_(V_0-1),ring sc);
 			scan(drop(V,1),i->mV=mV*sub(varlist_(i-1),ring(sc)));
 			candidates := {};
 			for k in (0..(length V)) do (
 				candidates = join(candidates, faces(k,sc));
-			);       
-			k:=0;    
-			lis := {};         
+			);
+			k:=0;
+			lis := {};
             while k!= length(candidates) do (
 	        	if (denominator(sub(mV, ring sc)/(candidates_k)))==1 then (
 	            	lis=append(lis,candidates_k);
                    	candidates=drop(candidates,{k,k});
                    	k=k-1;
-            	); 
+            	);
 	            k=k+1;
 		    );
 	        simplicialComplex(lis)
 );
 
--- given a char matrix chi (n rows, m cols) and a subset I={i_1, .., i_n} of [n]
--- returns the support of chi_I = chi_{i_1} + ... + chi_{i_n} 	  
-supportChi = (chi, I) -> (
+-- given a char matrix lambda (n rows, m cols) and a subset I={i_1, .., i_n} of [n]
+-- returns the support of lambda_I = lambda_{i_1} + ... + lambda_{i_n}
+supportChi = (lambda, I) -> (
                 cI := {};
-                m := numgens(source(chi));
-                n := numgens(target(chi));
+                m := numgens(source(lambda));
+                n := numgens(target(lambda));
                 for i in (1..m) do cI=append(cI,0);
-                scan( I, i-> cI = entries((transpose chi)_(i-1)) + cI );
-                fincI := {};                 
+                scan( I, i-> cI = entries((transpose lambda)_(i-1)) + cI );
+                fincI := {};
                 scan(cI, i -> fincI = append(fincI,sub(sub(i,ZZ/2),ZZ))) ;
                 supp:={};
                 j:=1;
@@ -272,47 +283,47 @@ simplicialIntToMon = (sc) -> (
 			  for i in (1..p) do e=append(e,0);
 			  lis := {};
 			  for i in (0..length(sc)-1) do (
-			  		lis = append(lis,new MutableList from e); 
+			  		lis = append(lis,new MutableList from e);
 			  		for j in sc#i do (
-			  				lis#i#(j-1)=1; 
-			  				); 
+			  				lis#i#(j-1)=1;
+			  				);
 			    	);
 			  lismon := {};
 			  for i in lis do lismon=append(lismon,R_(toList(i)));
 			  simplicialComplex( lismon )
 			  );
-              
+
 -- returns the characteristic matrix for the Hessenberg variety sitting on the dual of the n-dimensional permutahedron
-chiHessenberg = (n) -> (
+lambdaHessenberg = (n) -> (
 	-- finds the char matrix
 	col1s := {};
-	chisimplex := id_((ZZ/2)^n)|(transpose (matrix {apply(n,i->1)} ));
+	lambdasimplex := id_((ZZ/2)^n)|(transpose (matrix {apply(n,i->1)} ));
 	columns := new MutableHashTable;
 	i :=0;
 	for maxl in subsets(n+1,n) do (
-		columns#maxl = chisimplex_{i};
+		columns#maxl = lambdasimplex_{i};
 		i=i+1;
 	);
-	
+
     vertices := drop(drop(subsets(n+1),1),-1);
 	for vert in vertices do (
 		if not member(vert, subsets(n+1,n)) then (
 			supersets := {};
-			scan(subsets(n+1,n), i -> (if (not(i==vert) and isSubset(set(vert),set(i))) then 
+			scan(subsets(n+1,n), i -> (if (not(i==vert) and isSubset(set(vert),set(i))) then
 				supersets= append(supersets,i) ) );
 			col := 0;
-			scan(supersets, i -> col = col+ columns#i);	
+			scan(supersets, i -> col = col+ columns#i);
 			columns#vert = col;
 		);
 	);
-	
+
 	--finally computes the char matrix
-	chi := columns#(vertices#0);
+	lambda := columns#(vertices#0);
 	for i in 1..(length(vertices)-1) do (
-		chi = chi | columns#(vertices#i);
+		lambda = lambda | columns#(vertices#i);
 	);
-	
-    chi
+
+    lambda
 );
 
 permsimplices = (lis) -> (
@@ -336,22 +347,61 @@ permutahedronDual = (n) -> (
 	hashgen := {};
 	for i in 1..length(vertices) do (
 		hashgen = append( hashgen, {vertices#(i-1),i});
-	); 
-	vhash := hashTable(hashgen); 
-    
-	psimplices := {}; 
+	);
+	vhash := hashTable(hashgen);
+
+	psimplices := {};
 	for i in 0..n do (
-		psimplices = append(psimplices,{(subsets(n+1,n))#i}); 
+		psimplices = append(psimplices,{(subsets(n+1,n))#i});
 	);
 	simplices := {};
 	for permsimplex in permsimplices(psimplices) do (
 		simplex := {};
-		for sub in permsimplex do ( 
+		for sub in permsimplex do (
 			simplex = append(simplex, vhash#sub);
 		);
 		simplices = append(simplices, simplex);
 	);
 	simplicialIntToMon(simplices)
+)
+
+-- methods involving moment-angle complexes
+
+-- equivariant cohomology module of the moment-angle complex wrt. T^m-action
+equivariantCohomology = method()
+equivariantCohomology(MomentAngleComplex) := Module => (mac) -> (
+	return coker gens monomialIdeal mac.MACSimplicialComplex;
+)
+
+-- k-th betti number of a momemnt-angle complex (as given by the Baskakov-Buchstaber-Panov theorem)
+bettiMAC = method()
+bettiMAC(ZZ, MomentAngleComplex) := ZZ => (k, mac) -> (
+	b := 0;
+	btally := betti res equivariantCohomology mac;
+	for j in 0..(#vertices mac.MACSimplicialComplex) do (
+		key := (2*j-k, {2*j}, 2*j);
+		if btally#?key then (
+			b += btally#key;
+		);
+	);
+	b
+)
+
+-- all the betti numbers up to 2m of a MAC over a complex with m vertices
+bettiMAC(MomentAngleComplex) := List => (mac) -> (
+	b := {};
+	for i in 0..(2*#vertices mac.MACSimplicialComplex) do b=append(b, bettiMAC(i,mac));
+	b
+)
+
+-- the Euler characteristic of the moment angle complex
+eulerMAC = method()
+eulerMAC(MomentAngleComplex) := ZZ => (mac) -> (
+	b := bettiMAC(mac);
+	e := 0;
+	m := #vertices mac.MACSimplicialComplex;
+	for i in 0..(2*m) do e += (-1)^i * b#i;
+	e
 )
 
 -------------------
@@ -361,19 +411,25 @@ permutahedronDual = (n) -> (
 beginDocumentation()
 
 doc ///
-    Key
-        ToricTopology
-    Headline
-        homological computations in toric topology
-    Description
-        Text 
-            ToricTopology is a package for computing with quasi-toric manifolds and small covers.
-            
-	    A quasi-toric manifold (or small cover) is entirely determined by a pair consisting of a simplicial complex K and a matrix chi which is characteristic for K.
-   
-  	    If K has n vertices, we can think of its k-faces as sets of integers between 1 and n.
-            A matrix chi is characteristic for K if all maximal minors of chi indexed by the facets of  K have determinant equal to 1 or -1.
+	Key
+		ToricTopology
+	Headline
+		homological computations in toric topology
+	Description
+		Text
+			ToricTopology is a package for computing with quasi-toric manifolds,
+			small covers and moment-angle complexes.
 
+			A quasi-toric manifold (or small cover) is entirely determined by a pair
+			consisting of a simplicial complex K and a matrix lambda which is
+			characteristic for K.
+
+			If K has n vertices, we can think of its k-faces as sets of integers
+			between 1 and n. A matrix lambda is characteristic for K if all maximal
+			minors of lambda indexed by the facets of  K have determinant equal to 1
+			or -1.
+	SeeAlso
+		--NormalToricVarieties
 ///
 
 
@@ -381,7 +437,7 @@ doc ///
   Key
     SmallCover
   Headline
-    the class of all small covers 
+    the class of all small covers
   Description
    Text
        A small cover is represented by a simplicial complex K and matrix which is characteristic for K.
@@ -402,23 +458,48 @@ doc ///
 ///
 
 doc ///
+	Key
+		MomentAngleComplex
+	Headline
+		the class of all moment-angle complexes
+	Description
+		Text
+			Given a simplicial complex $K$ on $m$ vertices, the moment-angle complex
+			$\mathcal{Z}_K$ is a cellular complex constructed as a union of certain
+			products of disks and circles: $$\mathcal{Z_K} = \bigcup_{\sigma \in K}
+			\left( (D^2)^\sigma \times (S^1)^{[m] \setminus \sigma} \right).$$ These
+			spaces admit a natural action of the torus $T^m = (S^1)^m$. Non-singular
+			toric varities (not necessarily complete) are homotopy equivalent to
+			partial quotients of moment-angle complexes by freely acting subtori of
+			$T^m$. Thus, moment-angle complexes are an important class of spaces
+			studied in Toric Topology. Their topological properties can be determined
+			from the combinatorics of the underlying simplicial complex.  This
+			package implements methods to determine some of these properties.  A
+			moment-angle complex is a special case of polyhedral products.
+	SeeAlso
+		--NormalToricVariety
+		QuasiToricManifold
+		SmallCover
+///
+
+doc ///
   Key
     isValidChar
     (isValidChar,SimplicialComplex,Matrix)
   Headline
     Whether a matrix is characteristic for a simplicial complex
   Usage
-    isValidChar(K,chi)
+    isValidChar(K,lambda)
   Inputs
     K:SimplicialComplex
-    chi:Matrix
+    lambda:Matrix
   Outputs
     :Boolean
   Description
    Text
-        Checks whether chi is characteristic for K.
+        Checks whether lambda is characteristic for K.
   SeeAlso
-     
+
 ///
 
 
@@ -429,19 +510,19 @@ doc ///
   Headline
     Create a small cover
   Usage
-    smallCover(K,chi)
+    smallCover(K,lambda)
   Inputs
     K:SimplicialComplex
-    chi:Matrix
+    lambda:Matrix
   Outputs
     :SmallCover
   Description
    Text
-        Create a small cover over K with characteristic matrix chi.
-        If chi is not characteristic for K, then an error is returned.
-        The entries of chi are automatically converted to ZZ/2 entries, if they not already so.
+        Create a small cover over K with characteristic matrix lambda.
+        If lambda is not characteristic for K, then an error is returned.
+        The entries of lambda are automatically converted to ZZ/2 entries, if they not already so.
   SeeAlso
-     
+
 ///
 
 doc ///
@@ -451,19 +532,85 @@ doc ///
   Headline
     Create a quasi-toric manifold
   Usage
-    quasiToricManifold(K,chi)
+    quasiToricManifold(K,lambda)
   Inputs
     K:SimplicialComplex
-    chi:Matrix
+    lambda:Matrix
   Outputs
     :QuasiToricManifold
   Description
    Text
-        Create a quasi-toric manifold over K with characteristic matrix chi.
-        If chi is not characteristic for K, an error is returned.
+        Create a quasi-toric manifold over K with characteristic matrix lambda.
+        If lambda is not characteristic for K, an error is returned.
   SeeAlso
 ///
 
+doc ///
+	Key
+		momentAngleComplex
+		(momentAngleComplex,SimplicialComplex)
+	Headline
+		Create a moment-angle complex
+	Usage
+		momentAngleComplex(K)
+	Inputs
+		K:SimplicialComplex
+	Outputs
+		:MomentAngleComplex
+	Description
+		Text
+			Create a moment-angle complex with simplicial complex K.
+		Text
+			This example creates a moment-angle complex over the simplicial
+			complex consisting of two disjoint vertices.
+		Example
+			needsPackage "SimplicialComplexes"
+			R = QQ[x,y]
+			K = simplicialComplex {x, y}
+			Z = momentAngleComplex K
+	SeeAlso
+///
+
+doc ///
+	Key
+		equivariantCohomology
+		(equivariantCohomology,MomentAngleComplex)
+	Headline
+		Compute the equivariant cohomology of a moment-angle complex
+	Usage
+		equivariantCohomology(Z)
+	Inputs
+		Z:MomentAngleComplex
+	Outputs
+		:Module
+			the torus equivariant cohomology of Z, as a module over polynomial ring
+	Description
+		Text
+			Compute the equivariant cohomology of a moment-angle complex over the
+			polynomial ring k[x_1, ..., x_m] where k is the coeffcient ring of the
+			polynomial ring over which the underlying simplicial complex was
+			created.
+		Text
+			The equivariant cohomology of a moment-angle complex is free over the polynomial ring
+			when the simplicial complex is a full simplex.
+		Example
+			needsPackage "SimplicialComplexes"
+			R = QQ[x,y,z]
+			K = simplicialComplex {x*y*z}
+			Z = momentAngleComplex K
+			M = equivariantCohomology Z
+			isFreeModule M
+		Text
+			If there is any missing simplex, then the equivariant cohomology
+			is not free.
+		Example
+			needsPackage "SimplicialComplexes"
+			R = QQ[x,y,z]
+			K = simplicialComplex {x*y, y*z, x*z}
+			Z = momentAngleComplex K
+			M = equivariantCohomology Z
+			isFreeModule M
+///
 
 doc ///
   Key
@@ -482,9 +629,9 @@ doc ///
     :QuotientRing
   Description
    Text
-        Compute the cohomology ring of a small cover (over ZZ/2) or quasi-toric manifold (over ZZ). 
+        Compute the cohomology ring of a small cover (over ZZ/2) or quasi-toric manifold (over ZZ).
   SeeAlso
-     
+
 ///
 
 
@@ -551,7 +698,7 @@ doc ///
         If a dimension k is specified, then only the k-th betti number of N is computed.
         If no dimension is specified, all the betti numbers between 0 and the dimension of N are computed.
   SeeAlso
-     
+
 ///
 
 doc ///
@@ -576,7 +723,96 @@ doc ///
         If a dimension k is specified, then only the k-th betti number of M is computed.
         If no dimension is specified, all the betti numbers between 0 and the dimension of M are computed.
   SeeAlso
-     
+
+///
+
+doc ///
+	Key
+		bettiMAC
+		(bettiMAC,ZZ,MomentAngleComplex)
+		(bettiMAC,MomentAngleComplex)
+	Headline
+		Compute the betti numbers of a moment-angle complex
+	Usage
+		bettiMAC(k,Z)
+		bettiMAC(Z)
+	Inputs
+		k:ZZ
+			(optional)
+		Z:MomentAngleComplex
+	Outputs
+		:ZZ
+			the k-th Betti number of the moment angle complex (if k is provided)
+		:List
+			of all Betti numbers
+	Description
+		Text
+			This method computes the betti numbers of a moment-angle complex using
+			the theorem of Baskakov-Buchstaber-Panov.  If a dimension k is specified,
+			then only the k-th Betti number of Z is computed.  If no dimension is
+			specified, all the Betti numbers between 0 and 2m are computed (where m
+			is the number of vertices in the underlying simplicial complex).
+		Text
+			The moment-angle complex corresponding to the simplicial complex
+			consisting of two disjoint vertices is homeomorphic to $S^3$, the
+			3-sphere as indicated by its Betti numbers.
+		Example
+			needsPackage "SimplicialComplexes"
+			R = QQ[x,y]
+			K = simplicialComplex {x, y}
+			Z = momentAngleComplex K
+			bettiMAC Z
+		Text
+			Let $\mathcal{Z}_K$ be the moment-angle corresponding to the simplicial
+			complex consisting on 3 vertices, with an edge and a disjoint vertex. By
+			Hochster's formula, its third cohomology $H^3(\mathcal{Z}_K)$ will have
+			rank $2$.  We can verify this as follows,
+		Example
+			needsPackage "SimplicialComplexes"
+			R = QQ[x..z]
+			K = simplicialComplex {x, y*z}
+			Z = momentAngleComplex K
+			bettiMAC (3, Z)
+		Text
+			The moment-angle corresponding to the boundary $\partial \Delta^2$ of the
+			2-simplex is homeomorphic to $S^5$, as reflected by its betti
+			numbers.
+		Example
+			needsPackage "SimplicialComplexes"
+			R = QQ[x..z]
+			K = simplicialComplex {x*y, y*z, x*z}
+			Z = momentAngleComplex K
+			bettiMAC Z
+///
+
+doc///
+	Key
+		eulerMAC
+		(eulerMAC,MomentAngleComplex)
+	Headline
+		compute the Euler characteristic of a moment-angle complex
+	Usage
+		eulerMAC(Z)
+	Inputs
+		Z:MomentAngleComplex
+	Outputs
+		:ZZ
+			the Euler characteristic of the moment-angle complex
+	Description
+		Text
+			This method computes the Euler characterisitc of moment-angle complexes.
+		Text
+			The Euler characteristic of a moment-angle complex is $0$ if the
+			underlying simplicial complex is not a full simplex.
+		Example
+			needsPackage "SimplicialComplexes"
+			R = QQ[a..d]
+			K0 = simplicialComplex {a*b, b*c, c*d, d*a}
+			Z0 = momentAngleComplex K0
+			eulerMAC Z0
+			K1 = simplicialComplex {a*b*c*d}
+			Z1 = momentAngleComplex K1
+			eulerMAC Z1
 ///
 
 doc ///
@@ -623,7 +859,7 @@ doc ///
     hessenbergVariety
     (hessenbergVariety,ZZ)
   Headline
-    Hessenberg variety asscoiated to the n-permutahedron 
+    Hessenberg variety asscoiated to the n-permutahedron
   Usage
     hessenbergVariety(n)
   Inputs
@@ -634,5 +870,5 @@ doc ///
    Text
        Hessenberg variety asscoiated to the n-permutahedron, as small cover.
   SeeAlso
-    
+
 ///
