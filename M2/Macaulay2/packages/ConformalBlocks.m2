@@ -5,11 +5,11 @@ newPackage(
     Authors => {
 	{Name => "Dave Swinarski", Email => "dswinarski@fordham.edu"}
 	},
-    PackageExports => { "LieTypes" },
+    PackageExports => { "LieAlgebraRepresentations" },
     Headline => "for conformal block divisors",
     Keywords => {"Commutative Algebra"},
     Certification => {
-	 -- same article as for package LieTypes
+	 -- same article as for package LieTypes, now LieAlgebraRepresentations
 	  "journal name" => "The Journal of Software for Algebra and Geometry",
 	  "journal URI" => "https://msp.org/jsag/",
 	  "article title" => "Software for computing conformal block divisors on bar M_0,n",
@@ -459,7 +459,7 @@ psiDivisorM0nbar(ZZ) := (n) -> (g:=0;
 First, propagation allows you to drop a weight if it is zero.  Next, factorization
 allows one to reduce the calculation to computing conformal block ranks on M03bar.
 In general, these may be computed using the Kac-Walton algorithm, which is 
-implemented as fusionCoefficient in the LieTypes package.  
+implemented as fusionCoefficient in the LieAlgebraRepresentations package.  
 
 However, for three special cases, there are faster formulas for conformal
 block ranks on M03bar.  These cases are:
@@ -528,7 +528,7 @@ conformalBlockRankM03bar = memoize((type, m, l, w)  ->  (
     ----if g=sl_2, then we compute using the function above
     ----if g=sl_m and l=1, then we compute using the function above
     ----if g=sl_3, then we compute using the function above
-    ----otherwise compute it using fusionCoefficient from LieTypes
+    ----otherwise compute it using fusionCoefficient from LieAlgebraRepresentations
     if type=="A" and m==1 then (
 	return lift(sl2threept(l,w),ZZ));
     if type=="A" and l==1 then (
@@ -810,7 +810,7 @@ doc ///
 	    Some of the documentation nodes refer to books, papers, and preprints.  Here is a link to the @TO "Bibliography"@. 
 	    
 	Text
-	    Between versions 1.x and 2.0, the package was rewritten in a more object-oriented way, and the basic Lie algebra functions were moved into a separate package called @TO "LieTypes::LieTypes"@.  
+	    Between versions 1.x and 2.0, the package was rewritten in a more object-oriented way, and the basic Lie algebra functions were moved into a separate package called @TO "LieAlgebraRepresentations::LieAlgebraRepresentations"@.  
 ///
 
 
@@ -1439,7 +1439,7 @@ doc ///
         r:ZZ
     Description
         Text
-            This function uses propagation and factorization to recursively compute ranks in terms of the ranks on $\bar{M}_{0,3}$.  These are determined by the so-called fusion rules and are computed via the function @TO "LieTypes::fusionCoefficient"@ in the @TO "LieTypes"@ package.  See @TO2{"Bibliography","[Beauville]"}@ for details on these topics.
+            This function uses propagation and factorization to recursively compute ranks in terms of the ranks on $\bar{M}_{0,3}$.  These are determined by the so-called fusion rules and are computed via the function @TO "LieAlgebraRepresentations::fusionCoefficient"@ in the @TO "LieAlgebraRepresentations"@ package.  See @TO2{"Bibliography","[Beauville]"}@ for details on these topics.
 	    
 	Text
 	    In the example below we compute the rank of the conformal block bundle $V(sl_3,2,(\omega_1,\omega_1,\omega_2,\omega_2))$.

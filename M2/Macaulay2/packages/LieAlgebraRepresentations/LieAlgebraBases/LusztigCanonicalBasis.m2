@@ -30,7 +30,7 @@ allRoots = (g) -> (
 
 p = (alpha,beta,g) -> (
     Phi:=allRoots(g);
-    if alpha==beta or alpha==-beta then return "DNE";
+    if alpha==beta or alpha==-beta then return "Does not exist";
     i:=0;
     while member(beta+(i+1)*alpha, Phi) do i=i+1;
     return i
@@ -40,7 +40,7 @@ p = (alpha,beta,g) -> (
 
 q = (alpha,beta,g) -> (
     Phi:=allRoots(g);
-    if alpha==beta or alpha==-beta then return "DNE";
+    if alpha==beta or alpha==-beta then return "Does not exist";
     i:=0;
     while member(beta-(i+1)*alpha, Phi) do i=i+1;
     return i

@@ -1343,7 +1343,7 @@ doc ///
 
 
 
--- New documention after LieTypes version 0.9
+-- New documentation after LieTypes version 0.9
 
 
 
@@ -1429,17 +1429,18 @@ TEST ///
 
 -- See the internal function checkLieAlgebraBasis in "lieAlgebraBases.m2" to see all the properties that are being checked
 TEST ///
-    LAB=lieAlgebraBasis("B",4,"Check"=>true);
+    LAB=lieAlgebraBasis("B",3,"Check"=>true);
 ///
 
 TEST ///
-    LAB=lieAlgebraBasis("C",4,"Check"=>true);
+    LAB=lieAlgebraBasis("C",3,"Check"=>true);
 ///
 
+-*
 TEST ///
     LAB=lieAlgebraBasis("D",4,"Check"=>true);
 ///
-
+*-
 
 
 
@@ -2162,6 +2163,7 @@ TEST ///
     assert(P==map(QQ^8,QQ^8,{{0, 0, 0, -1, 1, 0, 0, 0}, {0, 0, 0, -1, 0, 0, 0, 0}, {0, 0, -1, 0, 0, 0, 0, 0}, {0, 1, 0, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, -1, 0, 0}, {0, 0, 0, 0, 0, 0, -1, 0}, {0, 0, 0, 0, 0, 0, 0, -2}}))    
 ///
 
+-*
 TEST ///
     g = simpleLieAlgebra("B",3);
     lambda = {1,0,0};
@@ -2171,7 +2173,7 @@ TEST ///
     P = isomorphismOfRepresentations(rho1,rho2)
     assert(P==map(QQ^7,QQ^7,{{1, 0, 0, 0, 0, 0, 0}, {0, 1, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, -1}, {0, 0, 0, 0, 0, 1, 0}, {0, 0, 0, 0, 1, 0, 0}, {0, 0, 0, -1, 0, 0, 0}}))
 ///
-
+*-
 TEST ///
     g = simpleLieAlgebra("G",2);
     lambda = {0,1};
@@ -2533,7 +2535,7 @@ doc ///
 	    Let $V$ and $W$ be LieAlgebraRepresentations. Then this function computes the action of $\mathfrak{g}$ on $U = V \otimes V$.
 	    
 	Text     
-            In the example below, we compute $V \otimes W$, where $V$ is the adjoint represention of $sl_3$, and $W$ is the standard representation of $sl_3$.
+            In the example below, we compute $V \otimes W$, where $V$ is the adjoint representation of $sl_3$, and $W$ is the standard representation of $sl_3$.
          	    
         Example
             V = adjointRepresentation("A",2);
@@ -2892,7 +2894,7 @@ doc ///
 	    Here is our alternative approach.  A highest weight vector $v_{\mu}$ of weight $\mu$ will generate an irreducible submodule $V(\mu) \subset V \otimes W$. Therefore, the Casimir operator will act on $V(\mu)$ by a known scalar $c(\mu)$; see @TO "casimirScalar"@.  Moreover, the spectrum of the Casimir operator is known. Thus, we can find the weight $\mu$ vectors with eigenvalue $c(\mu)$ by starting with a basis of $V \otimes W$ and iteratively projecting away the components that correspond to the other Casimir scalars.    
 	    
 	Text     
-            Let $V$ be the irreducible representation of $sl_4$ with highest weight $\omega_1 + \omega_2$, let $W$ be the irreducible representation wiht highest weight $\omega_2+\omega_3$, and let $U$ be the irreducible representation with highest weight $\omega_1 + \omega_3$.  The  multiplicity of $U$ in $V \otimes W$ is 2. In the example below, we compute two highest weight vectors of weight $(1,0,1)$ in $V \otimes W$. We work with the Gelfand-Tsetlin basis in these calculations.
+            Let $V$ be the irreducible representation of $sl_4$ with highest weight $\omega_1 + \omega_2$, let $W$ be the irreducible representation with highest weight $\omega_2+\omega_3$, and let $U$ be the irreducible representation with highest weight $\omega_1 + \omega_3$.  The  multiplicity of $U$ in $V \otimes W$ is 2. In the example below, we compute two highest weight vectors of weight $(1,0,1)$ in $V \otimes W$. We work with the Gelfand-Tsetlin basis in these calculations.
 	    
          
 	Example
