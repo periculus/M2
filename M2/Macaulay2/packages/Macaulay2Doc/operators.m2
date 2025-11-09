@@ -606,6 +606,15 @@ document {
 	  }
      }
 
+doc ///
+  Key
+    symbol @@?
+  Headline
+    a binary operator
+  SeeAlso
+    "Python::PythonObject @@? Thing"
+///
+
 document {
      Key => symbol @,
      Headline => "a binary operator",
