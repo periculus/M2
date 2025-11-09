@@ -25,8 +25,13 @@ unsigned long rawRandomULong(unsigned long max);
 int32_t rawRandomInt(int32_t max);
 /* generate a random number in the range 0..max-1 */
 
+void rawSetRandomInteger(mpz_ptr result, gmp_ZZ maxN);
+/* if height is the null pointer, use the default height */
+/* doesn't deal w/ garbage collection */
+
 gmp_ZZ rawRandomInteger(gmp_ZZ maxN);
 /* if height is the null pointer, use the default height */
+/* returns garbage-collected memory */
 
 void rawSetFareyApproximation(mpq_ptr result, gmp_RR x, gmp_ZZ height);
 /* sets result = the nearest rational to x w/ denominator <= height */

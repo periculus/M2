@@ -47,8 +47,8 @@ setupfun("testCatch",testCatch);
 
 export rawRandomZZ(e:Expr):Expr := (
      when e
-     is Nothing do toExpr(Ccode(ZZ, "rawRandomInteger(", "NULL)"))
-     is maxN:ZZcell do toExpr(Ccode(ZZ, "rawRandomInteger(", maxN.v, ")"))
+     is Nothing do toExpr(Ccode(ZZorNull, "rawRandomInteger(", "NULL)"))
+     is maxN:ZZcell do toExpr(Ccode(ZZorNull, "rawRandomInteger(", maxN.v, ")"))
      else WrongArgZZ());
 setupfun("rawRandomZZ",rawRandomZZ);
 export rawFareyApproximation(e:Expr):Expr := (
@@ -71,19 +71,19 @@ export rawRandomQQ(e:Expr):Expr := (
 setupfun("rawRandomQQ",rawRandomQQ);
 export rawRandomRRUniform(e:Expr):Expr := (
      when e
-     is prec:ZZcell do if !isULong(prec.v) then WrongArgSmallInteger() 
+     is prec:ZZcell do if !isULong(prec.v) then WrongArgSmallUInteger()
      else toExpr(Ccode(RR, "rawRandomRRUniform(", toULong(prec.v), ")"))
      else WrongArgZZ());
 setupfun("rawRandomRRUniform",rawRandomRRUniform);
 export rawRandomRRNormal(e:Expr):Expr := (
      when e
-     is prec:ZZcell do if !isULong(prec.v) then WrongArgSmallInteger()
+     is prec:ZZcell do if !isULong(prec.v) then WrongArgSmallUInteger()
      else toExpr(Ccode(RR, "rawRandomRRNormal(", toULong(prec.v), ")"))
      else WrongArgZZ());
 setupfun("rawRandomRRNormal",rawRandomRRNormal);
 export rawRandomCC(e:Expr):Expr := (
      when e
-     is prec:ZZcell do if !isULong(prec.v) then WrongArgSmallInteger() 
+     is prec:ZZcell do if !isULong(prec.v) then WrongArgSmallUInteger()
      else toExpr(Ccode(CC, "rawRandomCC(", toULong(prec.v), ")"))
      else WrongArgZZ());
 setupfun("rawRandomCC",rawRandomCC);
@@ -480,20 +480,20 @@ export rawConwayPolynomial(e:Expr):Expr := (
 setupfun("rawConwayPolynomial",rawConwayPolynomial);
 
 export rawRRi(e:Expr):Expr := (
-     when e is prec:ZZcell do if !isInt(prec) then WrongArgSmallInteger(1)
-     else toExpr(Ccode(RawRingOrNull, "IM2_Ring_RRi(",toInt(prec),")" ))
+     when e is prec:ZZcell do if !isULong(prec) then WrongArgSmallUInteger(1)
+     else toExpr(Ccode(RawRingOrNull, "IM2_Ring_RRi(",toULong(prec),")" ))
      else WrongArgZZ(1));
 setupfun("rawRRi",rawRRi);
 
 export rawRR(e:Expr):Expr := (
-     when e is prec:ZZcell do if !isInt(prec) then WrongArgSmallInteger(1)
-     else toExpr(Ccode(RawRingOrNull, "IM2_Ring_RRR(",toInt(prec),")" ))
+     when e is prec:ZZcell do if !isULong(prec) then WrongArgSmallUInteger(1)
+     else toExpr(Ccode(RawRingOrNull, "IM2_Ring_RRR(",toULong(prec),")" ))
      else WrongArgZZ(1));
 setupfun("rawRR",rawRR);
 
 export rawCC(e:Expr):Expr := (
-     when e is prec:ZZcell do if !isInt(prec) then WrongArgSmallInteger(1)
-     else toExpr(Ccode(RawRingOrNull, "IM2_Ring_CCC(",toInt(prec),")" ))
+     when e is prec:ZZcell do if !isULong(prec) then WrongArgSmallUInteger(1)
+     else toExpr(Ccode(RawRingOrNull, "IM2_Ring_CCC(",toULong(prec),")" ))
      else WrongArgZZ(1));
 setupfun("rawCC",rawCC);
 
@@ -2261,6 +2261,13 @@ export rawPfaffians(e:Expr):Expr := (
      else WrongNumArgs(2)
      );
 setupfun("rawPfaffians",rawPfaffians);
+
+export rawPfaffian(e:Expr):Expr := (
+    when e
+    is M:RawMatrixCell do toExpr(Ccode(RawRingElementOrNull,
+	    "IM2_Matrix_pfaffian(", M.p, ")"))
+    else WrongArgMatrix());
+setupfun("rawPfaffian", rawPfaffian);
 
 export rawTensor(e:Expr):Expr := (
      when e is s:Sequence do

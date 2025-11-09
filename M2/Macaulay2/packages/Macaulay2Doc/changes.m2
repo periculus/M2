@@ -5,7 +5,7 @@ star := IMG { "src" => replace("PKG","Style",currentLayout#"package") | "GoldSta
 document {
      Key => "changes to Macaulay2, by version",
      Subnodes => {
---	  TO "changes made for the next release",
+	  TO "changes made for the next release",
 	  TO "changes, 1.25.05",
 	  TO "changes, 1.24.11",
 	  TO "changes, 1.24.05",
@@ -65,11 +65,41 @@ changesHelper List := opt -> pkgnames -> (
 	    << ".\" },"
 	    << endl)))
 
--*
 document {
-    Key => "changes made for the next release"
+    Key => "changes made for the next release",
+        UL {
+	LI { BOLD "upcoming breaking changes:",
+	    UL {
+		LI {}
+	    }
+	},
+	LI { "packages that have been published and certified:",
+	    UL {
+		LI {}
+		}
+	    },
+	LI { "new packages:",
+	    UL {
+		LI {}
+		}
+	    },
+	LI { "improved packages:",
+	    UL {
+		LI {}
+		}
+	    },
+	LI { "functionality added or improved:",
+	    UL {
+		LI {}
+		}
+	    },
+	LI { "functionality changed in a way that could break code:",
+	    UL {
+		LI {}
+		}
+	    }
+	}
     }
-*-
 
 document {
     Key => "changes, 1.25.05",
@@ -148,6 +178,7 @@ document {
 	    },
 	LI { "functionality changed in a way that could break code:",
 	    UL {
+		LI { "The package ", TT "Divisor", " has been renamed as ", TO "WeilDivisors :: WeilDivisors", "." },
 		LI { "The method ", TO "Isomorphism :: isIsomorphism", " now only returns true or false. ",
 		    "To retrieved the computed isomorphism, use the method ", TO "Isomorphism :: isomorphism", "." },
 		LI { "The method ", TO (symbol\\, Matrix, Matrix), " is now a shortcut for ", TO (quotient', Matrix, Matrix), ". ",
@@ -1034,7 +1065,7 @@ document {
      	       	    -- LI { star, " ", TO "::", ", a package by ... for ..., has been published." },
 		    LI { star, " ", TO "LieTypes::LieTypes", " and ", TO "ConformalBlocks::ConformalBlocks", ", two packages by Dave Swinarski for computing ranks and first Chern classes of conformal block bundles
 			 on the moduli space of n-pointed curves of genus 0, have been published." },
-		    LI { star, " ", TO "Divisor::Divisor", ", a package by Karl Schwede and Zhaoning Yang for working with Weil divisors, has been published." },
+		    LI { star, " ", TO "WeilDivisors::WeilDivisors", ", a package by Karl Schwede and Zhaoning Yang for working with Weil divisors, has been published." },
 		    LI { star, " ", TO "StronglyStableIdeals::StronglyStableIdeals", ", a package by Davide Alberelli and Paolo Lella for studying strongly stable ideals related to Hilbert polynomials, has been published." },
 		    LI { star, " ", TO "DiffAlg::DiffAlg", ", a package by Manuel Dubinsky, Cesar Massri, Ariel Molinuevo, and Federico Quallbrunn, for computations with differential forms, has been published." },
 		    LI { star, " ", TO "Matroids::Matroids", ", a package by Justin Chen for computations with matroids, has been published." },
@@ -1337,7 +1368,7 @@ document {
 				package recognizes complete intersection, Gorenstein, and Golod rings of any
 				codepth via the functions isCI, isGorenstein, and isGolod." },
 		    LI {
-			 "The package ", TO "Divisor::Divisor", " has numerous changes to core methods to
+			 "The package ", TO "WeilDivisors::WeilDivisors", " has numerous changes to core methods to
 			 make them compatible with Macaulay2 standards and conventions (including renaming many methods).
 			 Documentation is also improved throughout.  Additional
 			 functionality has also been added (for example, checking if a divisor is very ample)."
@@ -1811,7 +1842,7 @@ document {
 			 has been added."
 			 },
 		    LI { TO "EnumerationCurves::EnumerationCurves", ", a package by Hiep Dang for enumeration of rational curves via torus actions, has been added." },
-		    LI { TO "Divisor::Divisor", ", a package by Karl Schwede and Zhaoning Yang for working with Weil divisors, has been added." },
+		    LI { TO "WeilDivisors::WeilDivisors", ", a package by Karl Schwede and Zhaoning Yang for working with Weil divisors, has been added." },
 		    LI { TO "EllipticCurves::EllipticCurves", ", a package by Alessandro Oneto and Stefano Marseglia for addition on elliptic curves and point counting, has been added." },		
 		    LI { TO "HighestWeights::HighestWeights", ", a package by Federico Galetto for decomposing free resolutions and graded modules with a semisimple Lie group action, has been added." },		
 		    LI { "NumericalHilbert (absorbed by ", TO "NoetherianOperators::NoetherianOperators", "), a package by Robert Krone for numerically computing local dual spaces and Hilbert functions, has been added." },

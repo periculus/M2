@@ -13,6 +13,7 @@ ifneq ($(PARALLEL),yes)
 NOTPARALLEL = -j1
 endif
 LIBNAME ?= $(shell basename `pwd`)
+GIT_REF ?= v$(VERSION)
 UNTARDIR = build
 OLDUNTARDIR = build-old
 TARDIR ?= $(LIBNAME)-$(VERSION)
@@ -100,7 +101,6 @@ else
 UNTARCMD      ?= @TAR@ xf $(TARFILE_DIR)/$(TARFILE) $(TAROPTIONS)
 endif
 %.E: %.c; $(COMPILE.c) -E $(OUTPUT_OPTION) $<
-export PATH := @abs_top_srcdir@/usr-build/bin:$(PATH)
 all:prereq install post-install
 prereq:
 post-install:
@@ -116,14 +116,39 @@ uninstall::; rm -f .installed-$(VERSION)
 reinstall: uninstall install
 always:
 diffs: .untarred2-$(VERSION) always
-	D=`pwd`; cd $(UNTARDIR) && diff -ur $(DIFF_OPTIONS) $$D/tmp/$(TARDIR) $(TARDIR) |egrep -v '^Only in ' >$$D/$@ || echo diffs: `pwd`/$@
+	D=`pwd`; cd $(UNTARDIR) && diff -ur $(DIFF_OPTIONS) $$D/tmp/$(TARDIR) $(TARDIR) | grep -Ev '^Only in ' >$$D/$@ || echo diffs: `pwd`/$@
 unmark:; rm -f .configured-$(VERSION) .compiled-$(VERSION)
 package-clean: unmark ; if [ -d $(BUILDDIR) ]; then $(MAKE) $(NOTPARALLEL) -C $(BUILDDIR) clean ; fi
 PACKAGE-DISTCLEAN-TARGET := distclean
 package-distclean: unmark ; if [ -d $(BUILDDIR) ]; then $(MAKE) $(NOTPARALLEL) -C $(BUILDDIR) $(PACKAGE-DISTCLEAN-TARGET) ; fi
 fetch: download-enabled
 ifeq ($(SUBMODULE),true)
-fetch: update-submodule
+fetch: .submodule-updated
+.submodule-updated:
+	$(MAKE) update-submodule
+	touch $@
+update-submodule:
+	if git rev-parse 2> /dev/null;                          \
+	then                                                    \
+		@GIT@ submodule update --init                   \
+			@abs_top_srcdir@/submodules/$(LIBNAME); \
+	else                                                    \
+		cd @abs_top_srcdir@/submodules;                 \
+		rm -rf $(LIBNAME);                              \
+		@GIT@ clone $(URL) $(LIBNAME);                  \
+		cd $(LIBNAME);                                  \
+		@GIT@ checkout $(GIT_REF);                      \
+	fi
+
+clean::
+	rm -f .submodule-updated
+	if git rev-parse 2> /dev/null;                                         \
+	then                                                                   \
+		@GIT@ submodule deinit @abs_top_srcdir@/submodules/$(LIBNAME); \
+	else                                                                   \
+		rm -rf @abs_top_srcdir@/submodules/$(LIBNAME);                 \
+		mkdir @abs_top_srcdir@/submodules/$(LIBNAME);                  \
+	fi
 else
 fetch: $(TARFILE_DIR)/$(TARFILE)
 endif
@@ -133,8 +158,6 @@ $(LICENSE_DIR):; $(MKDIR_P) $(LICENSE_DIR)
 compile: config-chk .compiled-$(VERSION) 
 configure: .configured-$(VERSION) config-chk 
 config-chk:
-update-submodule:
-	git submodule update --init @abs_top_srcdir@/submodules/$(LIBNAME)
 
 PROGRAMS ?=
 LICENSEFILES ?=
@@ -300,14 +323,19 @@ help:;
 	@ echo "targets:"
 	@ echo ""
 	@ echo "  all                         build/compile all files [the default target]"
+	@ echo "  fetch                       fetch the library source"
 	@ echo "  reconfigure                 remake configuration files for library"
 	@ echo "  diffs                       create diff file for changes to library sources"
-	@ echo "  clean                       remove most created files, except Makefiles and dowloaded tarfiles"
+	@ echo "  clean                       remove most created files, except Makefiles and"
+	@ echo "                              dowloaded tarfiles"
 	@ echo "  distclean                   remove all created files"
-	@ echo "  package-clean               remove most created files in the package's directory tree, except Makefiles"
-	@ echo "  package-distclean           remove all created files in the package's directory tree"
+	@ echo "  package-clean               remove most created files in the package's"
+	@ echo "                              directory tree, except Makefiles"
+	@ echo "  package-distclean           remove all created files in the package's"
+	@ echo "                              directory tree"
 	@ echo "  check                       check whether library compiled correctly"
 	@ echo "  recheck                     check, even if we've checked before"
+	@ echo "  update-submodule            update git submodule for library (if applicable)"
 	@ echo ""
 autotool-versions:
 	whereis autoconf
