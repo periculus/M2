@@ -21,16 +21,17 @@
 
 newPackage(
 	"ToricTopology",
-    	Version => "1.0",
-    	Date => "September 1, 2015",
-    	Authors => {
-    		{Name => "Alvise Trevisan", Email => "a.trevisan@enpicom.com", HomePage => "http://www.enpicom.com"},
-    		{Name => "Alexander I. Suciu", Email => "a.suciu@neu.edu"}
-		},
-        Keywords => {"Toric Geometry"},
-     	PackageImports => { "OldChainComplexes", "SimplicialComplexes" },
-    	Headline => "toric topology"
-    	)
+	Version => "1.1",
+	Date => "November 7, 2025",
+	Authors => {
+		{Name => "Alvise Trevisan", Email => "a.trevisan@enpicom.com", HomePage => "http://www.enpicom.com"},
+		{Name => "Alexander I. Suciu", Email => "a.suciu@neu.edu"},
+		{Name => "Kumar Sannidhya Shukla", Email => "kshukla5@uwo.ca"}
+	},
+	Keywords => {"Toric Geometry"},
+	PackageImports => { "OldChainComplexes", "SimplicialComplexes" },
+	Headline => "toric topology"
+)
 
 protect QTMSimplicialComplex
 protect QTMCharacteristicMatrix
@@ -106,10 +107,9 @@ cohomologyRing(SmallCover) := QuotientRing => {CoefficientRing=>ZZ/2} >> opts ->
 	sc := N.QTMSimplicialComplex;
 	lambda := N.QTMCharacteristicMatrix;
 	S := (opts.CoefficientRing)[(entries(vars(ring sc)))_0];
-	newgens:={};
-	scan( (entries(gens(ideal sc)))_0, i->newgens=append(newgens,sub(i,S)) );
-	I := ideal( newgens );
-	J := ideal ((vars S)*(transpose lambda));
+	newgens := apply((entries(gens(ideal sc)))_0, i->sub(i,S));
+	I := ideal(newgens);
+	J := ideal((vars S)*(transpose lambda));
 	S/(I+J)
 )
 
@@ -119,12 +119,12 @@ cohomologyRing(QuasiToricManifold) := QuotientRing =>  {CoefficientRing=>ZZ} >> 
 	lambda := M.QTMCharacteristicMatrix;
 	C := opts.CoefficientRing;
 	S := C[(entries(vars(ring sc)))_0];
-	newgens:={};
-	scan( (entries(gens(ideal sc)))_0, i->newgens=append(newgens,sub(i,S)) );
-	I := ideal( newgens );
-	J := ideal ((vars S)*(transpose lambda));
+	newgens := apply((entries(gens(ideal sc)))_0, i->sub(i,S));
+	I := ideal(newgens);
+	J := ideal((vars S)*(transpose lambda));
 	S/(I+J)
 )
+
 
 chern = method(TypicalValue=>List,Options=>{CoefficientRing=>ZZ})
 -- Chern classes of a quasi-toric manifold
@@ -156,19 +156,16 @@ bettiSmallCover(ZZ,SmallCover) := ZZ => (k,N) -> (
 	sc := N.QTMSimplicialComplex;
 	lambda := N.QTMCharacteristicMatrix;
 	n := numgens(target(lambda));
-	ind := drop( subsets(toList(1..n)), 1);
-	cclist := {};
-	scan(ind, I-> cclist=append(cclist,chainComplex(subComplex(sc,supportChi(lambda,I) ) ) ) );
+	ind := subsets(toList(1..n));
+	cclist := apply(ind, I -> complex(subComplex(sc, supportChi(lambda, I))));
 	b := 0;
-	scan(cclist, cc -> b = b + rank( HH_(k-1)( cc) ) );
+	scan(cclist, cc -> b = b + rank(HH_(k-1)(cc)));
 	b
 )
 
 -- all the betti numbers up to n of an n-dimensional small cover
 bettiSmallCover(SmallCover) := List => (N) -> (
-	b := {1};
-	for i in 1..(N.QTMDimension) do b=append(b, bettiSmallCover(i,N));
-	b
+	apply(N.QTMDimension+1, i -> bettiSmallCover(i,N))
 )
 
 bettiQTM = method()
@@ -185,9 +182,7 @@ bettiQTM(ZZ,QuasiToricManifold) := ZZ => (k, M) -> (
 
 -- all the betti numbers up to 2n of an 2n-dimensional quasi-toric manifold
 bettiQTM(QuasiToricManifold) := List => (M) -> (
-	b := {1};
-	for i in 1..(M.QTMDimension) do b = append(b, bettiQTM(i, M));
-	b
+	apply(M.QTMDimension + 1, i -> bettiQTM(i, M))
 )
 
 -- Sample small covers --
@@ -217,9 +212,7 @@ complexProjectiveSpace(ZZ) := QuasiToricManifold => (n) -> (
 -- Helper functions --
 projectiveSpace = (n, base) -> (
 	I := id_(base^n);
-	l := {};
-	scan(n, i -> l=append(l, {1}));
-	ones := matrix(l);
+	ones := matrix(apply(n, i -> {1}));
 	R := base[vars(0..n)];
 	varlist := (entries(vars(R)))_0;
 	maxmissingface := sub(varlist_0 ,R);
@@ -228,33 +221,38 @@ projectiveSpace = (n, base) -> (
 	(K,I|ones)
 )
 
-listMinors = (sc,lambda) -> (
+listMinors = (sc,chi) -> (
 	listminors:={};
 	for mon in facets(sc) do (
-		listminors=append(listminors,determinant(submatrix(lambda,indices(mon))));
+		listminors=append(listminors,determinant(submatrix(chi,indices(mon))));
 	);
 	listminors
 )
 
+-- method to compute the subcomplex of sc, restricted to variables indexed by
+-- the subset V
+-- if V is empty, the empty complex {1} is returned
 subComplex = (sc, V) -> (
-            varlist := (entries(vars(ring sc)))_0;
-            mV := sub(varlist_(V_0-1),ring sc);
-			scan(drop(V,1),i->mV=mV*sub(varlist_(i-1),ring(sc)));
-			candidates := {};
-			for k in (0..(length V)) do (
-				candidates = join(candidates, faces(k,sc));
-			);
-			k:=0;
-			lis := {};
-            while k!= length(candidates) do (
-	        	if (denominator(sub(mV, ring sc)/(candidates_k)))==1 then (
-	            	lis=append(lis,candidates_k);
-                   	candidates=drop(candidates,{k,k});
-                   	k=k-1;
-            	);
-	            k=k+1;
-		    );
-	        simplicialComplex(lis)
+	if isEmpty V then
+		return simplicialComplex {1_(ring sc)};
+	varlist := (entries(vars(ring sc)))_0;
+	mV := sub(varlist_(V_0-1),ring sc);
+	scan(drop(V,1),i->mV=mV*sub(varlist_(i-1),ring(sc)));
+	candidates := {};
+	for k in (0..(length V)) do (
+		candidates = join(candidates, faces(k,sc));
+	);
+	k:=0;
+	lis := {};
+	while k!= length(candidates) do (
+		if (denominator(sub(mV, ring sc)/(candidates_k)))==1 then (
+			lis=append(lis,candidates_k);
+			candidates=drop(candidates,{k,k});
+			k=k-1;
+		);
+		k=k+1;
+	);
+	simplicialComplex(lis)
 );
 
 -- given a char matrix lambda (n rows, m cols) and a subset I={i_1, .., i_n} of [n]
@@ -370,7 +368,7 @@ permutahedronDual = (n) -> (
 -- equivariant cohomology module of the moment-angle complex wrt. T^m-action
 equivariantCohomology = method()
 equivariantCohomology(MomentAngleComplex) := Module => (mac) -> (
-	return coker gens monomialIdeal mac.MACSimplicialComplex;
+	coker gens monomialIdeal mac.MACSimplicialComplex
 )
 
 -- k-th betti number of a momemnt-angle complex (as given by the Baskakov-Buchstaber-Panov theorem)
@@ -389,9 +387,7 @@ bettiMAC(ZZ, MomentAngleComplex) := ZZ => (k, mac) -> (
 
 -- all the betti numbers up to 2m of a MAC over a complex with m vertices
 bettiMAC(MomentAngleComplex) := List => (mac) -> (
-	b := {};
-	for i in 0..(2*#vertices mac.MACSimplicialComplex) do b=append(b, bettiMAC(i,mac));
-	b
+	apply(2*#vertices mac.MACSimplicialComplex + 1, i-> bettiMAC(i, mac))
 )
 
 -- the Euler characteristic of the moment angle complex
@@ -870,5 +866,6 @@ doc ///
    Text
        Hessenberg variety asscoiated to the n-permutahedron, as small cover.
   SeeAlso
-
 ///
+
+end
