@@ -1,7 +1,7 @@
 newPackage(
 	"PolyominoIdeals",
 	Version => "2.0",
-    Date => "November, 2025",
+	Date => "November, 2025",
 	
 	Authors => {
 		{
@@ -9,7 +9,7 @@ newPackage(
 			Email => "ccisto@unime.it"
 		},
 		{
-			Name => "Francesco Navarra",
+			Name => "Francesco Navarra", 
 			Email => "francesco.navarra@sabanciuniv.edu",
 			HomePage => "https://sites.google.com/sabanciuniv.edu/francesco-navarra/"
 		},
@@ -21,14 +21,11 @@ newPackage(
 	},
 	Headline => "Collections of cells and binomial ideals",
 	Keywords => {"Combinatorial Commutative Algebra"},
-	DebuggingMode => false
+	PackageImports => { "Graphs", "gfanInterface" }
 )
 
-needsPackage "Graphs";
-needsPackage "gfanInterface";
 
 export {
-
 -- Data type & constructor:
 		"CollectionOfCells",
 		"cellCollection",		
@@ -62,10 +59,8 @@ export {
 		"isColumnConvex", 
 		"isConvex", 
 		"collectionIsSimple", 
-		"rankCollection",
-
-		
-		--options
+		"rankCollection",		
+--options
 		"Field",
 		"TermOrder",
 		"RingChoice"
@@ -93,11 +88,11 @@ CollectionOfCells.synonym = "collection of cells"
 --------------------------------------------------------------------------------------------------
 cellCollection = method(Options => {})
 cellCollection List := opts -> L -> (
-    if #L == 0 then error "A CollectionOfCells cannot be empty.";
-    if unique L != L then error "There are two cells that are equal."; 
+    if #L == 0 then error "a CollectionOfCells cannot be empty.";
+    if unique L != L then error "there are two cells that are equal."; 
     if not all(L, c -> (
         instance(c, List) and #c == 2 and all(c, x -> instance(x, ZZ))
-    )) then error "Each cell must be a list of two integers.";
+    )) then error "each cell must be a list of two integers.";
     new CollectionOfCells from L
 )
 
@@ -254,10 +249,10 @@ polyoRing CollectionOfCells := opts -> Q -> (
 isPairOfInteger = method()
 isPairOfInteger List := L -> (
     if #L != 2 then (
-        error "Each endpoint must be a list of two integers."
+        error "each endpoint must be a list of two integers."
     );
     if not all(L, x -> class x === ZZ) then (
-        error "Each coordinate must be an integer."
+        error "each coordinate must be an integer."
     );
     true
 )
@@ -270,7 +265,7 @@ innerInterval = method(Options => {})
 innerInterval(List, List, CollectionOfCells) := opts -> (a, b, Q) -> (
     isPairOfInteger(a);
     isPairOfInteger(b);	
-    if a#0 == b#0 or a#1 == b#1 then error "Expected a#0 < b#0 and a#1 < b#1";
+    if a#0 == b#0 or a#1 == b#1 then error "expected a#0 < b#0 and a#1 < b#1";
     all(toList(a#1..b#1-1), y -> all(toList(a#0..b#0-1), x -> member({x, y}, Q)))
 )
 
@@ -282,30 +277,30 @@ innerInterval(List, List, CollectionOfCells) := opts -> (a, b, Q) -> (
 -- given by polyoRingConvex
 --------------------------------------------------------------------------------------------------
 polyoIdeal = method (Options => {Field => QQ, TermOrder => Lex, RingChoice => 1})
+
 polyoIdeal CollectionOfCells := opts -> Q -> (
     R := polyoRing(Q, 
         Field => opts.Field, 
         TermOrder => opts.TermOrder, 
         RingChoice => opts.RingChoice
     );
-    innerBinomials := {};
-    for i from 0 to #Q - 1 do (
+
+    innerBinomials := flatten for i from 0 to #Q - 1 list (
         A := Q#i;
-        for j from 0 to #Q - 1 do (
-            B := Q#j + {1,1}; 
-            if A#0 < B#0 and A#1 < B#1 then (
-                if innerInterval(A, B, Q) then (
-                    a := A#0;
-		    b := A#1;
-		    c := B#0;
-		    d := B#1;
-                    innerBinomials = append(innerBinomials, x_(a,b)_R * x_(c,d)_R - x_(a,d)_R * x_(c,b)_R);
-                );
-            );
-        );
+        flatten for j from 0 to #Q - 1 list (
+            B := Q#j + {1,1};
+            if (A#0 < B#0 and A#1 < B#1 and innerInterval(A, B, Q)) then (
+                a := A#0;
+                b := A#1;
+                c := B#0;
+                d := B#1;
+                x_(a,b)_R * x_(c,d)_R - x_(a,d)_R * x_(c,b)_R
+            ) else (
+                continue
+            )
+        )
     );
-    I := ideal toList(set innerBinomials);
-    I
+   ideal toList set innerBinomials
 );
 
 
@@ -320,13 +315,13 @@ polyoToric = method(TypicalValue => Ideal)
 polyoToric(CollectionOfCells, List) := (Q, H) -> (
    if H =!= {} then (
     if not all(H, h -> class h === List) then
-        error "Each element of H must be a list.";
+        error "each element of H must be a list.";
     scan(H, h -> isPairOfInteger(h));
    );
     V := reverse sort apply(polyoVertices Q, toList);
     xCoords := sort unique apply(V, p -> p#0);
     yCoords := sort unique apply(V, p -> p#1);
- -- Build vertical maximal intervals
+
     verticalIntervals := flatten for x in xCoords list (
         localIntervals := {};
         y := min yCoords;
@@ -341,7 +336,7 @@ polyoToric(CollectionOfCells, List) := (Q, H) -> (
         );
         localIntervals
     );
- -- Build horizontal maximal intervals
+
     horizontalIntervals := flatten for y in yCoords list (
         localIntervals := {};
         x := min xCoords;
@@ -401,12 +396,11 @@ polyoLattice CollectionOfCells := opts -> Q -> (
         p2 := position(V, v -> v == b);
         p3 := position(V, v -> v == c);
         p4 := position(V, v -> v == d);
-        row := {};
-        for j from 0 to n-1 do (
-            if j == p1 or j == p2 then row=append(row, 1)
-            else if j == p3 or j == p4 then row=append(row, -1)
-            else row=append(row, 0)
-        );
+        row := for j from 0 to n-1 list (
+    		if j == p1 or j == p2 then 1
+    		else if j == p3 or j == p4 then -1
+    		else 0
+		);
         L#i = row;
     );
     gensList := for i from 0 to #Q-1 list L#i; 
@@ -429,14 +423,12 @@ polyoLattice CollectionOfCells := opts -> Q -> (
 adjacent2MinorIdeal = method (Options=>{Field => QQ, TermOrder=>Lex})
 adjacent2MinorIdeal CollectionOfCells := opts -> Q ->(
 R:=polyoRing(Q,Field=>opts.Field, TermOrder=>opts.TermOrder, RingChoice=> 1);
-GensForIdeal := {};
-	for cell in Q do (
+GensForIdeal := for cell in Q list (
         lowerLeftCorner  := toSequence(cell);
        	upperRightCorner := toSequence(cell + {1,1});
        	upperLeftCorner  := toSequence(cell + {0,1});
        	lowerRightCorner := toSequence(cell + {1,0});
-	gen := x_lowerLeftCorner_R*x_upperRightCorner_R - x_upperLeftCorner_R*x_lowerRightCorner_R;
-        GensForIdeal = append(GensForIdeal, gen);
+	x_lowerLeftCorner_R*x_upperRightCorner_R - x_upperLeftCorner_R*x_lowerRightCorner_R
   	);
 I:= ideal GensForIdeal;
 I
@@ -482,8 +474,8 @@ isNonAttackingRooks(List, List, CollectionOfCells) := opts -> (A, B, Q) -> (
 ---------------------------------------------------------------------------------------------------
 allNonAttackingRookConfigurations = method(Options =>{})
 allNonAttackingRookConfigurations CollectionOfCells := opts -> L -> (
-    Q := {};
-    for i from 0 to #L-1 do Q=append(Q,L#i); 
+
+    Q := for i from 0 to #L-1 list L#i; 
     Q = sort Q;
 
     conf := apply(Q, i -> {i}); 
@@ -565,25 +557,21 @@ areSwitchEquivalent = (R1, R2, Q) -> (
 --------------------------------------------------------------------------------------------------
 equivalenceClassesSwitchingRook = method(Options => {})
 equivalenceClassesSwitchingRook CollectionOfCells := opts -> Q -> (
-    rookConfigurations := allNonAttackingRookConfigurations(Q); 
-    numConfigurations := #rookConfigurations;
-    equivalenceClasses := {};
-    for k from 0 to numConfigurations-1 do (
-        currentRooks := rookConfigurations#k;
-        rookVertices := new MutableHashTable;
-        for i from 0 to #currentRooks-1 do rookVertices#i = currentRooks#i;
-        edges := {};
-        for i from 0 to #currentRooks-2 do (
-            for j from i+1 to #currentRooks-1 do (
-                if areSwitchEquivalent(rookVertices#i, rookVertices#j, Q) then (
-                    edges = append(edges, {i,j});
-                );
-            );
-        );
-        rookGraph := graph(toList(0 .. #currentRooks-1), edges);
-        componentsAsCells := apply(connectedComponents rookGraph, comp -> apply(comp, idx -> currentRooks#idx));
-        equivalenceClasses = append(equivalenceClasses, componentsAsCells);
-    );
+rookConfigurations := allNonAttackingRookConfigurations(Q); 
+numConfigurations := #rookConfigurations;
+equivalenceClasses := for k from 0 to numConfigurations - 1 list (
+    currentRooks := rookConfigurations#k;
+    rookVertices := new MutableHashTable;
+    for i from 0 to #currentRooks - 1 do rookVertices#i = currentRooks#i;
+    edges := flatten for i from 0 to #currentRooks - 2 list (
+        for j from i + 1 to #currentRooks - 1 list (
+            if areSwitchEquivalent(rookVertices#i, rookVertices#j, Q) then {i, j} else continue
+    	)
+    );	
+    rookGraph := graph(toList(0 .. #currentRooks - 1), edges);
+    componentsAsCells := apply(connectedComponents rookGraph, comp -> apply(comp, idx -> currentRooks#idx));
+    componentsAsCells
+);
     equivalenceClasses
 );
 
@@ -614,8 +602,8 @@ standardNonAttackingRooks = (A,B) -> ( not(A#0==B#0 or A#1==B#1) );
 --------------------------------------------------------------------------------------------------
 standardNonAttackingRookConfigurations = method(Options => {})
 standardNonAttackingRookConfigurations CollectionOfCells := opts -> L -> (
-    Q := {};
-    for i from 0 to #L-1 do Q=append(Q,L#i); 
+    
+    Q := for i from 0 to #L-1 list L#i; 
     Q = sort Q;
     conf := apply(Q, i -> {i}); 
     AllConf:={conf};
@@ -671,7 +659,7 @@ isPalindromic = method(Options => {})
 isPalindromic RingElement := opts -> f -> (
     coeffs := flatten entries ((coefficients f)#1);
     deg := #coeffs - 1;
-    if deg != (degree f)#0 then error "Polynomial has zero coefficients";
+    if deg != (degree f)#0 then error "polynomial has zero coefficients";
     for i from 0 to floor(deg/2) do (
         if coeffs#i =!= coeffs#(deg - i) then return false;
     );
@@ -712,8 +700,8 @@ admissibleCells = (Q,C) -> (
 --------------------------------------------------------------------------------------------------
 randomCollectionWithFixedRank = method(Options => {})
 randomCollectionWithFixedRank ZZ := opts -> n -> (
-    Q := { {1,1} };  
-    while (#Q < n) do (
+Q := { {1,1} };  
+while (#Q < n) do (
     allCandidates := flatten apply(Q, c -> admissibleCells(Q, c));
     available := toList(set allCandidates - set Q);
     newC := available#(random(#available-1));
@@ -815,13 +803,10 @@ isAdjacent = (A,B) -> (
 cellGraph = method(Options => {})
 cellGraph CollectionOfCells := opts -> Q -> (
     vertCell := toList(0 .. #Q-1);
-    edgeCell := {};
-    for i from 0 to #Q-2 do (
-        for j from i+1 to #Q-1 do (
-            if isAdjacent(Q#i, Q#j) then (
-                edgeCell = append(edgeCell, {i,j});
-            );
-        );
+    edgeCell := flatten for i from 0 to #Q - 2 list (
+    for j from i + 1 to #Q - 1 list (
+        if isAdjacent(Q#i, Q#j) then {i, j} else continue
+        )
     );
     G := graph(vertCell, edgeCell);
     G
@@ -922,12 +907,9 @@ collectionIsSimple CollectionOfCells := opts -> Q -> (
     minCol := min apply(Q, A -> A#0) - 1;
     maxRow := max apply(Q, A -> A#1) + 2;
     maxCol := max apply(Q, A -> A#0) + 2;
-    Rcells := {};
-    for i from minCol to maxCol-1 do (
-        for j from minRow to maxRow-1 do (
-            Rcells = append(Rcells, {i,j});
-        );
-    );
+    Rcells := flatten for i from minCol to maxCol-1 list (
+    			for j from minRow to maxRow-1 list {i, j}
+	              );
     ExtPol := cellCollection(toList(set(Rcells) - set(Q)));
     comps := connectedComponentsCells(ExtPol);
     #comps == 1
