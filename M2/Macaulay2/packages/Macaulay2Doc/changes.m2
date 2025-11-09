@@ -140,7 +140,7 @@ document {
 		LI { TO "ForeignFunctions::ForeignFunctions", " has been updated to version 0.5."},
 		LI { TO "GeometricDecomposability::GeometricDecomposability", " has been updated to version 1.4.2 with minor updates."},
 		LI { TO "JSON::JSON", " has been updated to version 0.4."},
-		LI { TO "LieTypes::LieTypes", " has been updated to version 0.9 with various improvements."},
+		LI { TO2("LieAlgebraRepresentations::LieAlgebraRepresentations","LieTypes"), " has been updated to version 0.9 with various improvements."},
 		LI { TO "MatrixSchubert::MatrixSchubert", " has been updated to version 1.2 with a bug fix and documentation improvements."},
 		LI { TO "MultigradedBGG::MultigradedBGG", " has been updated to version 1.2 with documentation improvements."},
 		LI { TO "Permutations::Permutations", " has been updated to version 1.1, adding several new methods."},
@@ -217,7 +217,7 @@ document {
 		LI { TO "AssociativeAlgebras::AssociativeAlgebras", " has been updated to version 0.9 with new functions related to derivation-quotient algebras, superpotentials, and Nakayama automorphisms of m-Koszul Artin-Schelter regular algebras."},
 		LI { TO "ForeignFunctions::ForeignFunctions", " has been updated to version 0.4 with improved documentation."},
 		LI { TO "Jets::Jets", " has been updated to version 1.2 with improvements and new methods for principal jets."},
-		LI { TO "LieTypes::LieTypes", " has been updated to version 0.82 with bug fixes, improved documentation, and a new method, ", TO "LieTypes::zeroModule", "."},
+		LI { TO2("LieAlgebraRepresentations::LieAlgebraRepresentations","LieTypes"), " has been updated to version 0.82 with bug fixes, improved documentation, and a new method, ", TO "LieAlgebraRepresentations::zeroModule", "."},
 		LI { TO "PositivityToricBundles::PositivityToricBundles", " has been updated to version 1.9 with bug fixes and a new method, ", TO "PositivityToricBundles::wellformedBundleFiltrations", "."},
 		LI { TO "Probability::Probability", " has been updated to version 0.5 with improved documentation." },
 		LI { TO "Seminormalization::Seminormalization", " has been updated to version 0.22 with several improvements."},
@@ -1063,7 +1063,7 @@ document {
      	  LI { "packages that have been published and certified:",
      	       UL {
      	       	    -- LI { star, " ", TO "::", ", a package by ... for ..., has been published." },
-		    LI { star, " ", TO "LieTypes::LieTypes", " and ", TO "ConformalBlocks::ConformalBlocks", ", two packages by Dave Swinarski for computing ranks and first Chern classes of conformal block bundles
+		    LI { star, " ", TO2("LieAlgebraRepresentations::LieAlgebraRepresentations","LieTypes"), " and ", TO "ConformalBlocks::ConformalBlocks", ", two packages by Dave Swinarski for computing ranks and first Chern classes of conformal block bundles
 			 on the moduli space of n-pointed curves of genus 0, have been published." },
 		    LI { star, " ", TO "WeilDivisors::WeilDivisors", ", a package by Karl Schwede and Zhaoning Yang for working with Weil divisors, has been published." },
 		    LI { star, " ", TO "StronglyStableIdeals::StronglyStableIdeals", ", a package by Davide Alberelli and Paolo Lella for studying strongly stable ideals related to Hilbert polynomials, has been published." },
@@ -1735,7 +1735,7 @@ document {
 			 intersection. This structure allows one to ", EM "lift", " a resolution over a complete
 			 intersection to a resolution over the ambient ring -— a construction dual, in a sense,
 			 to the well known Eisenbud-Shamash construction, which is also implemented." },
-		    LI { TO "LieTypes::LieTypes", ", a package by Dave Swinarski for defining types used by the package ", TO "ConformalBlocks::ConformalBlocks", ", has been added." },
+		    LI { TO2("LieAlgebraRepresentations::LieAlgebraRepresentations","LieTypes"), ", a package by Dave Swinarski for defining types used by the package ", TO "ConformalBlocks::ConformalBlocks", ", has been added." },
 		    LI { TO "ConformalBlocks::ConformalBlocks", ", a package by Dave Swinarski for computing ranks and first Chern classes of conformal block bundles
 			 on the moduli space of n-pointed curves of genus 0, has been added." },
 		    LI { TO "M0nbar::M0nbar", ", a package by Han-Bom Moon and David Swinarski for calculations for divisors and F-curves on the moduli space of stable n-pointed genus zero curves, has been added." },
