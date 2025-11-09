@@ -45,7 +45,7 @@ XactionOnVariablej = (Xhash,expv,j) -> (
         if j==t#0#0 then newexpv = expv else newexpv=apply(#expv, i-> if i==j then expv_i-1 else if i==t#0#0 then expv_i+1 else expv_i);	
      	{newexpv, expv_j*(t#1)}
     );
-    return answer
+    answer
 );
 
 
@@ -162,7 +162,7 @@ XactionInPositionj = (Xhash,wedge,j) -> (
      	    {sort newwedge, dj*(t#1)}
 	)
     );
-    return delete(null,answer)
+    delete(null,answer)
 ); 
     
   
@@ -231,7 +231,7 @@ XactionOnPair = (rho1Xhash,rho2Xhash,i,j) -> (
     L2:=apply(e2, p -> {{i,p#0#0},p#1});    
     L:=join(L1,L2);
     U:=unique apply(L, i -> first i);
-    return apply(U, p -> {p,last sum select(L, x -> x_0==p)})
+    apply(U, p -> {p,last sum select(L, x -> x_0==p)})
 );
 
 
@@ -239,7 +239,7 @@ XactionOnPair = (rho1Xhash,rho2Xhash,i,j) -> (
 
 
 XactionOnTensorProduct = (rho1X,rho2X) -> (
-    if ring(rho1X) =!= ring(rho2X) then error "The matrices do not have the same base ring" << endl;
+    if ring(rho1X) =!= ring(rho2X) then error "The matrices do not have the same base ring";
     m1:=numrows rho1X;
     m2:=numrows rho2X;
     domainPairs:=flatten apply(m1, i -> apply(m2, j -> {i,j}));
@@ -271,10 +271,10 @@ tensor(LieAlgebraRepresentation,LieAlgebraRepresentation) := (rhoV,rhoW) -> (
     LV:=rhoV#"RepresentationMatrices";
     LW:=rhoW#"RepresentationMatrices";
     U:=V**W;
-    if LABV#"BasisElements" != LABW#"BasisElements" then error "The representations do not have the same basis" << endl;
+    if LABV#"BasisElements" != LABW#"BasisElements" then error "The representations do not have the same basis";
     R1:=ring(LV_0);
     R2:=ring(LW_0);
-    if R1 =!= R2 then error "The representations do not have the same base ring" << endl;
+    if R1 =!= R2 then error "The representations do not have the same base ring";
     lieAlgebraRepresentation(U,LABV,apply(#(LABV#"BasisElements"), i -> XactionOnTensorProduct(LV_i,LW_i)))
 );
 
@@ -313,7 +313,7 @@ isLieAlgebraRepresentation(LieAlgebraBasis,List) := (LAB, rhoB) -> (
 	    )
         )
     );
-    return true
+    true
 );	
 
 

@@ -45,7 +45,7 @@ standardRepresentation = method(
     )
 
 standardRepresentation(String,ZZ) := (type,m) -> (
-    if not member(type,{"A","B","C","D"}) then error "Only implemented for types A,B,C,D" << endl;    
+    if not member(type,{"A","B","C","D"}) then error "Only implemented for types A,B,C,D";    
     LAB:=lieAlgebraBasis(type,m);
     V := standardModule(LAB#"LieAlgebra");
     lieAlgebraRepresentation(V,LAB,LAB#"BasisElements")
@@ -53,7 +53,7 @@ standardRepresentation(String,ZZ) := (type,m) -> (
 );
 
 standardRepresentation(LieAlgebra) := g -> (
-    if not member(g#"RootSystemType",{"A","B","C","D"}) then error "Only implemented for types A,B,C,D" << endl;
+    if not member(g#"RootSystemType",{"A","B","C","D"}) then error "Only implemented for types A,B,C,D";
     LAB:=lieAlgebraBasis(g);
     V := standardModule(LAB#"LieAlgebra");
     lieAlgebraRepresentation(V,LAB,LAB#"BasisElements")
@@ -62,7 +62,7 @@ standardRepresentation(LieAlgebra) := g -> (
 -*
 standardRepresentation(LieAlgebraBasis) := LAB -> (
     g:=LAB#"LieAlgebra";
-    if not member(g#"RootSystemType",{"A","B","C","D"}) then error "Only implemented for types A,B,C,D" << endl;
+    if not member(g#"RootSystemType",{"A","B","C","D"}) then error "Only implemented for types A,B,C,D";
     V := standardModule(LAB#"LieAlgebra");
     lieAlgebraRepresentation(V,LAB,LAB#"BasisElements")
 );

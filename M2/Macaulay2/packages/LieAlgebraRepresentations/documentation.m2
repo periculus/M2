@@ -7,8 +7,7 @@ doc ///
         Text 
             This package implements finite-dimensional representations of finite-dimensional complex semisimple Lie algebras and their characters. 
         Text
-	    This package is a major expansion and renaming of the LieTypes v0.9 package. It is intended to replace the LieTypes package in 2026.
-
+	    This package is a major expansion and renaming of the package formerly known as LieTypes.
 ///
 
 
@@ -186,7 +185,7 @@ doc ///
 	(dualCoxeterNumber,LieAlgebra)
 	(dualCoxeterNumber,String,ZZ)
     Headline
-        returns the dual Coxeter number of a simple Lie algebra
+        the dual Coxeter number of a simple Lie algebra
     Usage
         dualCoxeterNumber(g)
     Inputs
@@ -216,7 +215,7 @@ doc ///
         highestRoot
 	(highestRoot,LieAlgebra)
     Headline
-        returns the highest root of a simple Lie algebra
+        the highest root of a simple Lie algebra
     Usage
         highestRoot(g), highestRoot("A",2)
     Inputs
@@ -676,7 +675,7 @@ doc ///
 	(simpleRoots,String,ZZ)
 	(simpleRoots,LieAlgebra)
     Headline
-        returns the simple roots of a simple Lie algebra
+        the simple roots of a simple Lie algebra
     Usage
         simpleRoots(g), simpleRoots("A",2)
     Inputs
@@ -694,7 +693,7 @@ doc ///
         positiveCoroots
 	(positiveCoroots,LieAlgebra)
     Headline
-        returns the positive (co)roots of a simple Lie algebra
+        the positive (co)roots of a simple Lie algebra
     Usage
         positiveRoots(g), positiveCoroots(g)
     Inputs

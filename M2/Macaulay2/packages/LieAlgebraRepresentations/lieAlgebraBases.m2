@@ -88,7 +88,7 @@ checkLieAlgebraBasis = (LAB) -> (
     if CM != matrix apply(m, k -> (LAB#"Weights")_(m+k)) then (
 	return (false, "The Cartan matrix is incorrect")
     );
-    return (true,"")
+    (true,"")
 )
 
 
@@ -112,7 +112,7 @@ lieAlgebraBasis(String,ZZ) := o -> (type,m) -> (
     if type=="G" and m==2 then LAB=g2BasisFH();
     if o#"Check" then (
 	(b,errorString):=checkLieAlgebraBasis(LAB);
-	if not b then error errorString << endl;
+	if not b then error errorString;
     );
     LAB
 );
@@ -188,14 +188,13 @@ universalEnvelopingAlgebra(LieAlgebraBasis) := (LAB) -> (
     -- Create U(g) in the original basis
     BB:=getSymbol "BB";
     R1 := QQ<|apply(#B, i -> BB_i)|>;
-    bracketRelations := {};
     v:={};
     r:=0;
-    for i from 0 to #B-1 do (
-        for j from 0 to #B-1 do (
+    bracketRelations:=flatten for i from 0 to #B-1 list (
+        for j from 0 to #B-1 list (
             v = writeInBasis(br(B_i,B_j));
             r = R1_i*R1_j-R1_j*R1_i - (sum apply(#B, k -> v_k*R1_k));
-            bracketRelations = append(bracketRelations,r)
+            r
         )
     );
     -- Now set up the free algebra
@@ -238,15 +237,14 @@ uNminus(LieAlgebraBasis) := (LAB) -> (
     BB:=getSymbol "BB";
     R1 := QQ<|apply(#B, i -> BB_i)|>;
     LOI:=LAB#"LoweringOperatorIndices";
-    uNminusbracketRelations := {};
     v:={};
     r:=0;
-    for i from 0 to #B-1 do (
-        for j from 0 to #B-1 do (
+    uNminusbracketRelations := flatten for i from 0 to #B-1 list (
+        for j from 0 to #B-1 list (
 	    if not(member(i,LOI) and member(j,LOI)) then continue;
             v = writeInBasis(br(B_i,B_j));
             r = R1_i*R1_j-R1_j*R1_i - (sum apply(#B, k -> v_k*R1_k));
-            uNminusbracketRelations = append(uNminusbracketRelations,r)
+            r
         )
     );
     -- Now set up the free algebra

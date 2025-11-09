@@ -61,7 +61,7 @@ weightMuHighestWeightVectorsInW(List,LieAlgebraRepresentation) := (mu,rho) -> (
     Wweights:=representationWeights(rho);
     domainIndices:=select(dim W, i -> Wweights_i==mu);
     z:=apply(#(K_0), i -> 0);
-    return matrix apply(dim W, i -> if member(i,domainIndices) then K_(position(domainIndices,x->x==i)) else z)
+    matrix apply(dim W, i -> if member(i,domainIndices) then K_(position(domainIndices,x->x==i)) else z)
 );
 
 -- It's also useful to have functions that find the highest weight vectors
@@ -70,17 +70,12 @@ weightMuHighestWeightVectorsInW(List,LieAlgebraRepresentation) := (mu,rho) -> (
 
 
 
-
 monomialFactors = (m) -> (
     e:=flatten exponents(m);
-    A:={};
-    for i from 0 to #e-1 do (
-	for j from 0 to e_i-1 do (
-	    A=append(A,i)
-	)
-    );    
-    return sort A
+    flatten apply(#e, i -> apply(e_i, j -> i))
 );
+
+
 
 
 csOnDegdMonomial = memoize((X,Xstar,m) -> (
@@ -147,8 +142,7 @@ casimirMatrixForWtMuSpaceInSymdW(LieAlgebraRepresentation,List,ZZ):= (rhoW,mu,d)
     cf:=0;
     c:=0;
     r:={};
-    L:={};
-    for j from 0 to #WtmuMonBasis-1 do (
+    L:=for j from 0 to #WtmuMonBasis-1 list (
 	f = WtmuMonBasis_j;
         cf = csOnDegdPoly(X,Xstar,f);
 	r = {};
@@ -156,9 +150,9 @@ casimirMatrixForWtMuSpaceInSymdW(LieAlgebraRepresentation,List,ZZ):= (rhoW,mu,d)
 	    c = coefficient(WtmuMonBasis_i,cf);
 	    if c!=0 then r = append(r,(i,j)=>c)
         );
-        L = append(L,r);
+        r
     );
-    return L
+    L
 );
 
 
@@ -192,8 +186,8 @@ writeInUTBasis = (f0,B) -> (
         answer = append(answer,c);
         f = f - c*g
     );
-    if not(f==0) then error "This did not work" << endl;
-    return answer  
+    if not(f==0) then error "This did not work";
+    answer  
 );
 
 
@@ -245,7 +239,7 @@ weightMuHighestWeightVectorsInSymdW(List,ZZ,LieAlgebraRepresentation):= (mu,d,rh
             print concatenate("        EV ",toString(c)," complete") << endl;
         );
         if f== 0 then continue;
-        if csOnDegdPoly(X,Xstar,f)!=csmu*f then error "f does not have the correct eigenvalue" << endl;
+        if csOnDegdPoly(X,Xstar,f)!=csmu*f then error "f does not have the correct eigenvalue";
 	print concatenate("    #hwvs=",toString(#hwvs)) << endl;
 	L = testAgainstUTBasis(f,hwvs);
 	if #L > #hwvs then (
@@ -290,7 +284,7 @@ applyTerm = (t,v,actInstance,LoweringOperators) -> (
 	u = actInstance(LoweringOperators_(x_i),u);
 	if u==0 then return u;
     );
-    return c*u    
+    c*u    
 );
 
 
@@ -316,7 +310,7 @@ VInSymdW(LieAlgebraRepresentation,ZZ,LieAlgebraRepresentation,Matrix) := o -> (r
     LABW:=rhoW#"Basis";
     LW:=rhoW#"RepresentationMatrices";
     -- Check that they use the same basis of g
-    if LABV#"BasisElements"!= LABW#"BasisElements" then error "V and W do not use the same basis" << endl;
+    if LABV#"BasisElements"!= LABW#"BasisElements" then error "V and W do not use the same basis";
     LAB:=LABV;
     n:=dim W;
     B:=getSymbol "B";
@@ -355,7 +349,7 @@ VInSymdW(LieAlgebraRepresentation,ZZ,LieAlgebraRepresentation,RingElement) := o 
     CBW:=rhoW#"Basis";
     LW:=rhoW#"RepresentationMatrices";
     -- Check that they use the same basis of g
-    if CBV#"BasisElements" != CBW#"BasisElements" then error "V and W do not use the same basis" << endl;
+    if CBV#"BasisElements" != CBW#"BasisElements" then error "V and W do not use the same basis";
     CB:=CBV;
     n:=dim W;
     R:=ring(hwv);
@@ -416,7 +410,7 @@ VInWedgekW(LieAlgebraRepresentation,ZZ,LieAlgebraRepresentation,Matrix) := o -> 
     LABW:=rhoW#"Basis";
     LW:=rhoW#"RepresentationMatrices";
     -- Check that they use the same basis of g
-    if LABV#"BasisElements" != LABW#"BasisElements" then error "V and W do not use the same basis" << endl;
+    if LABV#"BasisElements" != LABW#"BasisElements" then error "V and W do not use the same basis";
     LAB:=LABV;
     WedgekW:=exteriorPower(k,rhoW);
     n:=dim W;
@@ -513,7 +507,7 @@ weightNuHighestWeightVectorsInVtensorW(List,LieAlgebraRepresentation,LieAlgebraR
             print concatenate("        EV ",toString(c)," complete") << endl;
         );
         if f== 0 then continue;
-        if csOnDeg2Tensor(cas1,cas2,XftensorXstarg,XftensorXstarg,f)!=csnu*f then error "f does not have the correct eigenvalue" << endl;
+        if csOnDeg2Tensor(cas1,cas2,XftensorXstarg,XftensorXstarg,f)!=csnu*f then error "f does not have the correct eigenvalue";
 	print concatenate("    #hwvs=",toString(#hwvs)) << endl;
 	L = testAgainstUTBasis(f,hwvs);
 	if #L > #hwvs then (
@@ -540,8 +534,8 @@ UInVtensorW(LieAlgebraRepresentation,LieAlgebraRepresentation,LieAlgebraRepresen
     LABW:=rhoW#"Basis";
     LW:=rhoW#"RepresentationMatrices";
     -- Check that they use the same basis of g
-    if LABU#"BasisElements"!= LABV#"BasisElements" then error "U and V do not use the same basis" << endl;
-    if LABU#"BasisElements" != LABW#"BasisElements" then error "U and W do not use the same basis" << endl;
+    if LABU#"BasisElements"!= LABV#"BasisElements" then error "U and V do not use the same basis";
+    if LABU#"BasisElements" != LABW#"BasisElements" then error "U and W do not use the same basis";
     LAB:=LABU;
     n1:=dim V;
     n2:=dim W;
@@ -574,8 +568,8 @@ UInVtensorW(LieAlgebraRepresentation,LieAlgebraRepresentation,LieAlgebraRepresen
     LABW:=rhoW#"Basis";
     LW:=rhoW#"RepresentationMatrices";
     -- Check that they use the same basis of g
-    if LABU#"BasisElements" != LABV#"BasisElements" then error "U and V do not use the same basis" << endl;
-    if LABU#"BasisElements" != LABW#"BasisElements" then error "U and W do not use the same basis" << endl;
+    if LABU#"BasisElements" != LABV#"BasisElements" then error "U and V do not use the same basis";
+    if LABU#"BasisElements" != LABW#"BasisElements" then error "U and W do not use the same basis";
     LAB:=LABU;
     n1:=dim V;
     n2:=dim W;

@@ -9,7 +9,7 @@
 -- Check: does this match Bourbaki?
 
 epsfunction = (g) -> (
-    if not isSimple(g) then error "Not implemented yet" << endl;
+    if not isSimple(g) then error "Not implemented yet";
     if member(g#"RootSystemType",{"A","B","C","F","G"}) then return i -> (-1)^i;
     m:=g#"LieAlgebraRank";
     if g#"RootSystemType"=="D" then (
@@ -33,7 +33,7 @@ p = (alpha,beta,g) -> (
     if alpha==beta or alpha==-beta then return "Does not exist";
     i:=0;
     while member(beta+(i+1)*alpha, Phi) do i=i+1;
-    return i
+    i
 );
 
 
@@ -43,7 +43,7 @@ q = (alpha,beta,g) -> (
     if alpha==beta or alpha==-beta then return "Does not exist";
     i:=0;
     while member(beta-(i+1)*alpha, Phi) do i=i+1;
-    return i
+    i
 );
 
 
@@ -246,177 +246,6 @@ cartanMatrixOfFolding = (gtilde) -> (
     matrix apply(mtilde, i -> apply(mtilde, j -> brhiealpha(sigma_j,L_i,NodeOrbits)))
 );
 
-
-
-
-
-end
-
-
-load "GeckLang.4.m2"
-debug LieAlgebraRepresentations
--*
--- Test the Cartan matrices
-L = {{"B",5},{"C",5},{"F",4},{"G",2}};
-all(L, x -> cartanMatrixOfFolding(simpleLieAlgebra(x_0,x_1))==cartanMatrix(x_0,x_1))
-*-
-
-
-LABA2 = lusztigBasis(simpleLieAlgebra("A",2));
-checkLieAlgebraBasis(LABA2)
-LABC3 = lusztigBasis(simpleLieAlgebra("C",3));
-checkLieAlgebraBasis(LABC3)
-
--- Test the rainbow 
-
-L = {{"A",1},{"A",2},{"A",4},{"B",4},{"C",4},{"D",4},{"E",6},{"E",7},{"E",8},{"F",4},{"G",2}};
-for x in L do (
-    print toString(x) << endl;
-    g = simpleLieAlgebra(x_0,x_1);
-    LAB = lusztigBasis(g);
-    b=checkLieAlgebraBasis(LAB);
-    print toString(b) << endl
-);
-
-
-
--- Test etaHat
-
--- An example where alphalift+betalift is in Phi:
-etaHat({2,-1,0},{-1,2,-1},gtilde)
--- An example where alphalift+betalift is not in Phi and we have to replace betalift by betalift' 
-etaHat({2,-1,0},{0,1,0},gtilde)
-
-
-
--- Build a LieAlgebraBasis
-
-geckLAB = (gtilde) -> (
-
-
-
-);
-
--- Bind gtilde.cache#"FoldingData" = (g,partition(alphatilde, allRoots(g)))
-gtilde = simpleLieAlgebra("C",3);
-g=unfoldingLieAlgebra(gtilde);
-NodeOrbits=nodeOrbits(gtilde);
-gtilde.cache#"FoldingData" = (g,partition(x -> alphatilde(x,NodeOrbits), allRoots(g)));
-
-
-
-
--- To implement Theorem 4.10:
--- 
-    
-
-
-
-
-
-
--- What are some good examples?
--- Here's an example where alphalift+betalift is in Phi
--- [B_3,B_4] = B_6
--- [e_{2,-1,0},e_{-1,2,-1}] = e_{1,1,-1}
-
-alpha = {2,-1,0}
-beta = {-1,2,-1}
-alphalift = first(FD#alpha)
-Phi=allRoots(g);
-
--*
--- Can I find an example where I need to replace beta by beta'?
-
-Phitilde=allRoots(gtilde);
-for i from 0 to #Phitilde-2 do (
- for j from i+1 to #Phitilde-1 do (
-   alpha=Phitilde_i;
-   beta=Phitilde_j;
-   if alpha+beta==apply(#alpha, i -> 0) then continue;
-   if not member(alpha+beta,Phitilde) then continue;
-   alphalift=first(FD#alpha);
-   betalift=first(FD#beta);
-   if not member(alphalift+betalift,Phi) then print toString({alpha,beta}) << endl
-   )
-)
- {{2, -1, 0}, {0, 1, 0}}
-{{-1, 2, -1}, {-1, 0, 1}}
-{{-1, 2, -1}, {1, -1, 1}}
-{{-1, 2, -1}, {0, -1, 0}}
-{{1, 1, -1}, {-1, 0, 1}}
-{{1, 1, -1}, {1, -1, 1}}
-{{-1, 0, 1}, {0, -1, 0}}
-{{0, 1, 0}, {1, -2, 1}}
-{{0, 1, 0}, {1, 0, -1}}
-{{-2, 1, 0}, {0, -1, 0}}
-{{1, -2, 1}, {1, 0, -1}}
-{{1, -2, 1}, {-1, 1, -1}}
-{{-1, -1, 1}, {1, 0, -1}}
-{{-1, -1, 1}, {-1, 1, -1}}
-
-*-
-
-alpha = {2,-1,0}
-beta = {0,1,0}
-alphalift = first(FD#alpha)
---  {2, -1, 0, 0, 0}
-FD#beta
--- {{1, 0, 0, 1, -1}, {-1, 1, 0, 0, 1}}
-member({2, -1, 0, 0, 0}+{1, 0, 0, 1, -1},Phi)
--- false
-member({2, -1, 0, 0, 0}+{-1, 1, 0, 0, 1},Phi)
--- true
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- Example 1: n=3, A5 to C3
-
----- Step 1. Describe the folding
-
-
-g = simpleLieAlgebra("A",5);
-Phi = allRoots(g);
-n = g#"LieAlgebraRank";
-
-gtilde = simpleLieAlgebra("C",3);
-
-
-
-
-
--*
--- What are the simple roots of gtilde?
-
-Delta = simpleRoots(g);
-L5 = unique apply(Delta, i -> first select(L4, j -> member(i,j)))
-mtilde = #L2;
--- Note: the ordering of the orbits in L5 might not be correct to get the Cartan matrix
-matrix apply(mtilde, i -> apply(mtilde, j -> brhiealpha(j,L5_i_0)))==cartanMatrix("C",3)
-*-
-
-
--- Get the map between roots of g and roots of gtilde
-
-alphatilde = (alpha,NodeOrbits) -> (apply(#NodeOrbits, j -> brhiealpha(j,alpha,NodeOrbits)))
-
--- Check that alphatilde is constant on elements of L4
-
-all(L4, i -> #(unique apply(i, j -> alphatilde(j)))==1)
 
 
 

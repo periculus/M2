@@ -65,7 +65,7 @@ matrixFromColumns = L -> (
     for i from 1 to #L-1 do (
         M = M|(L_i)
     );
-    return M
+    M
 );
 -*
 B = {matrix({{1},{3}}),matrix({{2},{4}})}
@@ -106,7 +106,7 @@ applyLOWord = (w,v,LoweringOperators) -> (
     for i from 0 to #x-1 do (
 	u = (LoweringOperators_(x_i))*u
     );
-    return u    
+    u    
 );
 -*
 -- Test some examples
@@ -205,7 +205,7 @@ basisWordsFromMatrixGenerators(LieAlgebraRepresentation) := (rho) -> (
             VLBWords#(VLBIndices_k) = VLBWordsMu_k
         );
     );
-    return apply(#(keys VLBWords), i -> VLBWords#i)
+    apply(#(keys VLBWords), i -> VLBWords#i)
 )
 
 
@@ -217,11 +217,11 @@ isomorphismOfRepresentations = method(
 -- or Pinv*(L1_i)*P = L2_i
 isomorphismOfRepresentations(LieAlgebraRepresentation,LieAlgebraRepresentation) := (rho1, rho2) -> (
     V:=rho1#"Module";
-    if rho2#"Module"!=V then error "The representations are not isomorphic" << endl;
-    if not isIrreducible(V) then error "Not implemented yet for reducible representations"<<endl;
+    if rho2#"Module"!=V then error "The representations are not isomorphic";
+    if not isIrreducible(V) then error "Not implemented yet for reducible representations";
     LAB1:=rho1#"Basis";
     LAB2:=rho2#"Basis";
-    if LAB1#"BasisElements"!=LAB2#"BasisElements" then error "Not implemented yet when the representations have different Lie algebra bases" << endl;
+    if LAB1#"BasisElements"!=LAB2#"BasisElements" then error "Not implemented yet when the representations have different Lie algebra bases";
     lambda:=first keys(V#"DecompositionIntoIrreducibles");
     vlambda:=weightMuHighestWeightVectorsInW(lambda,rho1);
     LOMaps:=apply(LAB1#"LoweringOperatorIndices", i -> (rho1#"RepresentationMatrices")_i);
@@ -233,32 +233,8 @@ isomorphismOfRepresentations(LieAlgebraRepresentation,LieAlgebraRepresentation) 
     L1:=rho1#"RepresentationMatrices";
     L2:=rho2#"RepresentationMatrices";
     g:=LAB1#"LieAlgebra";
-    if not all(dim g, i -> L2_i == Pinv*(L1_i)*P) then error "Isomorphism not found" << endl;
+    if not all(dim g, i -> L2_i == Pinv*(L1_i)*P) then error "Isomorphism not found";
     P
 );
 
 
-
-end
-
-
--- Test some examples
-
--- Toy example
-
-g = simpleLieAlgebra("A",3);
-LAB = lieAlgebraBasis("A",3);
-lambda = {2,0,0};
-V=irreducibleLieAlgebraModule(lambda,g);
-matrixGens = GTrepresentationMatrices(V,lambda);
-installRepresentation(V,LAB,matrixGens)
-basisWordsFromMatrixGenerators(V)
-
-
--* Try computing weights in two different ways
-lambdaPartition = dynkinToPartition(lambda);
-BGT = gtPatterns(lambdaPartition);
-apply(BGT, x -> (gtp x)#"weight")
-basisWeights = apply(numrows (rhoB_0), j -> apply(3, i -> (rhoB_i)_(j,j)));
-They are equal
-*-

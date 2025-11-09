@@ -102,7 +102,7 @@ G2DualBasis = {2/3*G2ring_0+G2ring_1,G2ring_0+2*G2ring_1,1/3*G2ring_8,G2ring_9,1
 -- WriteInBasis
 
 g2BasisFH = () -> (
-    --if m!=2 then error "Only implemented for m=2" << endl;
+    --if m!=2 then error "Only implemented for m=2";
     new LieAlgebraBasis from {
 	"LieAlgebra"=>simpleLieAlgebra("G",2),
         "BasisElements"=>gens G2ring,
@@ -117,28 +117,4 @@ g2BasisFH = () -> (
 )
 
 
-
-end
-
--- Tests
-
--- Does the bracket satisfy the Jacobi identity?
-
-LAB = lieAlgebraBasis("G",2);
-B = LAB#"BasisElements";
-br = LAB#"Bracket";
-
-
-for i from 0 to #B-1 do (
- for j from 0 to #B-1 do (
-  for k from 0 to #B-1 do (
-   if br(B_i,br(B_j,B_k))+br(B_j,br(B_k,B_i))+br(B_k,br(B_i,B_j))!=0 then error toString({i,j,k}) << endl
-   )))
--- Yes
-
--- Make the Killing form matrix
-rho = adjointRepresentation(LAB);
-rhoB = rho#"RepresentationMatrices";
-K = matrix apply(#rhoB, i -> apply(#rhoB, j -> trace(rhoB_i*rhoB_j)))
-rank(K)==#rhoB
 

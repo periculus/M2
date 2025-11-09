@@ -24,7 +24,7 @@ isValidEntryListA = (L) -> (
 	if -(H#(k-1,i)) + H#(k,i+1) > 0 then return false;
       )
     );
-    return true
+    true
 );
 
 
@@ -47,10 +47,10 @@ gtWeightA = (n,H) -> (
 
 -- Construct a GTPattern from a list of entries
 gtpA = (L) -> (
-    if not isValidEntryList("A",L) then error "Invalid entries" << endl;
+    if not isValidEntryList("A",L) then error "Invalid entries";
     n:=0;
     while n*(n+1)/2<#L do n=n+1;
-    if n*(n+1)/2!=#L then error "#L is not a triangular number" << endl;
+    if n*(n+1)/2!=#L then error "#L is not a triangular number";
     lambda:=apply(n, i -> L_i);
     gtI:=gtIndices("A",n);
     H:=new HashTable from apply(#gtI, t -> gtI_t => L_t);
@@ -93,14 +93,12 @@ gtPolytopeA = (lambda) -> (
     -- Step 1: Create the inequalities I*x <= v
     -- -l_(k,i) + l_(k-1,i) <= 0 for i=1,...,k-1;, k=2,...,n
     -- -l_(k-1,i) + l_(k,i+1) <= 0 for i=1,...,k-1; k=2,...,n
-    I:={};
-    for k from 2 to n do (
-      for i from 1 to k-1 do (
-	I = append(I,apply(#gtI, j -> if j==gtItoZ#(k,i) then -1 else if  j==gtItoZ#(k-1,i) then 1 else 0));
-	I = append(I,apply(#gtI, j -> if j==gtItoZ#(k-1,i) then -1 else if  j==gtItoZ#(k,i+1) then 1 else 0));
+    I:=for k from 2 to n list (
+      for i from 1 to k-1 list (
+	{apply(#gtI, j -> if j==gtItoZ#(k,i) then -1 else if  j==gtItoZ#(k-1,i) then 1 else 0), apply(#gtI, j -> if j==gtItoZ#(k-1,i) then -1 else if  j==gtItoZ#(k,i+1) then 1 else 0)}
       )
     );
-    I = matrix I;
+    I = matrix flatten flatten I;
     v:=matrix apply(numrows I, t -> {0});
     -- Step 2: Create the equations
     -- l_(n,i) = lambda_i for i=1,...,n
@@ -172,18 +170,17 @@ Ekk = (V, GTP, k) -> (
 
 -- N.B. l_(k,i) = lambda_(k,i)-i+1
 Xk = (V, GTP, k) -> (
-    L:={};
     num:=1;
     denom:=1;
     GTPPlusDeltakiEntries:={};
     GTPPlusDeltaki:={};
-    for i from 1 to k do (
+    L:=for i from 1 to k list (
 	GTPPlusDeltakiEntries:=gtpPMDeltakiEntries(GTP,1,k,i);
 	if not isValidEntryList("A",GTPPlusDeltakiEntries) then continue;
 	GTPPlusDeltaki=gtpA(GTPPlusDeltakiEntries);
 	num = product apply(toList(1..(k+1)), j -> (GTP#(k,i)-i+1)-(GTP#(k+1,j)-j+1));
 	denom = product apply(toList(1..k), j -> if j==i then 1 else (GTP#(k,i)-i+1)-(GTP#(k,j)-j+1));
-	L = append(L,{GTPPlusDeltaki,-num/denom})
+	{GTPPlusDeltaki,-num/denom}
     );
     lieAlgebraModuleElement(V,L)
 );
@@ -191,18 +188,17 @@ Xk = (V, GTP, k) -> (
 
 -- N.B. l_(k,i) = lambda_(k,i)-i+1
 Yk = (V, GTP, k) -> (
-    L:={};
     num:=1;
     denom:=1;
     GTPMinusDeltakiEntries:={};
     GTPMinusDeltaki:={};
-    for i from 1 to k do (
+    L:=for i from 1 to k list (
 	GTPMinusDeltakiEntries:=gtpPMDeltakiEntries(GTP,-1,k,i);
 	if not isValidEntryList("A",GTPMinusDeltakiEntries) then continue;
 	GTPMinusDeltaki=gtpA(GTPMinusDeltakiEntries);
 	num = product apply(toList(1..(k-1)), j -> (GTP#(k,i)-i+1)-(GTP#(k-1,j)-j+1));
 	denom = product apply(toList(1..k), j -> if j==i then 1 else (GTP#(k,i)-i+1)-(GTP#(k,j)-j+1));
-	L = append(L,{GTPMinusDeltaki,num/denom})
+	{GTPMinusDeltaki,num/denom}
     );
     lieAlgebraModuleElement(V,L)
 );
@@ -256,24 +252,3 @@ GTrepresentationMatricesA = (V) -> (
 );
 
 
-
-
--* Tests
-sl3 = simpleLieAlgebra("A",2);
-lambda={1,1}
-lambdaPartition=dynkinToPartition(lambda);
-BGT = gtPatterns(lambdaPartition);
-sl3 = simpleLieAlgebra("A",2);
-V = irreducibleLieAlgebraModule(lambda,sl3);
-assert(BGT == {{2, 1, 0, 2, 1, 2}, {2, 1, 0, 2, 1, 1}, {2, 1, 0, 2, 0, 2}, {2, 1, 0, 2, 0, 1}, {2, 1, 0, 2, 0, 0}, {2, 1, 0, 1, 1, 1}, {2, 1, 0, 1, 0, 1}, {2, 1, 0, 1, 0, 0}}
-)
-H1GT = HkrepresentationMatrix(V,1,BGT);
-assert(entries(H1GT)=={{1, 0, 0, 0, 0, 0, 0, 0}, {0, -1, 0, 0, 0, 0, 0, 0}, {0, 0, 2, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, -2, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 1, 0}, {0, 0, 0, 0, 0, 0, 0, -1}})
-X2GT = XkrepresentationMatrix(V,2,BGT);
-assert(entries(X2GT)=={{0, 0, 1, 0, 0, 0, 0, 0}, {0, 0, 0, 1, 0, 3, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 3/2, 0}, {0, 0, 0, 0, 0, 0, 0, 3/2}, {0, 0, 0, 0, 0, 0, 3/2, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}})
-Y1GT = YkrepresentationMatrix(V,1,BGT);
-assert(entries(Y1GT)=={{0, 0, 0, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0, 0, 0}, {0, 0, 0, 1, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 1, 0}})
-
-
-assert(GTrepresentationMatrices(V,lambda)=={matrix {{1, 0, 0, 0, 0, 0, 0, 0}, {0, -1, 0, 0, 0, 0, 0, 0}, {0, 0, 2, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, -2, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 1, 0}, {0, 0, 0, 0, 0, 0, 0, -1/1}}, matrix {{1, 0, 0, 0, 0, 0, 0, 0}, {0, 2, 0, 0, 0, 0, 0, 0}, {0, 0, -1, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, -2, 0}, {0, 0, 0, 0, 0, 0, 0, -1/1}}, matrix {{0, 1, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 2, 0, 0, 0, 0}, {0, 0, 0, 0, 2, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 0, 0/1}}, matrix {{0, 0, 0, -1, 0, 3, 0, 0}, {0, 0, 0, 0, -2, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 3, 0}, {0, 0, 0, 0, 0, 0, 0, 3/2}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, -3/2}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0/1}}, matrix {{0, 0, 1, 0, 0, 0, 0, 0}, {0, 0, 0, 1, 0, 3, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 3/2, 0}, {0, 0, 0, 0, 0, 0, 0, 3/2}, {0, 0, 0, 0, 0, 0, 3/2, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0/1}}, matrix {{0, 0, 0, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0, 0, 0}, {0, 0, 0, 1, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 1, 0/1}}, matrix {{0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {-1/2, 0, 0, 0, 0, 0, 0, 0}, {0, -1/2, 0, 0, 0, 0, 0, 0}, {1/2, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 1/3, 0, 0, 0, 0, 0}, {0, 0, 0, 1/3, 0, -1, 0, 0/1}}, matrix {{0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0, 0, 0}, {0, 1/2, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 1/2, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 1/3, 0, 1, 0, 0}, {0, 0, 0, 0, 2/3, 0, 0, 0/1}}})
-*-

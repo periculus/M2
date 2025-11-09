@@ -49,14 +49,14 @@ isValidEntryList = (type,L) -> (
 
 
 gtContent = (type,n,H) -> (
-    if type!="A" then error "Only implemented for type A" << endl;
+    if type!="A" then error "Only implemented for type A";
     if type=="A" then return gtContentA(n,H);
 );
 
 
 
 gtWeight = (type,n,H) -> (
-    if type!="A" then error "Only implemented for type A" << endl;
+    if type!="A" then error "Only implemented for type A";
     if type=="A" then return gtWeightA(n,H);
 );
 
@@ -67,7 +67,7 @@ gtPatternFromEntries = method(
 );
 
 gtPatternFromEntries(String,List) := (type,L) -> (
-    if type!="A" then error "Only implemented for type A" << endl;
+    if type!="A" then error "Only implemented for type A";
     if type=="A" then return gtpA(L);
 )
 
@@ -82,7 +82,7 @@ gtPolytope = method(
 );
 
 gtPolytope(String,List) := (type,lambda) -> (
-    if type!="A" then error "Only implemented for type A" << endl;
+    if type!="A" then error "Only implemented for type A";
     if type=="A" then return gtPolytopeA(lambda);    
 );
 
@@ -93,7 +93,7 @@ gtPatterns = method(
 );
 
 gtPatterns(String,List) := memoize((type,lambda) -> (
-    if type!="A" then error "Only implemented for type A" << endl;
+    if type!="A" then error "Only implemented for type A";
     if type=="A" then return gtPatternsA(lambda);    
 ));
 
@@ -105,8 +105,8 @@ GTrepresentationMatrices = method(
 
 GTrepresentationMatrices(LieAlgebraModule) := (V) -> (
     g:=V#"LieAlgebra";
-    if g#"RootSystemType" != "A" then error "Only implemented for type A" << endl;
-    if not isIrreducible(V) then error "Not implemented for reducible modules yet" << endl;
+    if g#"RootSystemType" != "A" then error "Only implemented for type A";
+    if not isIrreducible(V) then error "Not implemented for reducible modules yet";
     GTrepresentationMatricesA(V)
 );
 
