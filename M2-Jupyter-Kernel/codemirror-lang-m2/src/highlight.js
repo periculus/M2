@@ -1,48 +1,43 @@
 import {styleTags, tags as t} from "@lezer/highlight"
 
 export const m2Highlighting = styleTags({
-  // Keywords
-  "if then else when do while for from to by in break continue return try catch finally new": t.controlKeyword,
+  // Control flow keywords (from @specialize in grammar)
+  "if then else when do while for from to by in try catch new of": t.controlKeyword,
+  "return break continue throw": t.controlKeyword,
+
+  // Keyword-like constructs that take arguments
+  "load needs use export symbol global local threadLocal": t.controlKeyword,
+  "time elapsedTime shield debug": t.controlKeyword,
+
+  // Logical operator keywords
   "and or not xor": t.operatorKeyword,
-  "class method function symbol protect export threadVariable global local": t.definitionKeyword,
-  
-  // The nested structure for our specialized nodes
-  "Keyword/Keyword": t.keyword,
-  "Keyword": t.keyword,
-  
-  // Types  
-  "Type/Type": t.typeName,
-  "Type": t.typeName,
-  "ZZ QQ RR CC Ring Ideal Matrix Module List Array String": t.typeName,
-  
-  // Functions
-  "Function/Function": t.function(t.variableName),
-  "Function": t.function(t.variableName),
-  
-  // Constants
-  "Boolean/Boolean": t.bool,
-  "Boolean": t.bool,
+
+  // Types (from @specialize)
+  Type: t.typeName,
+
+  // Built-in functions (from @specialize)
+  Builtin: t.function(t.variableName),
+
+  // Constants (from @specialize)
+  Constant: t.constant(t.variableName),
+
+  // Boolean and Null literals
+  Boolean: t.bool,
   "true false": t.bool,
-  
-  "Null/Null": t.null,
-  "Null": t.null,
+  Null: t.null,
   "null": t.null,
-  
-  // Basic tokens
-  identifier: t.variableName,
-  VariableName: t.variableName,
+
+  // Identifiers and basic tokens
+  Identifier: t.variableName,
   Number: t.number,
   String: t.string,
+  TripleString: t.docString,
   LineComment: t.lineComment,
   BlockComment: t.blockComment,
-  
-  // Operators and punctuation
-  Operator: t.operator,
-  "= := => -> << >> ++ ** ^ .. ... | || & && == != < > <= >= + - * / // % \\\\": t.operator,
-  
-  Delimiter: t.punctuation,
-  "( ) [ ] { } , ; :": t.punctuation,
-  
-  // Special
-  "$ #": t.meta
+
+  // Punctuation
+  "( )": t.paren,
+  "[ ]": t.squareBracket,
+  "{ }": t.brace,
+  ";": t.separator,
 })

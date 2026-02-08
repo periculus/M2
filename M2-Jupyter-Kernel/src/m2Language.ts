@@ -2,7 +2,7 @@
 import { parser } from './parser/parser';
 import { LanguageSupport, LRLanguage } from '@codemirror/language';
 
-// Define the M2 language with the parser that has highlighting built-in
+// Define the M2 language exactly like Python does
 const M2Language = LRLanguage.define({
   parser: parser,
   languageData: {
@@ -11,7 +11,8 @@ const M2Language = LRLanguage.define({
   }
 });
 
-// Export the language support function
+// Export the language support WITHOUT HighlightStyle
+// The parser already has highlighting via propSources
 export function m2() {
   return new LanguageSupport(M2Language);
 }

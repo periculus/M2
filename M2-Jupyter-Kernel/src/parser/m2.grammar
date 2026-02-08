@@ -1,104 +1,295 @@
-@top Program { statement* }
+// Macaulay2 (M2) Lezer Grammar
+// Based on M2's grammar.y and operator precedence from binding.d
+// IMPORTANT: underscore (_) is an OPERATOR in M2, not part of identifiers
 
-statement {
-  Keyword |
+@top Program { (expression semi)* expression? }
+
+semi { ";" }
+
+@skip { space | LineComment | BlockComment }
+
+// Precedence: highest (tightest binding) listed first
+@precedence {
+  member @left,
+  subscript @left,
+  bang,
+  power @left,
+  tilde,
+  comp @left,
+  call @left,
+  at @right,
+  times @left,
+  plus @left,
+  prefix,
+  range @left,
+  amp @left,
+  hathat @left,
+  bar @left,
+  colon @right,
+  oror @left,
+  cmp @right,
+  not,
+  and @right,
+  xor @right,
+  or @right,
+  arrow @right,
+  ded @right,
+  shift @left,
+  assign @right,
+  comma @left
+}
+
+expression[@isGroup=Expression] {
+  Identifier |
   Type |
-  Function |
-  Boolean |
-  Null |
-  identifier |
+  Builtin |
+  Constant |
   Number |
   String |
-  LineComment |
-  BlockComment |
-  Operator |
-  Delimiter
+  TripleString |
+  Boolean |
+  Null |
+  ParenExpr |
+  ListExpr |
+  ArrayExpr |
+  AssignExpr |
+  BinaryExpression |
+  UnaryExpression |
+  PostfixExpression |
+  CallExpr |
+  LoadExpr |
+  NeedsExpr |
+  UseExpr |
+  ExportExpr |
+  ScopeExpr |
+  TimeExpr |
+  ElapsedTimeExpr |
+  ShieldExpr |
+  DebugExpr |
+  IfExpr |
+  WhileExpr |
+  ForExpr |
+  TryExpr |
+  NewExpr |
+  ReturnExpr |
+  BreakExpr |
+  ContinueExpr |
+  ThrowExpr
 }
 
-@skip { space }
+// Grouping — parens also handle block expressions (expr; expr; ...)
+ParenExpr { "(" Body ")" }
+ListExpr { "{" ListItems? "}" }
+ArrayExpr { "[" ListItems? "]" }
+Body { (expression (semi | ","))* expression? }
+ListItems { expression ("," expression)* }
 
-Keyword {
-  @specialize[@name=Keyword]<identifier, 
-    "if" | "then" | "else" | "when" | "do" | "while" | "for" | "from" | "to" | "in" |
-    "break" | "continue" | "return" | "try" | "catch" | "throw" |
-    "local" | "global" | "export" | "exportMutable" | "protect" | "private" | "package" | "use" |
-    "and" | "or" | "not" | "xor" |
-    "new" | "method"
-  >
+// Assignment and arrow operators
+AssignExpr {
+  expression !assign (":=" | "=" | "<-") expression |
+  expression !assign ("->" | "=>" | ">>") expression
 }
 
+// Function call / subscript with parens, braces, or brackets
+CallExpr {
+  expression !call "(" ListItems? ")" |
+  expression !call "{" ListItems? "}" |
+  expression !call "[" ListItems? "]"
+}
+
+// Common M2 keywords that take an argument via juxtaposition
+LoadExpr { kw<"load"> expression }
+NeedsExpr { kw<"needs"> expression }
+UseExpr { kw<"use"> expression }
+ExportExpr { kw<"export"> expression }
+ScopeExpr { (kw<"symbol"> | kw<"global"> | kw<"local"> | kw<"threadLocal">) expression }
+TimeExpr { kw<"time"> expression }
+ElapsedTimeExpr { kw<"elapsedTime"> expression }
+ShieldExpr { kw<"shield"> expression }
+DebugExpr { kw<"debug"> expression }
+
+// Control flow
+IfExpr { kw<"if"> expression ckw<"then"> expression (~ifelse ckw<"else"> expression)? }
+WhileExpr { kw<"while"> expression ckw<"do"> expression }
+ForExpr {
+  kw<"for"> expression
+  (ckw<"from"> expression)?
+  (ckw<"to"> expression)?
+  (ckw<"in"> expression)?
+  (ckw<"when"> expression)?
+  (ckw<"by"> expression)?
+  ckw<"do"> expression
+}
+TryExpr { kw<"try"> expression (~trycatch ckw<"catch"> expression)? }
+NewExpr { kw<"new"> expression (~newof ckw<"of"> expression)? }
+ReturnExpr { kw<"return"> expression }
+BreakExpr { kw<"break"> expression }
+ContinueExpr { kw<"continue"> expression }
+ThrowExpr { kw<"throw"> expression }
+
+// Binary operators by precedence
+BinaryExpression {
+  expression !member ("." | ".?") expression |
+  expression !subscript ("_" | "#" | "#?" | "|_") expression |
+  expression !power ("^" | "^**" | "^>" | "^>=" | "^<" | "^<=") expression |
+  expression !comp "@@" expression |
+  expression !at "@" expression |
+  expression !times ("*" | "/" | "%" | "//" | "\\\\" | "\\") expression |
+  expression !times "**" expression |
+  expression !plus ("+" | "-" | "++") expression |
+  expression !range (".." | "..<") expression |
+  expression !amp "&" expression |
+  expression !hathat "^^" expression |
+  expression !bar "|" expression |
+  expression !colon ":" expression |
+  expression !oror "||" expression |
+  expression !cmp CompareOp expression |
+  expression !and kw<"and"> expression |
+  expression !xor kw<"xor"> expression |
+  expression !or kw<"or"> expression |
+  expression !or "??" expression |
+  expression !arrow ("==>" | "<==" | "<==>" | "===>" | "<==="  ) expression |
+  expression !ded "|-" expression |
+  expression !shift "<<" expression
+}
+
+// Unary prefix operators
+UnaryExpression {
+  !prefix "-" expression |
+  !prefix "+" expression |
+  !prefix "*" expression |
+  !prefix "#" expression |
+  !not kw<"not"> expression
+}
+
+// Postfix operators
+PostfixExpression {
+  expression !bang ("!" | "^!" | "_!") |
+  expression !tilde ("~" | "^~" | "_~" | "_*" | "^*")
+}
+
+// Literals
+Boolean { @specialize[@name=Boolean]<Identifier, "true" | "false"> }
+Null { @specialize[@name=Null]<Identifier, "null"> }
+
+// Types — specialize identifiers to Type nodes for known M2 types
 Type {
-  @specialize[@name=Type]<identifier, 
-    "ZZ" | "QQ" | "RR" | "CC" |
-    "Ring" | "Ideal" | "Module" | "Matrix" |
-    "ChainComplex" | "PolynomialRing" | "QuotientRing" |
-    "List" | "Array" | "HashTable" | "String" | "Symbol" |
-    "Boolean" | "Thing" | "Nothing" | "MutableList" | "MutableHashTable"
+  @specialize[@name=Type]<Identifier,
+    "ZZ" | "QQ" | "RR" | "CC" | "RRi" |
+    "Ring" | "Ideal" | "Module" | "Matrix" | "MutableMatrix" | "Vector" |
+    "ChainComplex" | "ChainComplexMap" | "GradedModule" | "GradedModuleMap" |
+    "PolynomialRing" | "QuotientRing" | "FractionField" | "GaloisField" |
+    "Monoid" | "MonoidElement" | "MonomialIdeal" | "MonomialOrder" |
+    "BasicList" | "List" | "Sequence" | "Array" | "MutableList" |
+    "HashTable" | "MutableHashTable" | "OptionTable" | "Tally" | "Set" | "Dictionary" |
+    "Net" | "Symbol" | "Number" | "Thing" | "Nothing" |
+    "RingElement" | "RingMap" | "InexactNumber" | "InexactField" |
+    "CoherentSheaf" | "SheafOfRings" | "Variety" | "ProjectiveVariety" | "AffineVariety" |
+    "File" | "Database" | "Method" | "Command" |
+    "Package" | "Manipulator" | "Option" | "IndexedVariable" |
+    "Expression" | "Holder" | "BinaryOperation" |
+    "ScriptedFunctor" | "SelfInitializingType" | "WrapperType" |
+    "Resolution" | "GroebnerBasis" | "LocalRing" | "Elimination" |
+    "ProjectiveHilbertPolynomial" | "EngineRing" | "FreeModule" |
+    "ImmutableType" | "CacheFunction" | "CacheTable" |
+    "GeneralOrderedMonoid" | "OrderedMonoid" | "ProductOrder" |
+    "Descent" | "RingFamily" | "InexactFieldFamily"
   >
 }
 
-Function {
-  @specialize[@name=Function]<identifier, 
+// Functions — specialize identifiers to Builtin nodes for known M2 functions
+Builtin {
+  @specialize[@name=Builtin]<Identifier,
     "gb" | "res" | "ideal" | "matrix" | "ring" | "map" | "ker" | "coker" | "image" |
-    "decompose" | "primaryDecomposition" | "saturate" | "quotient" |
+    "decompose" | "primaryDecomposition" | "radicalDecomposition" |
+    "minimalPrimes" | "associatedPrimes" | "saturate" | "quotient" |
     "hilbertFunction" | "hilbertPolynomial" | "hilbertSeries" |
-    "betti" | "regularity" | "codim" | "dim" | "degree" | "genus" |
-    "source" | "target" | "transpose" | "det" | "rank" | "trace" |
-    "factor" | "gcd" | "lcm" | "mod" | "divmod" |
-    "toString" | "print" | "error" | "assert" | "time" | "elapsedTime"
+    "betti" | "regularity" | "codim" | "dim" | "degree" | "genus" | "pdim" |
+    "homology" | "cohomology" | "Hom" | "Ext" | "Tor" |
+    "basis" | "gens" | "mingens" | "trim" | "prune" | "minimalPresentation" |
+    "transpose" | "dual" | "rank" | "det" | "determinant" | "trace" |
+    "factor" | "gcd" | "lcm" | "isPrime" | "random" |
+    "sin" | "cos" | "tan" | "exp" | "log" | "sqrt" | "abs" |
+    "select" | "apply" | "scan" | "any" | "all" | "member" | "position" |
+    "sort" | "rsort" | "unique" | "tally" | "toList" | "toSequence" |
+    "flatten" | "join" | "take" | "drop" | "first" | "last" | "length" |
+    "append" | "prepend" | "delete" | "reverse" |
+    "print" | "error" | "assert" | "toString" | "toExternalString" |
+    "installPackage" | "loadPackage" | "needsPackage" | "viewHelp" |
+    "class" | "parent" | "ancestors" | "methods" |
+    "numgens" | "numrows" | "numcols" | "entries" |
+    "substitute" | "sub" | "promote" | "lift" | "vars" | "generators" |
+    "independentSets" | "annihilator" | "fittingIdeal" |
+    "isHomogeneous" | "isIdeal" | "isModule" | "isRing" | "isFreeModule" |
+    "coefficientRing" | "ambient" | "cover" | "target" | "source" |
+    "monomialIdeal" | "leadTerm" | "leadCoefficient" | "leadMonomial" |
+    "multidegree" | "poincare" |
+    "resolution" | "minimize" | "isWellDefined" | "net" | "peek" |
+    "value" | "hold" | "describe" | "texMath"
   >
 }
 
-Boolean {
-  @specialize[@name=Boolean]<identifier, "true" | "false">
+// Constants
+Constant {
+  @specialize[@name=Constant]<Identifier,
+    "infinity" | "pi" | "ii" | "ee" | "oo" |
+    "InfiniteNumber" | "IndeterminateNumber" |
+    "EulerConstant" | "CatalanConstant" | "GoldenRatio" |
+    "stdio" | "stderr"
+  >
 }
 
-Null {
-  @specialize[@name=Null]<identifier, "null">
-}
+// Keyword template — always replaces Identifier (for statement-starters)
+kw<term> { @specialize[@name={term}]<Identifier, term> }
+
+// Contextual keyword — uses @extend so the word can also be an Identifier
+// (prevents errors when these words appear in English text/docs)
+ckw<term> { @extend[@name={term}]<Identifier, term> }
+
+// Comparison operators
+CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
 
 @tokens {
   space { @whitespace+ }
-  
-  identifier { @asciiLetter (@asciiLetter | @digit | "_")* }
-  
+
+  // Identifiers: letters + digits + prime, NO underscore
+  Identifier { $[a-zA-Z] $[a-zA-Z0-9']* }
+
   Number {
     @digit+ ("." @digit+)? |
     "." @digit+
   }
-  
-  String {
-    '"' (!["\\] | "\\" _)* '"'
-  }
-  
+
+  String { '"' (![\\\"\n] | "\\" _)* '"' }
+
+  // Triple-slash documentation strings: /// ... ///
+  TripleString { "///" (![/] | "/" ![/] | "//" ![/])* "///" }
+
   LineComment { "--" ![\n]* }
-  
-  BlockComment { "-*" blockCommentRest }
-  
-  blockCommentRest {
-    ![*] blockCommentRest |
-    "*" blockCommentAfterStar
-  }
-  
-  blockCommentAfterStar {
-    "-" |
-    "*" blockCommentAfterStar |
-    ![*\-] blockCommentRest
-  }
-  
-  Operator {
-    "+" | "-" | "*" | "/" | "^" | "%" | "//" | "<<" | ">>" |
-    "==" | "!=" | "<" | ">" | "<=" | ">=" | "===" | "=!=" |
-    "=" | ":=" | "->" | "=>" | ".." | "@@" | "#" | "&" | "_"
-  }
-  
-  Delimiter {
-    "(" | ")" | "[" | "]" | "{" | "}" | "," | ";" | ":" | "."
-  }
-  
-  
-  @precedence { 
-    LineComment, BlockComment, Number, String, Operator, Delimiter, identifier
+
+  BlockComment { "-*" blockCommentContent }
+  blockCommentContent { ![*] blockCommentContent | "*" blockCommentAfterStar }
+  blockCommentAfterStar { "-" | ![*\-] blockCommentContent | "*" blockCommentAfterStar }
+
+  @precedence {
+    LineComment, BlockComment,
+    "===>" , "===" , "==>" , "==" , "=!=" , "=>" , "=" ,
+    "<===", "<==>", "<==", "<=", "<-", "<<", "<",
+    ">=", ">>", ">",
+    "^**", "^>=", "^>", "^<=", "^<", "^~", "^*", "^!", "^",
+    "_~", "_*", "_!", "|_", "_",
+    "..<", "..", ".?", ".",
+    "#?", "#",
+    TripleString, "//", "/",
+    "||", "|-", "|",
+    "\\\\", "\\",
+    "++", "+",
+    "@@", "@",
+    "??", "?",
+    "**", "*",
+    "!=", "!",
+    "->", "-",
+    Number, String, Identifier, space
   }
 }
 

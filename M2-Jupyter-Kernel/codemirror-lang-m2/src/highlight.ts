@@ -1,26 +1,27 @@
 import { tags as t } from "@lezer/highlight";
 import { HighlightStyle } from "@codemirror/highlight";
 import type { Extension } from "@codemirror/state";
-import { m2Keywords, m2Types, m2Functions, m2Constants } from "./tokens";
 
-// Create a map for quick lookups
-const keywordSet = new Set(m2Keywords);
-const typeSet = new Set(m2Types);
-const functionSet = new Set(m2Functions);
-const constantSet = new Set(m2Constants);
-
+// Hardened highlight style with inline colors to prevent theme interference
 export const m2HighlightStyle: Extension = HighlightStyle.define([
-  { tag: t.keyword,         color: "var(--jp-mirror-editor-keyword-color)",      fontWeight: "bold" },
-  { tag: t.typeName,        color: "var(--jp-mirror-editor-type-color)" },
-  { tag: t.function(t.name),color: "var(--jp-mirror-editor-function-color)" },
-  { tag: t.constant(t.name),color: "var(--jp-mirror-editor-constant-color)" },
-  { tag: t.variableName,    color: "var(--jp-mirror-editor-def-color)" },
-  { tag: t.number,          color: "var(--jp-mirror-editor-number-color)" },
-  { tag: t.string,          color: "var(--jp-mirror-editor-string-color)" },
-  { tag: t.lineComment,     color: "var(--jp-mirror-editor-comment-color)",  fontStyle: "italic" },
-  { tag: t.blockComment,    color: "var(--jp-mirror-editor-comment-color)",  fontStyle: "italic" },
-  { tag: t.operator,        color: "var(--jp-mirror-editor-operator-color)" },
-  { tag: t.punctuation,     color: "var(--jp-mirror-editor-delimiter-color)" }
+  { tag: t.keyword,         color: "#0000ff",      fontWeight: "bold" },    // Blue
+  { tag: t.controlKeyword,  color: "#0000ff",      fontWeight: "bold" },    // Blue
+  { tag: t.operatorKeyword, color: "#0000ff",      fontWeight: "bold" },    // Blue
+  { tag: t.typeName,        color: "#008080",      fontWeight: "500" },     // Teal
+  { tag: t.function(t.name),color: "#800080" },                             // Purple
+  { tag: t.constant(t.name),color: "#ff1493" },                             // Deep Pink
+  { tag: t.bool,            color: "#ff1493" },                             // Deep Pink
+  { tag: t.null,            color: "#ff1493" },                             // Deep Pink
+  { tag: t.variableName,    color: "#000000" },                             // Black
+  { tag: t.number,          color: "#ff8c00" },                             // Dark Orange
+  { tag: t.string,          color: "#008000" },                             // Green
+  { tag: t.docString,       color: "#008000",      fontStyle: "italic" },   // Green Italic
+  { tag: t.lineComment,     color: "#808080",      fontStyle: "italic" },   // Gray
+  { tag: t.blockComment,    color: "#808080",      fontStyle: "italic" },   // Gray
+  { tag: t.operator,        color: "#000080" },                             // Navy
+  { tag: t.punctuation,     color: "#000000" },                             // Black
+  { tag: t.paren,           color: "#000000" },                             // Black
+  { tag: t.squareBracket,   color: "#000000" },                             // Black
+  { tag: t.brace,           color: "#000000" },                             // Black
+  { tag: t.separator,       color: "#000000" }                              // Black
 ]);
-
-// No dynamic classification; rely on static Keyword, Type, Function, Constant, Word nodes

@@ -1,31 +1,43 @@
 import {styleTags, tags as t} from "@lezer/highlight"
 
 export const m2Highlighting = styleTags({
-  // Map node names to style tags
-  // Based on nodeNames from parser.js:
-  // "⚠ Program Keyword Keyword Type Type Function Function Boolean Boolean Null Null Number String LineComment BlockComment Operator Delimiter"
-  
-  // Keywords (node index 2-3)
-  "Keyword": t.keyword,
-  
-  // Types (node index 4-5)  
-  "Type": t.typeName,
-  
-  // Functions (node index 6-7)
-  "Function": t.function(t.variableName),
-  
-  // Booleans (node index 8-9)
-  "Boolean": t.bool,
-  
-  // Null (node index 10-11)
-  "Null": t.null,
-  
-  // Basic tokens
-  "identifier": t.variableName,
-  "Number": t.number,
-  "String": t.string,
-  "LineComment": t.lineComment,
-  "BlockComment": t.blockComment,
-  "Operator": t.operator,
-  "Delimiter": t.punctuation
+  // Control flow keywords (from @specialize in grammar)
+  "if then else when do while for from to by in try catch new of": t.controlKeyword,
+  "return break continue throw": t.controlKeyword,
+
+  // Keyword-like constructs that take arguments
+  "load needs use export symbol global local threadLocal": t.controlKeyword,
+  "time elapsedTime shield debug": t.controlKeyword,
+
+  // Logical operator keywords
+  "and or not xor": t.operatorKeyword,
+
+  // Types (from @specialize)
+  Type: t.typeName,
+
+  // Built-in functions (from @specialize)
+  Builtin: t.function(t.variableName),
+
+  // Constants (from @specialize)
+  Constant: t.constant(t.variableName),
+
+  // Boolean and Null literals
+  Boolean: t.bool,
+  "true false": t.bool,
+  Null: t.null,
+  "null": t.null,
+
+  // Identifiers and basic tokens
+  Identifier: t.variableName,
+  Number: t.number,
+  String: t.string,
+  TripleString: t.docString,
+  LineComment: t.lineComment,
+  BlockComment: t.blockComment,
+
+  // Punctuation
+  "( )": t.paren,
+  "[ ]": t.squareBracket,
+  "{ }": t.brace,
+  ";": t.separator,
 })
