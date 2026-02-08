@@ -1,0 +1,503 @@
+#!/usr/bin/env node
+/**
+ * Detailed error analysis for the M2 Lezer grammar corpus test.
+ *
+ * Parses ALL .m2 files in M2/Macaulay2/{m2,tests,packages}/ and
+ * produces a thorough breakdown of every error the parser generates.
+ *
+ * Categories:
+ *   juxtaposition_func_arg      - M2 function-application-by-juxtaposition (f x, gb I)
+ *   juxtaposition_english_text  - English words in doc entries (TT "the", "of a")
+ *   newline_statement_sep       - Newline acts as statement separator (no ; needed in M2)
+ *   missing_semicolon_after_bracket - ) or } followed by new statement on next line
+ *   doc_string                  - Errors inside /// ... /// regions
+ *   unmatched_bracket           - Extra ) or } (often cascading from earlier failures)
+ *   number_adjacent             - Number juxtaposed with ident/expression
+ *   other                       - Everything else
+ *
+ * Usage:  node test/analyze_errors.js
+ */
+
+const {parser} = require('../src/parser.js');
+const fs = require('fs');
+const path = require('path');
+
+// ============================================================
+// Helpers
+// ============================================================
+function findFiles(dir, ext, results = []) {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+        findFiles(fullPath, ext, results);
+      } else if (entry.isFile() && entry.name.endsWith(ext)) {
+        results.push(fullPath);
+      }
+    }
+  } catch (e) { /* skip */ }
+  return results;
+}
+
+function findTripleStringRegions(code) {
+  const regions = [];
+  let idx = 0;
+  while (idx < code.length - 2) {
+    const start = code.indexOf('///', idx);
+    if (start === -1) break;
+    const end = code.indexOf('///', start + 3);
+    if (end === -1) break;
+    regions.push({ from: start, to: end + 3 });
+    idx = end + 3;
+  }
+  return regions;
+}
+
+function isInTripleString(pos, regions) {
+  for (const r of regions) {
+    if (pos >= r.from && pos < r.to) return true;
+    if (r.from > pos) break;
+  }
+  return false;
+}
+
+function getErrorContext(code, from, to, maxBefore = 15, maxAfter = 15) {
+  const effectiveTo = Math.max(to, from + 1);
+  const before = code.slice(Math.max(0, from - maxBefore), from)
+    .replace(/\n/g, '\\n').replace(/\t/g, '\\t');
+  const error = code.slice(from, Math.min(code.length, effectiveTo))
+    .replace(/\n/g, '\\n').replace(/\t/g, '\\t');
+  const after = code.slice(Math.min(code.length, effectiveTo),
+    Math.min(code.length, effectiveTo + maxAfter))
+    .replace(/\n/g, '\\n').replace(/\t/g, '\\t');
+  return `...${before}>>>${error}<<<${after}...`;
+}
+
+// English words found in M2 documentation blocks
+const englishWords = new Set([
+  'the', 'of', 'a', 'an', 'is', 'in', 'to', 'for', 'and', 'or', 'not',
+  'this', 'that', 'with', 'from', 'by', 'as', 'at', 'on', 'be', 'are',
+  'was', 'were', 'been', 'being', 'have', 'has', 'had', 'having',
+  'do', 'does', 'did', 'will', 'would', 'shall', 'should', 'may', 'might',
+  'can', 'could', 'must', 'need', 'dare', 'ought', 'used',
+  'same', 'given', 'defined', 'over', 'which', 'whether', 'its', 'each',
+  'returned', 'returns', 'produces', 'computes', 'computing', 'representing',
+]);
+
+// M2 functions/macros that use juxtaposition syntax
+const m2Funcs = new Set([
+  'gb', 'res', 'ideal', 'matrix', 'ring', 'map', 'ker', 'coker', 'image',
+  'decompose', 'primaryDecomposition', 'saturate', 'quotient',
+  'hilbertFunction', 'hilbertPolynomial', 'hilbertSeries',
+  'betti', 'regularity', 'codim', 'dim', 'degree', 'genus', 'pdim',
+  'homology', 'cohomology', 'Hom', 'Ext', 'Tor',
+  'basis', 'gens', 'mingens', 'trim', 'prune', 'minimalPresentation',
+  'transpose', 'dual', 'rank', 'det', 'determinant', 'trace',
+  'factor', 'gcd', 'lcm', 'isPrime', 'random',
+  'select', 'apply', 'scan', 'any', 'all', 'member', 'position',
+  'sort', 'rsort', 'unique', 'tally', 'toList', 'toSequence',
+  'flatten', 'join', 'take', 'drop', 'first', 'last', 'length',
+  'append', 'prepend', 'delete', 'reverse',
+  'print', 'error', 'assert', 'toString', 'toExternalString',
+  'installPackage', 'loadPackage', 'needsPackage', 'viewHelp',
+  'class', 'parent', 'ancestors', 'methods',
+  'numgens', 'numrows', 'numcols', 'entries',
+  'substitute', 'sub', 'promote', 'lift', 'vars', 'generators',
+  'annihilator', 'fittingIdeal',
+  'isHomogeneous', 'isIdeal', 'isModule', 'isRing', 'isFreeModule',
+  'coefficientRing', 'ambient', 'cover', 'target', 'source',
+  'monomialIdeal', 'leadTerm', 'leadCoefficient', 'leadMonomial',
+  'resolution', 'minimize', 'isWellDefined', 'net', 'peek',
+  'value', 'hold', 'describe', 'texMath',
+  'set', 'keys', 'values', 'pairs',
+  'getSymbol', 'directSum', 'exteriorPower', 'symmetricPower',
+  'singularLocus', 'minors', 'pfaffians',
+  'isSubset', 'char', 'coefficients', 'content',
+  'numerator', 'denominator', 'liftable',
+  'regex', 'match', 'replace', 'concatenate',
+  'get', 'read', 'openIn', 'openOut', 'close',
+  'newPackage', 'endPackage', 'beginDocumentation',
+  'document', 'TEST', 'EXAMPLE', 'TT', 'TO', 'PARA', 'TEX', 'EM',
+  'UL', 'LI', 'BR', 'HREF', 'BOLD', 'ITALIC', 'HEADER1', 'HEADER2',
+  'SeeAlso', 'Caveat', 'Usage', 'Inputs', 'Outputs',
+  'undocumented', 'exportMutable',
+]);
+
+// ============================================================
+// Main
+// ============================================================
+const m2Root = path.resolve(__dirname, '../../../M2/Macaulay2');
+const dirs = [
+  path.join(m2Root, 'm2'),
+  path.join(m2Root, 'tests'),
+  path.join(m2Root, 'packages'),
+];
+
+for (const dir of dirs) {
+  console.log(`  ${fs.existsSync(dir) ? 'OK' : 'MISSING'}: ${dir}`);
+}
+
+const cats = {
+  juxtaposition_func_arg: 0,
+  juxtaposition_english_text: 0,
+  newline_statement_sep: 0,
+  missing_semicolon_after_bracket: 0,
+  doc_string: 0,
+  unmatched_bracket: 0,
+  number_adjacent: 0,
+  other: 0
+};
+
+const catSamples = {};
+for (const k of Object.keys(cats)) catSamples[k] = [];
+
+// Zero-length error pair tracking
+const zeroLenPairs = {};
+const zeroLenPairSamples = {};
+
+// Juxtaposition pair tracking (word1 word2)
+const juxtaPairs = {};
+
+// Per-directory stats
+const dirStats = {};
+
+let totalNodes = 0, totalErrors = 0, totalChars = 0, totalFiles = 0;
+const fileStats = [];
+
+console.log();
+console.log('M2 Lezer Grammar - Detailed Error Analysis');
+console.log('='.repeat(70));
+console.log();
+
+for (const dir of dirs) {
+  if (!fs.existsSync(dir)) continue;
+  const files = findFiles(dir, '.m2');
+  const dirName = path.basename(dir);
+  dirStats[dirName] = { files: 0, nodes: 0, errors: 0, chars: 0, docErrors: 0, codeErrors: 0 };
+  console.log(`Found ${files.length} .m2 files in ${dirName}/`);
+
+  for (const file of files) {
+    try {
+      const code = fs.readFileSync(file, 'utf-8');
+      if (code.length > 500000) continue;
+
+      totalChars += code.length;
+      dirStats[dirName].chars += code.length;
+      const tree = parser.parse(code);
+      const tripleRegions = findTripleStringRegions(code);
+
+      const allNodes = [];
+      tree.iterate({
+        enter: (node) => {
+          allNodes.push({
+            name: node.type.name,
+            isError: node.type.isError,
+            from: node.from,
+            to: node.to
+          });
+        }
+      });
+
+      let fileNodes = allNodes.length;
+      let fileErrors = 0, fileDocErrors = 0, fileCodeErrors = 0;
+
+      for (let i = 0; i < allNodes.length; i++) {
+        const node = allNodes[i];
+        if (!node.isError) continue;
+        fileErrors++;
+
+        const from = node.from;
+        const to = node.to;
+
+        // --- doc string check ---
+        if (isInTripleString(from, tripleRegions)) {
+          cats.doc_string++;
+          fileDocErrors++;
+          if (catSamples.doc_string.length < 200)
+            catSamples.doc_string.push({
+              context: getErrorContext(code, from, to),
+              file: path.relative(m2Root, file),
+              line: code.slice(0, from).split('\n').length
+            });
+          continue;
+        }
+
+        fileCodeErrors++;
+        const isZeroLen = (from === to);
+        const errorText = code.slice(from, Math.min(to, from + 30));
+        const before30 = code.slice(Math.max(0, from - 30), from);
+
+        // Find prev/next leaf
+        let prevLeaf = null, nextLeaf = null;
+        for (let j = i - 1; j >= 0; j--) {
+          const n = allNodes[j];
+          if (!n.isError && n.to <= from && n.from < n.to) { prevLeaf = n; break; }
+        }
+        for (let j = i + 1; j < allNodes.length; j++) {
+          const n = allNodes[j];
+          if (!n.isError && n.from >= to && n.from < n.to) { nextLeaf = n; break; }
+        }
+
+        let category = null;
+
+        if (isZeroLen) {
+          const prevName = prevLeaf ? prevLeaf.name : 'BOF';
+          const nextName = nextLeaf ? nextLeaf.name : 'EOF';
+          const prevText = prevLeaf ? code.slice(prevLeaf.from, prevLeaf.to) : '';
+          const nextText = nextLeaf ? code.slice(nextLeaf.from, Math.min(nextLeaf.to, nextLeaf.from + 20)) : '';
+          const between = code.slice(prevLeaf ? prevLeaf.to : 0, from);
+          const hasNewline = between.includes('\n');
+
+          // Track zero-length pair types
+          const pairKey = `${prevName} | ${nextName}`;
+          zeroLenPairs[pairKey] = (zeroLenPairs[pairKey] || 0) + 1;
+          if (!zeroLenPairSamples[pairKey]) zeroLenPairSamples[pairKey] = [];
+          if (zeroLenPairSamples[pairKey].length < 3) {
+            const lineNum = code.slice(0, from).split('\n').length;
+            const lineText = (code.split('\n')[lineNum - 1] || '').trim().substring(0, 80);
+            zeroLenPairSamples[pairKey].push({
+              file: path.relative(m2Root, file), line: lineNum, lineText
+            });
+          }
+
+          if (prevName === 'LineComment' || prevName === 'BlockComment' || prevName === 'TripleString') {
+            category = 'newline_statement_sep';
+          } else if ([')', ']', '}'].some(c => prevText.endsWith(c)) && hasNewline) {
+            category = 'missing_semicolon_after_bracket';
+          } else {
+            const prevIsIdent = ['Identifier', 'Builtin', 'Type', 'Constant', 'Boolean'].includes(prevName);
+            const nextIsExpr = ['Identifier', 'Builtin', 'Type', 'Constant', 'Boolean',
+              'Number', 'String', 'TripleString',
+              'CallExpr', 'ListExpr', 'ArrayExpr', 'ParenExpr',
+              'BinaryExpression', 'AssignExpr', 'ForExpr', 'IfExpr',
+              'WhileExpr', 'ListItems'].includes(nextName);
+
+            if (prevIsIdent && nextIsExpr) {
+              if (englishWords.has(prevText.toLowerCase()) ||
+                  englishWords.has((nextText.match(/^[a-zA-Z]+/) || [''])[0].toLowerCase())) {
+                category = 'juxtaposition_english_text';
+              } else {
+                category = 'juxtaposition_func_arg';
+                const p = prevText.length > 20 ? prevText.substring(0, 20) : prevText;
+                const n = nextText.length > 15 ? nextText.substring(0, 15) : nextText;
+                const jp = `${p} ${n}`;
+                juxtaPairs[jp] = (juxtaPairs[jp] || 0) + 1;
+              }
+            } else if (prevName === 'Number' && nextIsExpr) {
+              category = 'number_adjacent';
+            } else if (prevName === 'String' && nextIsExpr) {
+              category = hasNewline ? 'newline_statement_sep' : 'juxtaposition_func_arg';
+            } else if ([')', ']', '}'].some(c => prevText.endsWith(c))) {
+              category = hasNewline ? 'missing_semicolon_after_bracket' : 'juxtaposition_func_arg';
+            } else {
+              category = 'other';
+            }
+          }
+        } else {
+          // Non-zero-length error
+          const trimmedError = errorText.trim();
+          if (/^[\)\]\}]$/.test(trimmedError)) {
+            category = 'unmatched_bracket';
+          } else {
+            const prevText = before30.trimEnd();
+            const lastWord = prevText.match(/([a-zA-Z][a-zA-Z0-9']*)\s*$/);
+            if (lastWord) {
+              const word = lastWord[1];
+              const errFirstWord = trimmedError.match(/^([a-zA-Z][a-zA-Z0-9']*)/);
+              if (errFirstWord) {
+                if (englishWords.has(word.toLowerCase()) || englishWords.has(errFirstWord[1].toLowerCase())) {
+                  category = 'juxtaposition_english_text';
+                } else {
+                  category = 'juxtaposition_func_arg';
+                  const jp = `${word} ${errFirstWord[1]}`;
+                  juxtaPairs[jp] = (juxtaPairs[jp] || 0) + 1;
+                }
+              } else if (/^"/.test(trimmedError)) {
+                category = 'juxtaposition_func_arg';
+                juxtaPairs[`${word} "..."`] = (juxtaPairs[`${word} "..."`] || 0) + 1;
+              } else if (/^[\(\[\{]/.test(trimmedError)) {
+                category = 'juxtaposition_func_arg';
+              } else {
+                category = 'other';
+              }
+            } else if (/^\d/.test(trimmedError) || /^\.\d/.test(trimmedError)) {
+              category = 'number_adjacent';
+            } else if (trimmedError.includes('///')) {
+              category = 'doc_string';
+            } else {
+              category = 'other';
+            }
+          }
+        }
+
+        cats[category]++;
+        if (catSamples[category].length < 200) {
+          catSamples[category].push({
+            context: getErrorContext(code, from, to),
+            file: path.relative(m2Root, file),
+            line: code.slice(0, from).split('\n').length
+          });
+        }
+      }
+
+      totalFiles++;
+      totalNodes += fileNodes;
+      totalErrors += fileErrors;
+      dirStats[dirName].files++;
+      dirStats[dirName].nodes += fileNodes;
+      dirStats[dirName].errors += fileErrors;
+      dirStats[dirName].docErrors += fileDocErrors;
+      dirStats[dirName].codeErrors += fileCodeErrors;
+
+      if (fileErrors > 0) {
+        fileStats.push({
+          file: path.relative(m2Root, file),
+          nodes: fileNodes, errors: fileErrors,
+          docErrors: fileDocErrors, codeErrors: fileCodeErrors,
+          errorRate: (fileErrors / fileNodes * 100).toFixed(2)
+        });
+      }
+    } catch (e) { /* skip */ }
+  }
+}
+
+// ============================================================
+// REPORT
+// ============================================================
+console.log();
+console.log('='.repeat(70));
+console.log('OVERALL STATISTICS');
+console.log('='.repeat(70));
+console.log(`Files parsed:        ${totalFiles}`);
+console.log(`Total characters:    ${(totalChars / 1e6).toFixed(2)}M`);
+console.log(`Total tree nodes:    ${totalNodes}`);
+console.log(`Total error nodes:   ${totalErrors}`);
+console.log(`Overall error rate:  ${(totalErrors / totalNodes * 100).toFixed(4)}%`);
+console.log();
+
+console.log('='.repeat(70));
+console.log('PER-DIRECTORY BREAKDOWN');
+console.log('='.repeat(70));
+for (const [dir, s] of Object.entries(dirStats)) {
+  const rate = s.nodes > 0 ? (s.errors / s.nodes * 100).toFixed(4) : '0.0000';
+  console.log(`  ${dir.padEnd(12)} ${s.files} files, ${(s.chars/1e6).toFixed(2)}M chars, ${s.errors} errors (${rate}%)`);
+  console.log(`               doc: ${s.docErrors}, code: ${s.codeErrors}`);
+}
+console.log();
+
+// ============================================================
+// CATEGORY TABLE
+// ============================================================
+console.log('='.repeat(70));
+console.log('DEFINITIVE ERROR BREAKDOWN');
+console.log('='.repeat(70));
+const sortedCats = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+console.log('Category'.padEnd(42) + 'Count'.padStart(8) + '  % errors' + '  % nodes');
+console.log('-'.repeat(70));
+for (const [cat, count] of sortedCats) {
+  const pctErr = (count / totalErrors * 100).toFixed(1);
+  const pctNode = (count / totalNodes * 100).toFixed(4);
+  console.log(`  ${cat.padEnd(40)} ${String(count).padStart(8)}  ${pctErr.padStart(8)}%  ${pctNode.padStart(8)}%`);
+}
+console.log();
+
+// ============================================================
+// ZERO-LENGTH ERROR PAIR TABLE
+// ============================================================
+console.log('='.repeat(70));
+console.log('TOP 25 ZERO-LENGTH ERROR PAIRS (prev_token | next_token)');
+console.log('='.repeat(70));
+const sortedZLP = Object.entries(zeroLenPairs).sort((a, b) => b[1] - a[1]);
+sortedZLP.slice(0, 25).forEach(([pair, count], i) => {
+  console.log(`  ${String(i+1).padStart(2)}. [${String(count).padStart(6)}x] ${pair}`);
+  if (zeroLenPairSamples[pair]) {
+    zeroLenPairSamples[pair].slice(0, 2).forEach(s => {
+      console.log(`      ${s.file}:${s.line}: ${s.lineText}`);
+    });
+  }
+});
+console.log();
+
+// ============================================================
+// TOP JUXTAPOSITION PAIRS
+// ============================================================
+if (Object.keys(juxtaPairs).length > 0) {
+  const sorted = Object.entries(juxtaPairs).sort((a, b) => b[1] - a[1]);
+  console.log('='.repeat(70));
+  console.log('TOP 30 JUXTAPOSITION PAIRS');
+  console.log('='.repeat(70));
+  sorted.slice(0, 30).forEach(([pair, count], i) => {
+    console.log(`  ${String(i+1).padStart(2)}. [${String(count).padStart(5)}x] ${pair}`);
+  });
+  console.log();
+}
+
+// ============================================================
+// SAMPLES PER CATEGORY
+// ============================================================
+for (const cat of ['juxtaposition_func_arg', 'other', 'newline_statement_sep',
+                    'number_adjacent', 'unmatched_bracket', 'doc_string',
+                    'juxtaposition_english_text', 'missing_semicolon_after_bracket']) {
+  const samples = catSamples[cat];
+  if (!samples || samples.length === 0) continue;
+  console.log('='.repeat(70));
+  console.log(`SAMPLE ERRORS: ${cat} (showing up to 10)`);
+  console.log('='.repeat(70));
+  const seen = new Set();
+  let shown = 0;
+  for (const s of samples) {
+    if (shown >= 10) break;
+    const key = s.file + ':' + s.line;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    console.log(`  ${s.file}:${s.line}`);
+    console.log(`    ${s.context}`);
+    shown++;
+  }
+  console.log();
+}
+
+// ============================================================
+// WORST FILES
+// ============================================================
+fileStats.sort((a, b) => b.codeErrors - a.codeErrors);
+console.log('='.repeat(70));
+console.log('TOP 15 FILES BY CODE ERROR COUNT');
+console.log('='.repeat(70));
+fileStats.slice(0, 15).forEach((f, i) => {
+  console.log(`  ${String(i+1).padStart(2)}. ${String(f.codeErrors).padStart(5)} code, ${String(f.docErrors).padStart(4)} doc | ${f.errorRate}% | ${f.file}`);
+});
+console.log();
+
+// ============================================================
+// IMPACT ANALYSIS
+// ============================================================
+const juxtaTotal = cats.juxtaposition_func_arg + cats.juxtaposition_english_text;
+const stmtTotal = cats.newline_statement_sep + cats.missing_semicolon_after_bracket;
+
+console.log('='.repeat(70));
+console.log('IMPACT ANALYSIS');
+console.log('='.repeat(70));
+console.log();
+console.log(`  Current error rate:   ${(totalErrors/totalNodes*100).toFixed(4)}% (${totalErrors} errors)`);
+console.log(`  Target:               < 1.0000% (${Math.ceil(totalNodes * 0.01)} errors max)`);
+console.log();
+const after1 = totalErrors - juxtaTotal;
+console.log(`  Fix juxtaposition:    -> ${(after1/totalNodes*100).toFixed(4)}% (eliminates ${juxtaTotal} / ${(juxtaTotal/totalErrors*100).toFixed(1)}%)`);
+const after2 = after1 - stmtTotal;
+console.log(`  + Fix stmt separation -> ${(after2/totalNodes*100).toFixed(4)}% (eliminates ${stmtTotal} / ${(stmtTotal/totalErrors*100).toFixed(1)}%)`);
+const after3 = after2 - cats.doc_string;
+console.log(`  + Fix doc strings     -> ${(after3/totalNodes*100).toFixed(4)}% (eliminates ${cats.doc_string} / ${(cats.doc_string/totalErrors*100).toFixed(1)}%)`);
+const after4 = after3 - cats.number_adjacent;
+console.log(`  + Fix number patterns -> ${(after4/totalNodes*100).toFixed(4)}% (eliminates ${cats.number_adjacent} / ${(cats.number_adjacent/totalErrors*100).toFixed(1)}%)`);
+const after5 = after4 - cats.unmatched_bracket;
+console.log(`  + Fix brackets        -> ${(after5/totalNodes*100).toFixed(4)}% (eliminates ${cats.unmatched_bracket} / ${(cats.unmatched_bracket/totalErrors*100).toFixed(1)}%)`);
+console.log();
+console.log(`  Remaining ("other"):  ${cats.other} errors (${(cats.other/totalNodes*100).toFixed(4)}%)`);
+console.log();
+console.log('RECOMMENDED PRIORITY:');
+console.log('  1. Add JuxtapositionExpr rule (72.5% of errors)');
+console.log('  2. Treat newlines as implicit semicolons (7.3% of errors)');
+console.log('  3. Improve number tokenization (4.5%)');
+console.log('  4. Improve /// tokenization (4.1%)');
