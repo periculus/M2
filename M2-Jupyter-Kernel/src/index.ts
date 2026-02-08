@@ -6,11 +6,6 @@ import {
 import { IEditorLanguageRegistry } from '@jupyterlab/codemirror';
 import { m2 } from './m2Language';
 
-/**
- * M2 syntax highlighting extension for JupyterLab
- * This version works like Python - using the parser's built-in highlighting
- * but overrides the theme colors to match M2 expectations
- */
 const plugin: JupyterFrontEndPlugin<void> = {
   id: '@m2-jupyter/jupyterlab-m2-codemirror:plugin',
   description: 'Macaulay2 syntax highlighting for JupyterLab',
@@ -18,62 +13,33 @@ const plugin: JupyterFrontEndPlugin<void> = {
   requires: [IEditorLanguageRegistry],
   activate: (app: JupyterFrontEnd, registry: IEditorLanguageRegistry) => {
     console.log('M2 CodeMirror extension activating...');
-    
-    // Register M2 language support
-    const spec = {
+
+    registry.addLanguage({
       name: 'macaulay2',
       displayName: 'Macaulay2',
       mime: ['text/x-macaulay2', 'text/macaulay2'],
       extensions: ['.m2'],
       support: m2()
-    };
-    
-    registry.addLanguage(spec);
-    console.log('M2 language registered successfully');
-    
-    // Override JupyterLab theme colors to match M2 expectations
-    // This is the key difference - Python users expect green keywords,
-    // but M2 users expect blue keywords
+    });
+
+    // Override JupyterLab's CSS variables for M2 editors.
+    // m2Language.ts adds data-language="macaulay2" to .cm-editor via EditorView.editorAttributes.
+    // JupyterLab's jupyterHighlightStyle maps tags to CSS variables (e.g. --jp-mirror-editor-keyword-color).
+    // We override those variables scoped to M2 editors so the correct M2 colors are used.
     const style = document.createElement('style');
     style.textContent = `
-      /* Override JupyterLab theme colors for M2 */
-      .cm-editor[data-language="macaulay2"] .cm-keyword,
-      .cm-editor[data-language="macaulay2"] .cm-controlKeyword,
-      .cm-editor[data-language="macaulay2"] .cm-operatorKeyword {
-        color: #0000ff !important;
-        font-weight: bold !important;
-      }
-      .cm-editor[data-language="macaulay2"] .cm-typeName {
-        color: #008080 !important;
-        font-weight: 500 !important;
-      }
-      .cm-editor[data-language="macaulay2"] .cm-function {
-        color: #800080 !important;
-      }
-      .cm-editor[data-language="macaulay2"] .cm-bool,
-      .cm-editor[data-language="macaulay2"] .cm-null,
-      .cm-editor[data-language="macaulay2"] .cm-constant {
-        color: #ff1493 !important;
-      }
-      .cm-editor[data-language="macaulay2"] .cm-number {
-        color: #ff8c00 !important;
-      }
-      .cm-editor[data-language="macaulay2"] .cm-string,
-      .cm-editor[data-language="macaulay2"] .cm-docString {
-        color: #008000 !important;
-      }
-      .cm-editor[data-language="macaulay2"] .cm-lineComment,
-      .cm-editor[data-language="macaulay2"] .cm-blockComment {
-        color: #808080 !important;
-        font-style: italic !important;
-      }
-      .cm-editor[data-language="macaulay2"] .cm-operator {
-        color: #000080 !important;
+      .cm-editor[data-language="macaulay2"] {
+        --jp-mirror-editor-keyword-color: #0000ff;
+        --jp-mirror-editor-atom-color: #ff1493;
+        --jp-mirror-editor-number-color: #ff8c00;
+        --jp-mirror-editor-comment-color: #808080;
+        --jp-mirror-editor-string-color: #008000;
+        --jp-mirror-editor-operator-color: #000080;
       }
     `;
     document.head.appendChild(style);
 
-    console.log('M2 color overrides applied');
+    console.log('M2 language registered with CSS variable overrides');
   }
 };
 

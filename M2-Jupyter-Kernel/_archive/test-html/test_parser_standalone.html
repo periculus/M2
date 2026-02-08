@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>M2 Parser Standalone Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .code-block {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 20px 0;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .output {
+            background: #f0f0f0;
+            padding: 10px;
+            margin-top: 10px;
+            border-left: 3px solid #333;
+        }
+        
+        /* Token styles - hardcoded for testing */
+        .tok-keyword { color: #0000ff; font-weight: bold; }
+        .tok-typeName { color: #008080; font-weight: 500; }
+        .tok-function { color: #800080; }
+        .tok-string { color: #a31515; }
+        .tok-comment { color: #008000; font-style: italic; }
+        .tok-number { color: #098658; }
+        .tok-operator { color: #000000; }
+        .tok-variableName { color: #001080; }
+        .tok-propertyName { color: #0451a5; }
+        
+        .error { color: red; background: #ffe0e0; padding: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>M2 Parser Standalone Test</h1>
+        <p>Testing M2 syntax highlighting outside of JupyterLab</p>
+        
+        <div id="test1" class="test-case">
+            <div class="title">Test 1: Basic Keywords and Types</div>
+            <div class="code-block" id="input1"></div>
+            <div class="output" id="output1"></div>
+        </div>
+        
+        <div id="test2" class="test-case">
+            <div class="title">Test 2: Real M2 Code Sample</div>
+            <div class="code-block" id="input2"></div>
+            <div class="output" id="output2"></div>
+        </div>
+        
+        <div id="test3" class="test-case">
+            <div class="title">Test 3: Complex Example</div>
+            <div class="code-block" id="input3"></div>
+            <div class="output" id="output3"></div>
+        </div>
+        
+        <div id="parser-info">
+            <div class="title">Parser Information</div>
+            <div class="output" id="parser-details"></div>
+        </div>
+    </div>
+
+    <!-- Load the parser -->
+    <script type="module">
+        // Test cases
+        const testCases = [
+            {
+                name: "Basic Keywords and Types",
+                code: `-- Test keywords (should be BLUE)
+if true then print "hello"
+for i in {1,2,3} do print i
+
+-- Test types (should be TEAL)
+R = QQ[x,y,z]
+I : Ideal
+
+-- Test functions (should be PURPLE)
+matrix {{1,2},{3,4}}
+ideal(x^2, y^2)
+
+-- Test strings (should be RED)
+s = "This is a string"
+t = "Another string"`
+            },
+            {
+                name: "Real M2 Code",
+                code: `-- from A01.m2
+assert = x -> if not x then error "assertion failed "
+
+-- test {}
+assert( class {1,2,3} === List )
+assert( # {1,2,3} === 3 )
+
+-- test toSequence
+assert( toSequence {1,2,3} === (1,2,3) )
+assert( toSequence (1,2,3) === (1,2,3) )
+
+-- test ..
+assert( 1 .. 5 === (1,2,3,4,5) )`
+            },
+            {
+                name: "Complex Example",
+                code: `-- Define a polynomial ring
+R = QQ[x,y,z]
+I = ideal(x^2 - y*z, x*y - z^2, y^2 - x*z)
+
+-- Compute Groebner basis
+G = gb I
+gens G
+
+-- Compute primary decomposition
+primaryDecomposition I
+
+-- Define a matrix
+M = matrix {{x,y,z},{x^2,y^2,z^2},{x^3,y^3,z^3}}
+det M
+
+-- Function definition
+myFunction = (a,b) -> (
+    c := a + b;
+    d := a * b;
+    return (c,d)
+)`
+            }
+        ];
+
+        // Function to manually parse and highlight M2 code
+        function highlightM2(code) {
+            // This is a simplified highlighter for testing
+            const keywords = /\b(if|then|else|for|do|while|in|return|error|assert|class|test|not|and|or)\b/g;
+            const types = /\b(QQ|ZZ|RR|CC|List|MutableList|Ideal|Ring|Matrix)\b/g;
+            const functions = /\b(print|toSequence|newClass|isMutable|toList1|matrix|ideal|gb|gens|primaryDecomposition|det)\b/g;
+            const strings = /"[^"]*"/g;
+            const comments = /--[^\n]*/g;
+            const numbers = /\b\d+(\.\d+)?\b/g;
+            
+            // Apply highlighting in order (comments first to avoid conflicts)
+            let highlighted = code
+                .replace(comments, '<span class="tok-comment">$&</span>')
+                .replace(strings, '<span class="tok-string">$&</span>')
+                .replace(keywords, '<span class="tok-keyword">$&</span>')
+                .replace(types, '<span class="tok-typeName">$&</span>')
+                .replace(functions, '<span class="tok-function">$&</span>')
+                .replace(numbers, '<span class="tok-number">$&</span>');
+                
+            return highlighted;
+        }
+
+        // Function to load and test the actual parser
+        async function testParser() {
+            try {
+                // Try to load the parser module
+                const parserModule = await import('./lib/parser/parser.js').catch(() => 
+                    import('./src/parser/parser.js').catch(() => 
+                        import('./codemirror-lang-m2/dist/parser.js')
+                    )
+                );
+                
+                document.getElementById('parser-details').innerHTML = 
+                    `<strong>Parser loaded successfully!</strong><br>
+                     Parser object: ${JSON.stringify(Object.keys(parserModule), null, 2)}<br>
+                     <br>
+                     Now testing with actual parser...`;
+                
+                // If we have the parser, try to use it
+                if (parserModule.parser) {
+                    const parser = parserModule.parser;
+                    
+                    // Test parsing
+                    testCases.forEach((test, index) => {
+                        const tree = parser.parse(test.code);
+                        const output = document.getElementById(`output${index + 1}`);
+                        
+                        output.innerHTML = `<strong>Parse tree:</strong><br>
+                            Type: ${tree.type.name}<br>
+                            Length: ${tree.length}<br>
+                            <br>
+                            <strong>Tokens found:</strong><br>`;
+                        
+                        // Walk the tree and collect tokens
+                        let cursor = tree.cursor();
+                        let tokens = [];
+                        do {
+                            if (cursor.type.name !== "Program") {
+                                tokens.push({
+                                    type: cursor.type.name,
+                                    from: cursor.from,
+                                    to: cursor.to,
+                                    text: test.code.slice(cursor.from, cursor.to)
+                                });
+                            }
+                        } while (cursor.next());
+                        
+                        // Display some tokens
+                        output.innerHTML += tokens.slice(0, 20).map(t => 
+                            `${t.type}: "${t.text}"`
+                        ).join('<br>');
+                        
+                        if (tokens.length > 20) {
+                            output.innerHTML += `<br>... and ${tokens.length - 20} more tokens`;
+                        }
+                    });
+                }
+            } catch (error) {
+                document.getElementById('parser-details').innerHTML = 
+                    `<span class="error">Failed to load parser: ${error.message}</span><br>
+                     <br>
+                     Using manual highlighting instead...`;
+            }
+        }
+
+        // Display test cases with manual highlighting
+        testCases.forEach((test, index) => {
+            const inputEl = document.getElementById(`input${index + 1}`);
+            const outputEl = document.getElementById(`output${index + 1}`);
+            
+            // Show original code
+            inputEl.textContent = test.code;
+            
+            // Show highlighted version
+            const highlighted = highlightM2(test.code);
+            outputEl.innerHTML = `<strong>Manually highlighted:</strong><br>${highlighted}`;
+        });
+
+        // Try to load and test the actual parser
+        testParser();
+    </script>
+</body>
+</html>

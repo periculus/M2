@@ -1,5 +1,5 @@
 "use strict";
-(self["webpackChunk_m2_jupyter_jupyterlab_m2_codemirror"] = self["webpackChunk_m2_jupyter_jupyterlab_m2_codemirror"] || []).push([["style_index_css"],{
+(self["webpackChunk_m2_jupyter_jupyterlab_m2_codemirror"] = self["webpackChunk_m2_jupyter_jupyterlab_m2_codemirror"] || []).push([["style_index_js"],{
 
 /***/ "./node_modules/css-loader/dist/cjs.js!./style/index.css":
 /*!***************************************************************!*\
@@ -29,18 +29,18 @@ ___CSS_LOADER_EXPORT___.push([module.id, `/* M2 CodeMirror extension styles */
 
 /* Standard CodeMirror token classes - simplified selectors for JupyterLab 4 */
 .cm-keyword {
-  color: var(--jp-mirror-editor-keyword-color, #0000ff) !important;
+  color: #0000ff !important; /* Force blue for keywords */
   font-weight: bold !important;
 }
 
 .cm-typeName {
-  color: var(--jp-mirror-editor-def-color, #008080) !important;
+  color: #008080 !important; /* Force teal for types */
   font-weight: 500 !important;
 }
 
 .cm-functionName,
 .cm-variableName.cm-function {
-  color: var(--jp-mirror-editor-builtin-color, #800080) !important;
+  color: #800080 !important; /* Force purple for functions */
 }
 
 /* Legacy M2-specific classes (kept for compatibility) */
@@ -60,7 +60,7 @@ ___CSS_LOADER_EXPORT___.push([module.id, `/* M2 CodeMirror extension styles */
 
 .cm-editor .cm-m2-constant {
   color: var(--jp-mirror-editor-number-color);
-}`, "",{"version":3,"sources":["webpack://./style/index.css"],"names":[],"mappings":"AAAA,mCAAmC;;AAEnC,0CAA0C;;AAG1C,8EAA8E;AAC9E;EACE,gEAAgE;EAChE,4BAA4B;AAC9B;;AAEA;EACE,4DAA4D;EAC5D,2BAA2B;AAC7B;;AAEA;;EAEE,gEAAgE;AAClE;;AAEA,wDAAwD;AACxD;EACE,4CAA4C;EAC5C,iBAAiB;AACnB;;AAEA;EACE,wCAAwC;AAC1C;;AAEA;;EAEE,4CAA4C;AAC9C;;AAEA;EACE,2CAA2C;AAC7C","sourcesContent":["/* M2 CodeMirror extension styles */\n\n/* Import additional highlighting styles */\n@import './m2-highlighting.css';\n\n/* Standard CodeMirror token classes - simplified selectors for JupyterLab 4 */\n.cm-keyword {\n  color: var(--jp-mirror-editor-keyword-color, #0000ff) !important;\n  font-weight: bold !important;\n}\n\n.cm-typeName {\n  color: var(--jp-mirror-editor-def-color, #008080) !important;\n  font-weight: 500 !important;\n}\n\n.cm-functionName,\n.cm-variableName.cm-function {\n  color: var(--jp-mirror-editor-builtin-color, #800080) !important;\n}\n\n/* Legacy M2-specific classes (kept for compatibility) */\n.cm-editor .cm-m2-keyword {\n  color: var(--jp-mirror-editor-keyword-color);\n  font-weight: bold;\n}\n\n.cm-editor .cm-m2-type {\n  color: var(--jp-mirror-editor-def-color);\n}\n\n.cm-editor .cm-m2-function,\n.cm-editor .cm-variableName.cm-function {\n  color: var(--jp-mirror-editor-builtin-color);\n}\n\n.cm-editor .cm-m2-constant {\n  color: var(--jp-mirror-editor-number-color);\n}"],"sourceRoot":""}]);
+}`, "",{"version":3,"sources":["webpack://./style/index.css"],"names":[],"mappings":"AAAA,mCAAmC;;AAEnC,0CAA0C;;AAG1C,8EAA8E;AAC9E;EACE,yBAAyB,EAAE,4BAA4B;EACvD,4BAA4B;AAC9B;;AAEA;EACE,yBAAyB,EAAE,yBAAyB;EACpD,2BAA2B;AAC7B;;AAEA;;EAEE,yBAAyB,EAAE,+BAA+B;AAC5D;;AAEA,wDAAwD;AACxD;EACE,4CAA4C;EAC5C,iBAAiB;AACnB;;AAEA;EACE,wCAAwC;AAC1C;;AAEA;;EAEE,4CAA4C;AAC9C;;AAEA;EACE,2CAA2C;AAC7C","sourcesContent":["/* M2 CodeMirror extension styles */\n\n/* Import additional highlighting styles */\n@import './m2-highlighting.css';\n\n/* Standard CodeMirror token classes - simplified selectors for JupyterLab 4 */\n.cm-keyword {\n  color: #0000ff !important; /* Force blue for keywords */\n  font-weight: bold !important;\n}\n\n.cm-typeName {\n  color: #008080 !important; /* Force teal for types */\n  font-weight: 500 !important;\n}\n\n.cm-functionName,\n.cm-variableName.cm-function {\n  color: #800080 !important; /* Force purple for functions */\n}\n\n/* Legacy M2-specific classes (kept for compatibility) */\n.cm-editor .cm-m2-keyword {\n  color: var(--jp-mirror-editor-keyword-color);\n  font-weight: bold;\n}\n\n.cm-editor .cm-m2-type {\n  color: var(--jp-mirror-editor-def-color);\n}\n\n.cm-editor .cm-m2-function,\n.cm-editor .cm-variableName.cm-function {\n  color: var(--jp-mirror-editor-builtin-color);\n}\n\n.cm-editor .cm-m2-constant {\n  color: var(--jp-mirror-editor-number-color);\n}"],"sourceRoot":""}]);
 // Exports
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
 
@@ -600,7 +600,19 @@ var update = _node_modules_style_loader_dist_runtime_injectStylesIntoStyleTag_js
        /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_node_modules_css_loader_dist_cjs_js_index_css__WEBPACK_IMPORTED_MODULE_6__["default"] && _node_modules_css_loader_dist_cjs_js_index_css__WEBPACK_IMPORTED_MODULE_6__["default"].locals ? _node_modules_css_loader_dist_cjs_js_index_css__WEBPACK_IMPORTED_MODULE_6__["default"].locals : undefined);
 
 
+/***/ }),
+
+/***/ "./style/index.js":
+/*!************************!*\
+  !*** ./style/index.js ***!
+  \************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony import */ var _index_css__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./index.css */ "./style/index.css");
+
+
 /***/ })
 
 }]);
-//# sourceMappingURL=style_index_css.a98378fde29e26dd742a.js.map
+//# sourceMappingURL=style_index_js.a16afd6c966ed17f80ce.js.map

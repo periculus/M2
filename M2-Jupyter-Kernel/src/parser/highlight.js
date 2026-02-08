@@ -21,11 +21,11 @@ export const m2Highlighting = styleTags({
   // Constants (from @specialize)
   Constant: t.constant(t.variableName),
 
-  // Boolean and Null literals
-  Boolean: t.bool,
-  "true false": t.bool,
-  Null: t.null,
-  "null": t.null,
+  // Boolean and Null literals (use t.atom — JupyterLab maps t.bool to keyword color)
+  Boolean: t.atom,
+  "true false": t.atom,
+  Null: t.atom,
+  "null": t.atom,
 
   // Identifiers and basic tokens
   Identifier: t.variableName,

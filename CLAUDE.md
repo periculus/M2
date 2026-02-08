@@ -198,6 +198,40 @@ Libraries are managed via CMake's `ExternalProject` with consistent compiler fla
   * Context-aware completions (e.g., types after ':', functions after '=')
 - Testing: Run `python test_code_intelligence.py` and `python test_goto_definition.py`
 
+## Grammar Development Workflow (codemirror-lang-m2)
+
+**IMPORTANT**: When working on the M2 Lezer grammar, follow this workflow:
+
+1. **Validate grammar compiles**:
+   ```fish
+   cd M2-Jupyter-Kernel/codemirror-lang-m2
+   npx lezer-generator src/m2.grammar -o src/parser.js
+   ```
+
+2. **Run corpus test** (target: <5% error rate across all .m2 files):
+   ```fish
+   node test/test_corpus.js
+   ```
+
+3. **Build extension**:
+   ```fish
+   cd M2-Jupyter-Kernel
+   npx tsc --sourceMap && jupyter labextension build --development True .
+   ```
+
+4. **Key grammar files**:
+   - Grammar: `M2-Jupyter-Kernel/codemirror-lang-m2/src/m2.grammar`
+   - Highlight mapping: `M2-Jupyter-Kernel/codemirror-lang-m2/src/highlight.js`
+   - Token lists: `M2-Jupyter-Kernel/codemirror-lang-m2/src/tokens.ts`
+   - Corpus test: `M2-Jupyter-Kernel/codemirror-lang-m2/test/test_corpus.js`
+
+5. **Reference files for M2 syntax**:
+   - Operator precedence: `M2/Macaulay2/d/binding.d` (lines 215-371)
+   - Bison grammar: `M2/Macaulay2/c/grammar.y`
+   - Symbol dictionary: `M2/Macaulay2/editors/vim/m2.vim.dict` (1763+ symbols)
+
+**Current status**: Complete expression-oriented grammar with 28 precedence levels, 4.35% corpus error rate.
+
 ## Memories
 - `memorize`
 - Always use fish and jupyter lab
@@ -207,3 +241,6 @@ Libraries are managed via CMake's `ExternalProject` with consistent compiler fla
 - Lets remember this todo list
 - lets not use claude references in github comments, we will attribute properly in a different way, there are many more that need attribution
 - Do not mention claude in commit messages, this will be attributed elsewhere
+- M2 documentation can be searched on the web using a Google query with site specification https://www.google.com/search?q=parsing+precedence+site%3Amacaulay2.com%2Fdoc
+- we can not allow _ as part of identifiers, it is not allowed, it is an operator
+- Remember to always run a check on grammar grammar using the lezer grammar  before generating a parser for a grammar

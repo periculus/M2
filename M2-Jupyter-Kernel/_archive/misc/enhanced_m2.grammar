@@ -1,0 +1,234 @@
+// Enhanced M2 Grammar with better token recognition
+// Based on the implementation plan suggestions
+
+@top Program { expression* }
+
+@precedence {
+  call @left,
+  member @left,
+  exp @right,
+  times @left,
+  plus @left,
+  rel @left,
+  and @left,
+  or @left,
+  assign @right,
+  comma @left
+}
+
+expression {
+  AssignmentExpr |
+  BinaryExpr |
+  UnaryExpr |
+  CallExpr |
+  MemberExpr |
+  ArrayExpr |
+  Literal |
+  Identifier |
+  ParenExpr |
+  Statement
+}
+
+AssignmentExpr {
+  (Identifier | MemberExpr) !assign ("=" | ":=") expression
+}
+
+BinaryExpr {
+  expression !plus ("+" | "-") expression |
+  expression !times ("*" | "/" | "//" | "%") expression |
+  expression !exp ("^" | "**") expression |
+  expression !rel ("<" | ">" | "<=" | ">=" | "==" | "!=" | "===") expression |
+  expression !and ("and" | "&&") expression |
+  expression !or ("or" | "||" | "xor") expression |
+  expression ".." expression |
+  expression "@@" expression |
+  expression "=>" expression
+}
+
+UnaryExpr {
+  ("-" | "+" | "not" | "#") expression
+}
+
+CallExpr {
+  expression !call "(" argList? ")"
+}
+
+MemberExpr {
+  expression !member ("." | "_") (Identifier | Number)
+}
+
+ArrayExpr {
+  expression !member "[" indexList? "]"
+}
+
+ParenExpr {
+  "(" expression ")"
+}
+
+Statement {
+  IfStatement |
+  ForStatement |
+  WhileStatement |
+  ReturnStatement |
+  BreakStatement |
+  ContinueStatement |
+  TryStatement
+}
+
+IfStatement {
+  Keyword<"if"> expression Keyword<"then"> expression (Keyword<"else"> expression)?
+}
+
+ForStatement {
+  Keyword<"for"> Identifier (Keyword<"from"> expression)? (Keyword<"to"> expression)? (Keyword<"when"> expression)? Keyword<"do"> expression
+}
+
+WhileStatement {
+  Keyword<"while"> expression Keyword<"do"> expression
+}
+
+ReturnStatement {
+  Keyword<"return"> expression?
+}
+
+BreakStatement {
+  Keyword<"break">
+}
+
+ContinueStatement {
+  Keyword<"continue">
+}
+
+TryStatement {
+  Keyword<"try"> expression Keyword<"catch"> Identifier Keyword<"do"> expression
+}
+
+argList {
+  expression ("," expression)*
+}
+
+indexList {
+  expression ("," expression)*
+}
+
+Literal {
+  Number |
+  String |
+  Boolean |
+  Null |
+  Symbol |
+  List |
+  Array |
+  HashTable
+}
+
+List {
+  "{" (expression ("," expression)*)? "}"
+}
+
+Array {
+  "[" (expression ("," expression)*)? "]"
+}
+
+HashTable {
+  Keyword<"new"> Type<"HashTable"> (Keyword<"from"> List)?
+}
+
+Symbol {
+  ":" Identifier
+}
+
+// Enhanced token definitions
+@tokens {
+  space { @whitespace+ }
+  
+  Identifier { 
+    $[a-zA-Z] $[a-zA-Z0-9_']* |
+    "_" $[a-zA-Z0-9_']+
+  }
+  
+  Number {
+    @digit+ ("." @digit+)? ([eE] [+-]? @digit+)? |
+    "." @digit+ ([eE] [+-]? @digit+)? |
+    "0x" $[0-9a-fA-F]+ |
+    "0b" $[01]+
+  }
+  
+  String {
+    '"' (!["\\] | "\\" _)* '"' |
+    "///" (![/] | "/" (![/] | "/" ![/]))* "///"
+  }
+  
+  LineComment { "--" ![\n]* }
+  
+  BlockComment { "-*" blockCommentRest }
+  
+  blockCommentRest {
+    ![*] blockCommentRest |
+    "*" blockCommentAfterStar
+  }
+  
+  blockCommentAfterStar {
+    "-" |
+    "*" blockCommentAfterStar |
+    ![*\-] blockCommentRest
+  }
+  
+  @precedence { 
+    LineComment, BlockComment, "-->", "->", "--", "-*", "-",
+    Number, String, Identifier
+  }
+}
+
+@skip { space | LineComment | BlockComment }
+
+// Keyword definitions with proper categorization
+Keyword<name> {
+  @specialize<Identifier, name>
+}
+
+Type<name> {
+  @specialize<Identifier, name>
+}
+
+Function<name> {
+  @specialize<Identifier, name>
+}
+
+Boolean {
+  @specialize<Identifier, "true" | "false">
+}
+
+Null {
+  @specialize<Identifier, "null">
+}
+
+// Keywords
+@external specialize {Identifier} specializeKeyword from "./tokens" {
+  "if", "then", "else", "when", "do", "while", "for", "from", "to", "in",
+  "break", "continue", "return", "try", "catch", "throw",
+  "local", "global", "export", "exportMutable", "protect", "private", "package", "use",
+  "and", "or", "not", "xor", "new", "method"
+}
+
+// Types
+@external specialize {Identifier} specializeType from "./tokens" {
+  "ZZ", "QQ", "RR", "CC",
+  "Ring", "Ideal", "Module", "Matrix",
+  "ChainComplex", "PolynomialRing", "QuotientRing",
+  "List", "Array", "HashTable", "String", "Symbol",
+  "Boolean", "Thing", "Nothing", "MutableList", "MutableHashTable"
+}
+
+// Functions
+@external specialize {Identifier} specializeFunction from "./tokens" {
+  "gb", "res", "ideal", "matrix", "ring", "map", "ker", "coker", "image",
+  "decompose", "primaryDecomposition", "saturate", "quotient",
+  "hilbertFunction", "hilbertPolynomial", "hilbertSeries",
+  "betti", "regularity", "codim", "dim", "degree", "genus",
+  "source", "target", "transpose", "det", "rank", "trace",
+  "factor", "gcd", "lcm", "mod", "divmod",
+  "toString", "print", "error", "assert", "time", "elapsedTime"
+}
+
+@external propSource m2Highlighting from "./highlight.js"

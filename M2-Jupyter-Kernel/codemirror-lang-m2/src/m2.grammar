@@ -225,7 +225,20 @@ Builtin {
     "monomialIdeal" | "leadTerm" | "leadCoefficient" | "leadMonomial" |
     "multidegree" | "poincare" |
     "resolution" | "minimize" | "isWellDefined" | "net" | "peek" |
-    "value" | "hold" | "describe" | "texMath"
+    "value" | "hold" | "describe" | "texMath" |
+    "chainComplex" | "cokernel" | "kernel" | "module" | "tensor" |
+    "directSum" | "exteriorPower" | "symmetricPower" |
+    "monomialCurveIdeal" | "variety" | "Proj" | "Spec" |
+    "singularLocus" | "tangentSheaf" | "cotangentSheaf" |
+    "HH" | "prune" | "truncate" | "comodule" |
+    "minors" | "pfaffians" | "permanents" |
+    "completeIntersection" | "isSubset" | "isMember" |
+    "binomial" | "char" | "coefficients" | "content" |
+    "numerator" | "denominator" | "liftable" |
+    "regex" | "match" | "replace" | "concatenate" |
+    "openIn" | "openOut" | "close" | "read" | "get" |
+    "set" | "keys" | "values" | "pairs" | "hashTable" | "mutableHashTable" |
+    "getSymbol" | "localDictionaries" | "dictionaryPath"
   >
 }
 

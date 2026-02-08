@@ -11,13 +11,13 @@ var _JUPYTERLAB;
 
 var moduleMap = {
 	"./index": () => {
-		return Promise.all([__webpack_require__.e("style_index_css"), __webpack_require__.e("lib_index_js")]).then(() => (() => ((__webpack_require__(/*! ./lib/index.js */ "./lib/index.js")))));
+		return __webpack_require__.e("lib_index_js").then(() => (() => ((__webpack_require__(/*! ./lib/index.js */ "./lib/index.js")))));
 	},
 	"./extension": () => {
-		return Promise.all([__webpack_require__.e("style_index_css"), __webpack_require__.e("lib_index_js")]).then(() => (() => ((__webpack_require__(/*! ./lib/index.js */ "./lib/index.js")))));
+		return __webpack_require__.e("lib_index_js").then(() => (() => ((__webpack_require__(/*! ./lib/index.js */ "./lib/index.js")))));
 	},
 	"./style": () => {
-		return Promise.all([__webpack_require__.e("style_index_css"), __webpack_require__.e("style_index_js")]).then(() => (() => ((__webpack_require__(/*! ./style/index.js */ "./style/index.js")))));
+		return __webpack_require__.e("style_index_js").then(() => (() => ((__webpack_require__(/*! ./style/index.js */ "./style/index.js")))));
 	}
 };
 var get = (module, getScope) => {
@@ -124,7 +124,7 @@ __webpack_require__.d(exports, {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "" + chunkId + "." + {"style_index_css":"a98378fde29e26dd742a","lib_index_js":"11db4f197f7531d041f5","style_index_js":"0baef749e47066661d28","vendors-node_modules_lezer_lr_dist_index_js":"e4a7ece5a08338022327"}[chunkId] + ".js";
+/******/ 			return "" + chunkId + "." + {"lib_index_js":"263ab8e18274857221da","style_index_js":"a16afd6c966ed17f80ce","vendors-node_modules_lezer_lr_dist_index_js":"e4a7ece5a08338022327"}[chunkId] + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	
@@ -244,7 +244,7 @@ __webpack_require__.d(exports, {
 /******/ 			switch(name) {
 /******/ 				case "default": {
 /******/ 					register("@lezer/lr", "1.4.2", () => (Promise.all([__webpack_require__.e("vendors-node_modules_lezer_lr_dist_index_js"), __webpack_require__.e("webpack_sharing_consume_default_lezer_common")]).then(() => (() => (__webpack_require__(/*! ./node_modules/@lezer/lr/dist/index.js */ "./node_modules/@lezer/lr/dist/index.js"))))));
-/******/ 					register("@m2-jupyter/jupyterlab-m2-codemirror", "0.1.0", () => (Promise.all([__webpack_require__.e("style_index_css"), __webpack_require__.e("lib_index_js")]).then(() => (() => (__webpack_require__(/*! ./lib/index.js */ "./lib/index.js"))))));
+/******/ 					register("@m2-jupyter/jupyterlab-m2-codemirror", "0.1.0", () => (__webpack_require__.e("lib_index_js").then(() => (() => (__webpack_require__(/*! ./lib/index.js */ "./lib/index.js"))))));
 /******/ 				}
 /******/ 				break;
 /******/ 			}
@@ -405,6 +405,7 @@ __webpack_require__.d(exports, {
 /******/ 			"webpack/sharing/consume/default/@lezer/lr/@lezer/lr": () => (loadStrictVersion("default", "@lezer/lr", false, [1,1,4,0], () => (Promise.all([__webpack_require__.e("vendors-node_modules_lezer_lr_dist_index_js"), __webpack_require__.e("webpack_sharing_consume_default_lezer_common")]).then(() => (() => (__webpack_require__(/*! @lezer/lr */ "./node_modules/@lezer/lr/dist/index.js"))))))),
 /******/ 			"webpack/sharing/consume/default/@lezer/highlight": () => (loadSingletonVersion("default", "@lezer/highlight", false, [1,1,0,0])),
 /******/ 			"webpack/sharing/consume/default/@codemirror/language": () => (loadSingletonVersion("default", "@codemirror/language", false, [1,6,0,0])),
+/******/ 			"webpack/sharing/consume/default/@codemirror/view": () => (loadSingletonVersion("default", "@codemirror/view", false, [1,6,9,6])),
 /******/ 			"webpack/sharing/consume/default/@lezer/common": () => (loadSingletonVersion("default", "@lezer/common", false, [1,1,0,0]))
 /******/ 		};
 /******/ 		// no consumes in initial chunks
@@ -413,7 +414,8 @@ __webpack_require__.d(exports, {
 /******/ 				"webpack/sharing/consume/default/@jupyterlab/codemirror",
 /******/ 				"webpack/sharing/consume/default/@lezer/lr/@lezer/lr",
 /******/ 				"webpack/sharing/consume/default/@lezer/highlight",
-/******/ 				"webpack/sharing/consume/default/@codemirror/language"
+/******/ 				"webpack/sharing/consume/default/@codemirror/language",
+/******/ 				"webpack/sharing/consume/default/@codemirror/view"
 /******/ 			],
 /******/ 			"webpack_sharing_consume_default_lezer_common": [
 /******/ 				"webpack/sharing/consume/default/@lezer/common"
@@ -557,4 +559,4 @@ __webpack_require__.d(exports, {
 /******/ 	
 /******/ })()
 ;
-//# sourceMappingURL=remoteEntry.9f467d8fe538f8c60e82.js.map
+//# sourceMappingURL=remoteEntry.33848242e9bc61af6eda.js.map
