@@ -37,3 +37,47 @@
 .cm-editor .cm-m2-constant {
   color: var(--jp-mirror-editor-number-color);
 }
+
+/* M2 hover tooltip styles */
+.m2-hover-tooltip {
+  padding: 6px 10px;
+  font-family: var(--jp-code-font-family, monospace);
+  font-size: var(--jp-code-font-size, 13px);
+  max-width: 400px;
+}
+
+.m2-hover-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.m2-hover-badge {
+  font-size: 0.8em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: normal;
+  font-style: italic;
+}
+
+.m2-hover-badge-keyword {
+  color: #0000ff;
+}
+
+.m2-hover-badge-type {
+  color: #008080;
+}
+
+.m2-hover-badge-function {
+  color: #800080;
+}
+
+.m2-hover-badge-constant {
+  color: #ff1493;
+}
+
+.m2-hover-info {
+  color: var(--jp-content-font-color2, #555);
+  font-style: italic;
+}

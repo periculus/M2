@@ -60,7 +60,51 @@ ___CSS_LOADER_EXPORT___.push([module.id, `/* M2 CodeMirror extension styles */
 
 .cm-editor .cm-m2-constant {
   color: var(--jp-mirror-editor-number-color);
-}`, "",{"version":3,"sources":["webpack://./style/index.css"],"names":[],"mappings":"AAAA,mCAAmC;;AAEnC,0CAA0C;;AAG1C,8EAA8E;AAC9E;EACE,yBAAyB,EAAE,4BAA4B;EACvD,4BAA4B;AAC9B;;AAEA;EACE,yBAAyB,EAAE,yBAAyB;EACpD,2BAA2B;AAC7B;;AAEA;;EAEE,yBAAyB,EAAE,+BAA+B;AAC5D;;AAEA,wDAAwD;AACxD;EACE,4CAA4C;EAC5C,iBAAiB;AACnB;;AAEA;EACE,wCAAwC;AAC1C;;AAEA;;EAEE,4CAA4C;AAC9C;;AAEA;EACE,2CAA2C;AAC7C","sourcesContent":["/* M2 CodeMirror extension styles */\n\n/* Import additional highlighting styles */\n@import './m2-highlighting.css';\n\n/* Standard CodeMirror token classes - simplified selectors for JupyterLab 4 */\n.cm-keyword {\n  color: #0000ff !important; /* Force blue for keywords */\n  font-weight: bold !important;\n}\n\n.cm-typeName {\n  color: #008080 !important; /* Force teal for types */\n  font-weight: 500 !important;\n}\n\n.cm-functionName,\n.cm-variableName.cm-function {\n  color: #800080 !important; /* Force purple for functions */\n}\n\n/* Legacy M2-specific classes (kept for compatibility) */\n.cm-editor .cm-m2-keyword {\n  color: var(--jp-mirror-editor-keyword-color);\n  font-weight: bold;\n}\n\n.cm-editor .cm-m2-type {\n  color: var(--jp-mirror-editor-def-color);\n}\n\n.cm-editor .cm-m2-function,\n.cm-editor .cm-variableName.cm-function {\n  color: var(--jp-mirror-editor-builtin-color);\n}\n\n.cm-editor .cm-m2-constant {\n  color: var(--jp-mirror-editor-number-color);\n}"],"sourceRoot":""}]);
+}
+
+/* M2 hover tooltip styles */
+.m2-hover-tooltip {
+  padding: 6px 10px;
+  font-family: var(--jp-code-font-family, monospace);
+  font-size: var(--jp-code-font-size, 13px);
+  max-width: 400px;
+}
+
+.m2-hover-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.m2-hover-badge {
+  font-size: 0.8em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: normal;
+  font-style: italic;
+}
+
+.m2-hover-badge-keyword {
+  color: #0000ff;
+}
+
+.m2-hover-badge-type {
+  color: #008080;
+}
+
+.m2-hover-badge-function {
+  color: #800080;
+}
+
+.m2-hover-badge-constant {
+  color: #ff1493;
+}
+
+.m2-hover-info {
+  color: var(--jp-content-font-color2, #555);
+  font-style: italic;
+}`, "",{"version":3,"sources":["webpack://./style/index.css"],"names":[],"mappings":"AAAA,mCAAmC;;AAEnC,0CAA0C;;AAG1C,8EAA8E;AAC9E;EACE,yBAAyB,EAAE,4BAA4B;EACvD,4BAA4B;AAC9B;;AAEA;EACE,yBAAyB,EAAE,yBAAyB;EACpD,2BAA2B;AAC7B;;AAEA;;EAEE,yBAAyB,EAAE,+BAA+B;AAC5D;;AAEA,wDAAwD;AACxD;EACE,4CAA4C;EAC5C,iBAAiB;AACnB;;AAEA;EACE,wCAAwC;AAC1C;;AAEA;;EAEE,4CAA4C;AAC9C;;AAEA;EACE,2CAA2C;AAC7C;;AAEA,4BAA4B;AAC5B;EACE,iBAAiB;EACjB,kDAAkD;EAClD,yCAAyC;EACzC,gBAAgB;AAClB;;AAEA;EACE,aAAa;EACb,mBAAmB;EACnB,QAAQ;EACR,kBAAkB;AACpB;;AAEA;EACE,gBAAgB;EAChB,gBAAgB;EAChB,kBAAkB;EAClB,mBAAmB;EACnB,kBAAkB;AACpB;;AAEA;EACE,cAAc;AAChB;;AAEA;EACE,cAAc;AAChB;;AAEA;EACE,cAAc;AAChB;;AAEA;EACE,cAAc;AAChB;;AAEA;EACE,0CAA0C;EAC1C,kBAAkB;AACpB","sourcesContent":["/* M2 CodeMirror extension styles */\n\n/* Import additional highlighting styles */\n@import './m2-highlighting.css';\n\n/* Standard CodeMirror token classes - simplified selectors for JupyterLab 4 */\n.cm-keyword {\n  color: #0000ff !important; /* Force blue for keywords */\n  font-weight: bold !important;\n}\n\n.cm-typeName {\n  color: #008080 !important; /* Force teal for types */\n  font-weight: 500 !important;\n}\n\n.cm-functionName,\n.cm-variableName.cm-function {\n  color: #800080 !important; /* Force purple for functions */\n}\n\n/* Legacy M2-specific classes (kept for compatibility) */\n.cm-editor .cm-m2-keyword {\n  color: var(--jp-mirror-editor-keyword-color);\n  font-weight: bold;\n}\n\n.cm-editor .cm-m2-type {\n  color: var(--jp-mirror-editor-def-color);\n}\n\n.cm-editor .cm-m2-function,\n.cm-editor .cm-variableName.cm-function {\n  color: var(--jp-mirror-editor-builtin-color);\n}\n\n.cm-editor .cm-m2-constant {\n  color: var(--jp-mirror-editor-number-color);\n}\n\n/* M2 hover tooltip styles */\n.m2-hover-tooltip {\n  padding: 6px 10px;\n  font-family: var(--jp-code-font-family, monospace);\n  font-size: var(--jp-code-font-size, 13px);\n  max-width: 400px;\n}\n\n.m2-hover-header {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin-bottom: 4px;\n}\n\n.m2-hover-badge {\n  font-size: 0.8em;\n  padding: 1px 6px;\n  border-radius: 3px;\n  font-weight: normal;\n  font-style: italic;\n}\n\n.m2-hover-badge-keyword {\n  color: #0000ff;\n}\n\n.m2-hover-badge-type {\n  color: #008080;\n}\n\n.m2-hover-badge-function {\n  color: #800080;\n}\n\n.m2-hover-badge-constant {\n  color: #ff1493;\n}\n\n.m2-hover-info {\n  color: var(--jp-content-font-color2, #555);\n  font-style: italic;\n}"],"sourceRoot":""}]);
 // Exports
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
 
@@ -615,4 +659,4 @@ __webpack_require__.r(__webpack_exports__);
 /***/ })
 
 }]);
-//# sourceMappingURL=style_index_js.a16afd6c966ed17f80ce.js.map
+//# sourceMappingURL=style_index_js.a52b42457acca9db5529.js.map

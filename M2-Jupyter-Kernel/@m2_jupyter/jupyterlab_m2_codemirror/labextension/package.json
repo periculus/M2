@@ -58,8 +58,10 @@
     "watch:labextension": "jupyter labextension watch ."
   },
   "dependencies": {
+    "@codemirror/autocomplete": "6.20.0",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.10.0",
+    "@codemirror/view": "6.39.13",
     "@jupyterlab/application": "^4.0.0",
     "@jupyterlab/codemirror": "^4.0.0",
     "@lezer/highlight": "^1.2.0",
@@ -103,7 +105,7 @@
     "extension": true,
     "outputDir": "@m2_jupyter/jupyterlab_m2_codemirror/labextension",
     "_build": {
-      "load": "static/remoteEntry.e31dee2f7ee984bdc149.js",
+      "load": "static/remoteEntry.78595f0993e4071b2ceb.js",
       "extension": "./extension",
       "style": "./style"
     }
