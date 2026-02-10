@@ -2,9 +2,8 @@
 // Based on M2's grammar.y and operator precedence from binding.d
 // IMPORTANT: underscore (_) is an OPERATOR in M2, not part of identifiers
 
-@top Program { (expression semi)* expression? }
-
-semi { ";" }
+// Semicolons are optional — M2 uses newlines as implicit statement separators
+@top Program { ";"* (expression ";"*)* }
 
 @skip { space | LineComment | BlockComment }
 
@@ -17,6 +16,7 @@ semi { ";" }
   tilde,
   comp @left,
   call @left,
+  jux @right,
   at @right,
   times @left,
   plus @left,
@@ -57,6 +57,7 @@ expression[@isGroup=Expression] {
   UnaryExpression |
   PostfixExpression |
   CallExpr |
+  JuxtapositionExpr |
   LoadExpr |
   NeedsExpr |
   UseExpr |
@@ -70,19 +71,21 @@ expression[@isGroup=Expression] {
   WhileExpr |
   ForExpr |
   TryExpr |
+  CatchExpr |
   NewExpr |
   ReturnExpr |
   BreakExpr |
   ContinueExpr |
-  ThrowExpr
+  ThrowExpr |
+  Ellipsis
 }
 
 // Grouping — parens also handle block expressions (expr; expr; ...)
 ParenExpr { "(" Body ")" }
 ListExpr { "{" ListItems? "}" }
 ArrayExpr { "[" ListItems? "]" }
-Body { (expression (semi | ","))* expression? }
-ListItems { expression ("," expression)* }
+Body { (expression (";" | ","))* expression? }
+ListItems { expression ("," expression)* ","? }
 
 // Assignment and arrow operators
 AssignExpr {
@@ -97,22 +100,36 @@ CallExpr {
   expression !call "[" ListItems? "]"
 }
 
+// Juxtaposition: M2's space-application (f x, error "msg", flatten entries M)
+// RHS restricted to atoms to avoid ambiguity with binary operators.
+// CallExpr (with parens/braces/brackets) has higher precedence.
+JuxtapositionExpr {
+  expression !jux juxArg
+}
+juxArg {
+  Identifier | Type | Builtin | Constant | Number | String | TripleString |
+  Boolean | Null
+}
+
 // Common M2 keywords that take an argument via juxtaposition
-LoadExpr { kw<"load"> expression }
-NeedsExpr { kw<"needs"> expression }
-UseExpr { kw<"use"> expression }
-ExportExpr { kw<"export"> expression }
-ScopeExpr { (kw<"symbol"> | kw<"global"> | kw<"local"> | kw<"threadLocal">) expression }
-TimeExpr { kw<"time"> expression }
-ElapsedTimeExpr { kw<"elapsedTime"> expression }
-ShieldExpr { kw<"shield"> expression }
-DebugExpr { kw<"debug"> expression }
+// Use ckw (extend) so these can also be used as identifiers (e.g., load = ...)
+LoadExpr { ckw<"load"> expression }
+NeedsExpr { ckw<"needs"> expression }
+UseExpr { ckw<"use"> expression }
+ExportExpr { ckw<"export"> expression }
+ScopeExpr { (ckw<"symbol"> | ckw<"global"> | ckw<"local"> | ckw<"threadLocal">) expression }
+TimeExpr { ckw<"time"> expression }
+ElapsedTimeExpr { ckw<"elapsedTime"> expression }
+ShieldExpr { ckw<"shield"> expression }
+DebugExpr { ckw<"debug"> expression }
 
 // Control flow
-IfExpr { kw<"if"> expression ckw<"then"> expression (~ifelse ckw<"else"> expression)? }
-WhileExpr { kw<"while"> expression ckw<"do"> expression }
+// Control flow — use ckw (extend) for keywords that also appear as identifiers
+// in M2 (e.g., method installations: `not Function := ...`, `new Class from ...`)
+IfExpr { ckw<"if"> expression ckw<"then"> expression (~ifelse ckw<"else"> expression)? }
+WhileExpr { ckw<"while"> expression ckw<"do"> expression }
 ForExpr {
-  kw<"for"> expression
+  ckw<"for"> expression
   (ckw<"from"> expression)?
   (ckw<"to"> expression)?
   (ckw<"in"> expression)?
@@ -120,12 +137,13 @@ ForExpr {
   (ckw<"by"> expression)?
   ckw<"do"> expression
 }
-TryExpr { kw<"try"> expression (~trycatch ckw<"catch"> expression)? }
-NewExpr { kw<"new"> expression (~newof ckw<"of"> expression)? }
-ReturnExpr { kw<"return"> expression }
-BreakExpr { kw<"break"> expression }
-ContinueExpr { kw<"continue"> expression }
-ThrowExpr { kw<"throw"> expression }
+TryExpr { ckw<"try"> expression (~trythen ckw<"then"> expression (~tryelse ckw<"else"> expression)?)? }
+CatchExpr { ckw<"catch"> expression }
+NewExpr { ckw<"new"> expression (~newof ckw<"of"> expression)? }
+ReturnExpr { ckw<"return"> expression }
+BreakExpr { ckw<"break"> expression }
+ContinueExpr { ckw<"continue"> expression }
+ThrowExpr { ckw<"throw"> expression }
 
 // Binary operators by precedence
 BinaryExpression {
@@ -159,7 +177,8 @@ UnaryExpression {
   !prefix "+" expression |
   !prefix "*" expression |
   !prefix "#" expression |
-  !not kw<"not"> expression
+  !prefix "<<" expression |
+  !not ckw<"not"> expression
 }
 
 // Postfix operators
@@ -171,6 +190,7 @@ PostfixExpression {
 // Literals
 Boolean { @specialize[@name=Boolean]<Identifier, "true" | "false"> }
 Null { @specialize[@name=Null]<Identifier, "null"> }
+Ellipsis { "..." }
 
 // Types — specialize identifiers to Type nodes for known M2 types
 Type {
@@ -225,7 +245,20 @@ Builtin {
     "monomialIdeal" | "leadTerm" | "leadCoefficient" | "leadMonomial" |
     "multidegree" | "poincare" |
     "resolution" | "minimize" | "isWellDefined" | "net" | "peek" |
-    "value" | "hold" | "describe" | "texMath"
+    "value" | "hold" | "describe" | "texMath" |
+    "chainComplex" | "cokernel" | "kernel" | "module" | "tensor" |
+    "directSum" | "exteriorPower" | "symmetricPower" |
+    "monomialCurveIdeal" | "variety" | "Proj" | "Spec" |
+    "singularLocus" | "tangentSheaf" | "cotangentSheaf" |
+    "HH" | "prune" | "truncate" | "comodule" |
+    "minors" | "pfaffians" | "permanents" |
+    "completeIntersection" | "isSubset" | "isMember" |
+    "binomial" | "char" | "coefficients" | "content" |
+    "numerator" | "denominator" | "liftable" |
+    "regex" | "match" | "replace" | "concatenate" |
+    "openIn" | "openOut" | "close" | "read" | "get" |
+    "set" | "keys" | "values" | "pairs" | "hashTable" | "mutableHashTable" |
+    "getSymbol" | "localDictionaries" | "dictionaryPath"
   >
 }
 
@@ -252,15 +285,20 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
 @tokens {
   space { @whitespace+ }
 
-  // Identifiers: letters + digits + prime, NO underscore
-  Identifier { $[a-zA-Z] $[a-zA-Z0-9']* }
+  // Identifiers: letters + digits + prime + Unicode, NO underscore
+  // M2 allows Unicode identifiers (e.g., ω, α) and $ in some contexts
+  // Unicode ranges: Latin Extended (00C0-024F), Greek (0370-03FF),
+  // Letterlike Symbols (2100-214F), Math Operators (2200-22FF), Misc Symbols (2A00-2AFF)
+  Identifier { $[a-zA-Z\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF] $[a-zA-Z0-9'$\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF]* }
 
+  // M2 number formats: 42, 3.14, .5, 1. (trailing dot), 1p111, 1e-10, 1.5p100e20
   Number {
-    @digit+ ("." @digit+)? |
-    "." @digit+
+    @digit+ ("." @digit*)? ("p" @digit+)? ($[eE] $[\-+]? @digit+)? |
+    "." @digit+ ("p" @digit+)? ($[eE] $[\-+]? @digit+)?
   }
 
-  String { '"' (![\\\"\n] | "\\" _)* '"' }
+  // M2 strings can span multiple lines
+  String { '"' (![\\\"] | "\\" _)* '"' }
 
   // Triple-slash documentation strings: /// ... ///
   TripleString { "///" (![/] | "/" ![/] | "//" ![/])* "///" }
@@ -278,7 +316,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     ">=", ">>", ">",
     "^**", "^>=", "^>", "^<=", "^<", "^~", "^*", "^!", "^",
     "_~", "_*", "_!", "|_", "_",
-    "..<", "..", ".?", ".",
+    "...", "..<", "..", ".?", ".",
     "#?", "#",
     TripleString, "//", "/",
     "||", "|-", "|",

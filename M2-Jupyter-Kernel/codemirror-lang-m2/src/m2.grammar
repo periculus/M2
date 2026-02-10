@@ -71,11 +71,13 @@ expression[@isGroup=Expression] {
   WhileExpr |
   ForExpr |
   TryExpr |
+  CatchExpr |
   NewExpr |
   ReturnExpr |
   BreakExpr |
   ContinueExpr |
-  ThrowExpr
+  ThrowExpr |
+  Ellipsis
 }
 
 // Grouping — parens also handle block expressions (expr; expr; ...)
@@ -83,7 +85,7 @@ ParenExpr { "(" Body ")" }
 ListExpr { "{" ListItems? "}" }
 ArrayExpr { "[" ListItems? "]" }
 Body { (expression (";" | ","))* expression? }
-ListItems { expression ("," expression)* }
+ListItems { expression ("," expression)* ","? }
 
 // Assignment and arrow operators
 AssignExpr {
@@ -135,7 +137,8 @@ ForExpr {
   (ckw<"by"> expression)?
   ckw<"do"> expression
 }
-TryExpr { ckw<"try"> expression (~trycatch ckw<"catch"> expression)? }
+TryExpr { ckw<"try"> expression (~trythen ckw<"then"> expression (~tryelse ckw<"else"> expression)?)? }
+CatchExpr { ckw<"catch"> expression }
 NewExpr { ckw<"new"> expression (~newof ckw<"of"> expression)? }
 ReturnExpr { ckw<"return"> expression }
 BreakExpr { ckw<"break"> expression }
@@ -175,7 +178,7 @@ UnaryExpression {
   !prefix "*" expression |
   !prefix "#" expression |
   !prefix "<<" expression |
-  !not kw<"not"> expression
+  !not ckw<"not"> expression
 }
 
 // Postfix operators
@@ -187,6 +190,7 @@ PostfixExpression {
 // Literals
 Boolean { @specialize[@name=Boolean]<Identifier, "true" | "false"> }
 Null { @specialize[@name=Null]<Identifier, "null"> }
+Ellipsis { "..." }
 
 // Types — specialize identifiers to Type nodes for known M2 types
 Type {
@@ -287,9 +291,10 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   // Letterlike Symbols (2100-214F), Math Operators (2200-22FF), Misc Symbols (2A00-2AFF)
   Identifier { $[a-zA-Z\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF] $[a-zA-Z0-9'$\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF]* }
 
+  // M2 number formats: 42, 3.14, .5, 1. (trailing dot), 1p111, 1e-10, 1.5p100e20
   Number {
-    @digit+ ("." @digit+)? |
-    "." @digit+
+    @digit+ ("." @digit*)? ("p" @digit+)? ($[eE] $[\-+]? @digit+)? |
+    "." @digit+ ("p" @digit+)? ($[eE] $[\-+]? @digit+)?
   }
 
   // M2 strings can span multiple lines
@@ -311,7 +316,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     ">=", ">>", ">",
     "^**", "^>=", "^>", "^<=", "^<", "^~", "^*", "^!", "^",
     "_~", "_*", "_!", "|_", "_",
-    "..<", "..", ".?", ".",
+    "...", "..<", "..", ".?", ".",
     "#?", "#",
     TripleString, "//", "/",
     "||", "|-", "|",

@@ -47,7 +47,20 @@ const dirs = [
   path.join(m2Root, 'packages'),
 ];
 
+// Detect raw SimpleDoc files (documentation markup, not M2 code)
+// These start with Node/Key/Headline blocks WITHOUT doc /// wrappers
+function isRawDocFile(code, filePath) {
+  // Files named *-doc.m2 or */doc.m2 that use raw SimpleDoc format (no doc ///)
+  const basename = path.basename(filePath);
+  const isDocName = basename === 'doc.m2' || basename.endsWith('-doc.m2');
+  if (!isDocName) return false;
+  // Check if file uses raw SimpleDoc (starts with Node/Key lines, not wrapped in doc ///)
+  const firstLines = code.substring(0, 500);
+  return /^\s*Node\b/m.test(firstLines) && !/\bdoc\s*\/\/\//.test(firstLines);
+}
+
 let totalFiles = 0, totalNodes = 0, totalErrors = 0;
+let skippedDocFiles = 0;
 let worstFiles = [];
 let errorCounts = {};
 
@@ -60,6 +73,9 @@ for (const dir of dirs) {
     try {
       const code = fs.readFileSync(file, 'utf-8');
       if (code.length > 500000) continue; // skip very large files
+
+      // Skip raw SimpleDoc files (documentation markup, not M2 code)
+      if (isRawDocFile(code, file)) { skippedDocFiles++; continue; }
 
       const tree = parser.parse(code);
       const { totalNodes: nodes, errorNodes: errors, errorTexts } = analyzeTree(code, tree);
@@ -83,7 +99,7 @@ for (const dir of dirs) {
 }
 
 console.log('\n=== CORPUS TEST RESULTS ===');
-console.log(`Files tested: ${totalFiles}`);
+console.log(`Files tested: ${totalFiles}` + (skippedDocFiles > 0 ? ` (${skippedDocFiles} raw doc files excluded)` : ''));
 console.log(`Total nodes: ${totalNodes}`);
 console.log(`Error nodes: ${totalErrors}`);
 console.log(`Error rate: ${(totalErrors / totalNodes * 100).toFixed(2)}%`);

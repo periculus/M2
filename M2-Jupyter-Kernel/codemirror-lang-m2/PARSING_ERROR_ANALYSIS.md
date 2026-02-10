@@ -1,13 +1,23 @@
 # M2 Lezer Grammar: Parsing Error Analysis
 
-**Date**: February 2026
+**Date**: February 2026 (updated Feb 10)
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
-**Corpus**: 2594 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/)
-**Current error rate**: 0.19% (16,599 errors across 8,935,072 nodes)
+**Corpus**: 2593 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/), 1 raw doc file excluded
+**Current error rate**: 0.17% (15,201 errors across 8,903,464 nodes)
+**Previous error rate**: 0.19% (16,599 errors across 8,935,072 nodes)
+
+## Fixes Applied (Feb 10, 2026)
+
+1. **`try...then...else`** — Grammar used `try...catch`, M2 uses `try...then...else`. Added `CatchExpr` as separate unary. (~500 errors fixed)
+2. **Number literals** — Added trailing dot (`1.`), precision suffix (`1p111`), scientific notation (`1e-10`). (~1000+ errors fixed)
+3. **`not` as ckw** — Changed from `kw` to `ckw` so `not` can appear as identifier in method installations.
+4. **Ellipsis `...`** — Added as recognized token (was parsed as three `.` operators).
+5. **Trailing comma** — `ListItems` now allows optional trailing comma `{a, b, c,}`.
+6. **Raw doc file exclusion** — `Schubert2/doc.m2` (raw SimpleDoc markup, not M2 code) excluded from corpus test.
 
 ## Executive Summary
 
-The 0.19% error rate is excellent for a syntax highlighter, but the 16,599 remaining errors
+The 0.17% error rate is excellent for a syntax highlighter. The 15,201 remaining errors
 cluster around a small number of root causes. This report analyzes all error categories,
 identifies root causes from the actual M2 source code, and assesses fixability.
 
