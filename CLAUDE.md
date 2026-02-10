@@ -183,54 +183,111 @@ The build system downloads and builds 20+ external mathematical libraries:
 
 Libraries are managed via CMake's `ExternalProject` with consistent compiler flags and installation paths.
 
-## Code Intelligence Features
+## JupyterLab Extension: Full Build & Deploy Workflow
 
-- Successfully implemented comprehensive code intelligence for M2 Jupyter kernel
-- Features include:
-  * **Autocomplete**: Context-aware completion for 1763+ M2 symbols (functions, types, keywords)
-  * **Hover Documentation**: Quick info on Shift+hover (symbol type, signatures, descriptions)
-  * **Go-to-Definition**: Alt+Click to jump to where symbols are defined
-  * **Syntax Highlighting**: Dynamic highlighting using parsed M2 language data
-- Implementation details:
-  * Parses M2 vim dictionary file for language symbols
-  * Tracks symbol definitions as code executes
-  * Provides built-in symbol information
-  * Context-aware completions (e.g., types after ':', functions after '=')
-- Testing: Run `python test_code_intelligence.py` and `python test_goto_definition.py`
+### Overview
 
-## Grammar Development Workflow (codemirror-lang-m2)
+The M2 JupyterLab extension provides syntax highlighting, code intelligence, and documentation tooltips for Macaulay2 in JupyterLab. The pipeline has three independent stages that can be run separately.
 
-**IMPORTANT**: When working on the M2 Lezer grammar, follow this workflow:
+### Stage 1: Grammar (only when changing syntax parsing)
 
-1. **Validate grammar compiles**:
-   ```fish
-   cd M2-Jupyter-Kernel/codemirror-lang-m2
-   npx lezer-generator src/m2.grammar -o src/parser.js
-   ```
+```fish
+cd M2-Jupyter-Kernel/codemirror-lang-m2
 
-2. **Run corpus test** (target: <5% error rate across all .m2 files):
-   ```fish
-   node test/test_corpus.js
-   ```
+# 1. Edit the grammar
+#    Source: src/m2.grammar
 
-3. **Build extension**:
-   ```fish
-   cd M2-Jupyter-Kernel
-   npx tsc --sourceMap && jupyter labextension build --development True .
-   ```
+# 2. Validate grammar compiles
+npx lezer-generator src/m2.grammar -o src/parser.js
 
-4. **Key grammar files**:
-   - Grammar: `M2-Jupyter-Kernel/codemirror-lang-m2/src/m2.grammar`
-   - Highlight mapping: `M2-Jupyter-Kernel/codemirror-lang-m2/src/highlight.js`
-   - Token lists: `M2-Jupyter-Kernel/codemirror-lang-m2/src/tokens.ts`
-   - Corpus test: `M2-Jupyter-Kernel/codemirror-lang-m2/test/test_corpus.js`
+# 3. Run corpus test (target: <1% error rate across 2594 .m2 files)
+node test/test_corpus.js
 
-5. **Reference files for M2 syntax**:
-   - Operator precedence: `M2/Macaulay2/d/binding.d` (lines 215-371)
-   - Bison grammar: `M2/Macaulay2/c/grammar.y`
-   - Symbol dictionary: `M2/Macaulay2/editors/vim/m2.vim.dict` (1763+ symbols)
+# 4. Copy generated parser files to extension source
+cp src/parser.js src/parser.terms.js ../src/parser/
+cp src/highlight.js ../src/parser/
+```
 
-**Current status**: Complete expression-oriented grammar with 28 precedence levels, 4.35% corpus error rate.
+**Key grammar files:**
+- Grammar: `M2-Jupyter-Kernel/codemirror-lang-m2/src/m2.grammar`
+- Highlight mapping: `codemirror-lang-m2/src/highlight.js`
+- Token lists: `codemirror-lang-m2/src/tokens.ts`
+- Corpus test: `codemirror-lang-m2/test/test_corpus.js`
+- Error analysis: `codemirror-lang-m2/test/analyze_errors.js`
+
+**M2 syntax reference files:**
+- Operator precedence: `M2/Macaulay2/d/binding.d` (lines 215-371)
+- Bison grammar: `M2/Macaulay2/c/grammar.y`
+- Symbol dictionary: `M2/Macaulay2/editors/vim/m2.vim.dict` (1763+ symbols)
+
+**Current status (Feb 2026):** 0.19% error rate across 2594 .m2 files.
+
+### Stage 2: Documentation Symbols (when M2 version changes or docs update)
+
+```fish
+cd M2-Jupyter-Kernel
+
+# Regenerate m2Symbols.json from M2's documentation
+# This parses SimpleDoc files, runs M2 help, and applies fallbacks
+python scripts/generate_symbols.py
+```
+
+**What `generate_symbols.py` does (in order):**
+1. Reads symbol names from `M2/Macaulay2/editors/vim/m2.vim.dict` (1763 symbols)
+2. Parses all `document { ... }` and `doc /// ... ///` blocks from `M2/Macaulay2/packages/Macaulay2Doc/**/*.m2` (380 files, 1710 blocks) — extracts headlines, usage, inputs, outputs, options
+3. Scans `M2/Macaulay2/packages/*.m2` for `newPackage(..., Headline => "...")`
+4. Recursively scans all other package `.m2` files for remaining undocumented symbols
+5. Merges option data from `Key => {[func, Option]}` patterns and `Inputs` sections
+6. **Runs M2** (`M2 --stop --no-readline --silent`) to extract headlines via `help "symbol"` for remaining gaps
+7. Applies `FALLBACK_DESCRIPTIONS` dict for keywords, constants, and internal symbols
+
+**Output:** `src/m2Symbols.json` (~266 KB, 1763 entries, 100% documented)
+
+**When to re-run:**
+- After updating to a new M2 version (new symbols, changed docs)
+- After adding new symbols to the vim dictionary
+- After modifying package documentation
+
+### Stage 3: Extension Build & Deploy
+
+```fish
+cd M2-Jupyter-Kernel
+
+# 1. Compile TypeScript
+npx tsc --sourceMap
+
+# 2. CRITICAL: Copy parser JS files (tsc only compiles .ts, not .js)
+#    Only needed if Stage 1 was run
+cp src/parser/parser.js src/parser/parser.terms.js src/parser/highlight.js lib/parser/
+
+# 3. Build webpack extension
+jupyter labextension build --development True .
+
+# 4. Deploy to venv
+set DEST venv/share/jupyter/labextensions/@m2-jupyter/jupyterlab-m2-codemirror
+set SRC @m2_jupyter/jupyterlab_m2_codemirror/labextension
+cp $SRC/static/* $DEST/static/
+cp $SRC/package.json $DEST/
+
+# 5. Restart JupyterLab
+jupyter lab
+```
+
+### Quick Reference: Files Changed by Each Stage
+
+| Stage | Modifies | Triggers |
+|-------|----------|----------|
+| Grammar | `codemirror-lang-m2/src/parser.js`, `parser.terms.js` | Stages 3 |
+| Docs | `src/m2Symbols.json` | Stage 3 |
+| Build | `lib/`, `@m2_jupyter/` webpack output | Deploy |
+
+### Code Intelligence Features
+
+- **Autocomplete**: 1763 symbols with category-aware icons, context-aware option completion inside function calls (e.g., `gb(I, ` suggests `Strategy =>`, `DegreeLimit =>`)
+- **Hover Documentation**: Rich tooltips with headline, usage, inputs, outputs, and options (100% symbol coverage from SimpleDoc + M2 help + fallbacks)
+- **Code Folding**: Parenthesized expressions, call expressions, arrays, lists, block comments
+- **Go-to-Definition**: Tracks symbol definitions from executed cells
+- **Syntax Highlighting**: Lezer parser with 28 precedence levels, keywords (blue), types (teal), builtins (purple), constants (pink), strings (green)
 
 ## Memories
 - `memorize`
