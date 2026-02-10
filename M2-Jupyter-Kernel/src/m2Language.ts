@@ -5,6 +5,7 @@ import {
   LRLanguage,
   syntaxHighlighting,
   HighlightStyle,
+  syntaxTree,
   foldNodeProp,
   indentNodeProp,
   continuedIndent
@@ -12,9 +13,28 @@ import {
 import { EditorView } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { completeFromList } from '@codemirror/autocomplete';
+import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 // @ts-ignore
 import m2Symbols from './m2Symbols.json';
 import { m2HoverTooltip } from './m2Hover';
+
+// Build lookup for functions that have options
+interface M2OptionEntry {
+  name: string;
+  type?: string;
+  info?: string;
+}
+interface M2SymEntry {
+  label: string;
+  type: string;
+  options?: M2OptionEntry[];
+}
+const symbolsWithOptions: Record<string, M2SymEntry> = {};
+for (const sym of m2Symbols as M2SymEntry[]) {
+  if (sym.options && sym.options.length > 0) {
+    symbolsWithOptions[sym.label] = sym;
+  }
+}
 
 const parserWithProps = parser.configure({
   props: [
@@ -37,6 +57,14 @@ const parserWithProps = parser.configure({
         }
         return null;
       },
+      CallExpr(node: any) {
+        const firstChild = node.firstChild;
+        if (!firstChild) return null;
+        if (node.to - firstChild.to > 40) {
+          return { from: firstChild.to + 1, to: node.to - 1 };
+        }
+        return null;
+      },
       BlockComment(node: any) {
         return { from: node.from + 2, to: node.to - 2 };
       }
@@ -52,12 +80,59 @@ const parserWithProps = parser.configure({
   ]
 });
 
+// Base completion source using all symbols
+const baseCompletion = completeFromList(m2Symbols);
+
+// Context-aware completion for function options inside CallExpr
+function m2OptionCompletion(context: CompletionContext): CompletionResult | null {
+  const tree = syntaxTree(context.state);
+  let node: any = tree.resolveInner(context.pos, -1);
+
+  // Walk up to find enclosing CallExpr
+  while (node) {
+    if (node.type.name === 'CallExpr') {
+      const funcNode = node.firstChild;
+      if (!funcNode) break;
+
+      // Only offer options when cursor is past the opening delimiter
+      if (context.pos <= funcNode.to) break;
+
+      // Extract function name (only simple identifiers)
+      const funcName = context.state.doc.sliceString(funcNode.from, funcNode.to);
+      const funcSym = symbolsWithOptions[funcName];
+      if (!funcSym || !funcSym.options) break;
+
+      const word = context.matchBefore(/\w*/);
+      if (!word) return null;
+
+      // Need either a partial word or explicit trigger
+      if (word.from === word.to && !context.explicit) return null;
+
+      return {
+        from: word.from,
+        options: funcSym.options.map(opt => ({
+          label: opt.name,
+          apply: opt.name + ' => ',
+          type: 'property' as const,
+          info: opt.info,
+          detail: opt.type || 'option',
+          boost: 10,
+        })),
+        validFor: /^\w*$/,
+      };
+    }
+    node = node.parent;
+  }
+
+  return null;
+}
+
 const M2Language = LRLanguage.define({
   parser: parserWithProps,
   languageData: {
     commentTokens: { line: '--', block: { open: '-*', close: '*-' } },
     closeBrackets: { brackets: ['(', '[', '{', '"'] },
-    autocomplete: completeFromList(m2Symbols)
+    autocomplete: baseCompletion
   }
 });
 
@@ -82,5 +157,6 @@ export function m2() {
     m2EditorAttrs,
     syntaxHighlighting(m2ExtraHighlights),
     m2HoverTooltip,
+    M2Language.data.of({ autocomplete: m2OptionCompletion }),
   ]);
 }

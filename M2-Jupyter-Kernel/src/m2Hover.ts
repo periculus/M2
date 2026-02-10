@@ -4,10 +4,31 @@ import { syntaxTree } from '@codemirror/language';
 // @ts-ignore
 import m2Symbols from './m2Symbols.json';
 
+interface M2Option {
+  name: string;
+  type?: string;
+  info?: string;
+}
+
+interface M2Param {
+  name?: string;
+  type?: string;
+  info?: string;
+}
+
+interface M2Output {
+  type?: string;
+  info?: string;
+}
+
 interface M2Symbol {
   label: string;
   type: string;
   info?: string;
+  detail?: string;
+  options?: M2Option[];
+  inputs?: M2Param[];
+  outputs?: M2Output[];
 }
 
 // Build a lookup map for O(1) access
@@ -55,6 +76,7 @@ export const m2HoverTooltip = hoverTooltip(
         const dom = document.createElement('div');
         dom.className = 'm2-hover-tooltip';
 
+        // ── Header: name + badge ──
         const header = document.createElement('div');
         header.className = 'm2-hover-header';
 
@@ -69,11 +91,84 @@ export const m2HoverTooltip = hoverTooltip(
 
         dom.appendChild(header);
 
+        // ── Headline ──
         if (sym.info) {
           const info = document.createElement('div');
           info.className = 'm2-hover-info';
           info.textContent = sym.info;
           dom.appendChild(info);
+        }
+
+        // ── Usage ──
+        if (sym.detail) {
+          const usage = document.createElement('div');
+          usage.className = 'm2-hover-usage';
+          usage.textContent = sym.detail;
+          dom.appendChild(usage);
+        }
+
+        // ── Inputs ──
+        if (sym.inputs && sym.inputs.length > 0) {
+          const section = document.createElement('div');
+          section.className = 'm2-hover-section';
+          const label = document.createElement('span');
+          label.className = 'm2-hover-section-label';
+          label.textContent = 'Input: ';
+          section.appendChild(label);
+
+          const parts: string[] = [];
+          for (const inp of sym.inputs) {
+            if (inp.name && inp.type) {
+              parts.push(inp.name + ' \u2014 ' + inp.type);
+            } else if (inp.name) {
+              parts.push(inp.name);
+            } else if (inp.type) {
+              parts.push(inp.type);
+            }
+          }
+          section.appendChild(document.createTextNode(parts.join(', ')));
+          dom.appendChild(section);
+        }
+
+        // ── Outputs ──
+        if (sym.outputs && sym.outputs.length > 0) {
+          const section = document.createElement('div');
+          section.className = 'm2-hover-section';
+          const label = document.createElement('span');
+          label.className = 'm2-hover-section-label';
+          label.textContent = 'Output: ';
+          section.appendChild(label);
+
+          const parts: string[] = [];
+          for (const out of sym.outputs) {
+            if (out.type && out.info) {
+              parts.push(out.type + ' \u2014 ' + out.info);
+            } else if (out.type) {
+              parts.push(out.type);
+            } else if (out.info) {
+              parts.push(out.info);
+            }
+          }
+          section.appendChild(document.createTextNode(parts.join(', ')));
+          dom.appendChild(section);
+        }
+
+        // ── Options ──
+        if (sym.options && sym.options.length > 0) {
+          const section = document.createElement('div');
+          section.className = 'm2-hover-section';
+          const label = document.createElement('span');
+          label.className = 'm2-hover-section-label';
+          label.textContent = 'Options: ';
+          section.appendChild(label);
+
+          const names = sym.options.map(o => o.name);
+          // Show up to 8 options, truncate with "..."
+          const display = names.length > 8
+            ? names.slice(0, 8).join(', ') + ', \u2026'
+            : names.join(', ');
+          section.appendChild(document.createTextNode(display));
+          dom.appendChild(section);
         }
 
         return { dom };
