@@ -20,7 +20,7 @@ Detailed architecture docs: [grammar.md](grammar.md), [highlighting.md](highligh
 | CodeMirror | 6.x | `package.json` → `@codemirror/language` |
 | Lezer (LR) | 1.4.x | `package.json` → `@lezer/lr` |
 | Node.js | 25.1.0 | `node --version` |
-| Python | 3.13.5 | `python3 --version` |
+| Python | 3.13.5 | `python3 --version` (activate venv first) |
 | TypeScript | ~5.0.2 | `package.json` → devDependencies |
 
 > Versions reflect the development venv (`M2-Jupyter-Kernel/venv/`). System-wide versions may differ.
@@ -36,7 +36,7 @@ The extension is developed inside a **per-project venv** at `M2-Jupyter-Kernel/v
 cd M2-Jupyter-Kernel
 python3 -m venv venv
 source venv/bin/activate.fish
-python3 -m pip install 'jupyterlab>=4.0.0' ipykernel
+python3 -m pip install 'jupyterlab>=4.0.0,<5' ipykernel
 python3 -m pip install -e .
 ```
 
@@ -45,7 +45,7 @@ python3 -m pip install -e .
 cd M2-Jupyter-Kernel
 python3 -m venv venv
 source venv/bin/activate
-python3 -m pip install 'jupyterlab>=4.0.0' ipykernel
+python3 -m pip install 'jupyterlab>=4.0.0,<5' ipykernel
 python3 -m pip install -e .
 ```
 
@@ -53,7 +53,7 @@ python3 -m pip install -e .
 - Always use `python3` (not `python`) in human-facing commands — `python` may not exist outside venvs
 - Use `python3 -m pip` instead of bare `pip` to avoid interpreter mismatches
 - Each project gets its own venv (never install into system Python)
-- The venv should use Python 3.13+ (current Homebrew stable)
+- Development venv should use Python 3.13+ (current Homebrew stable); runtime supports 3.8+ (see `pyproject.toml`)
 - Activate the venv before any build/deploy commands
 
 ## Update Triggers
