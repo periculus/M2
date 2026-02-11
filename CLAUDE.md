@@ -200,7 +200,7 @@ cd M2-Jupyter-Kernel/codemirror-lang-m2
 # 2. Validate grammar compiles
 npx lezer-generator src/m2.grammar -o src/parser.js
 
-# 3. Run corpus test (target: <1% error rate across 2594 .m2 files)
+# 3. Run corpus test (target: <1% error rate across 2593 .m2 files)
 node test/test_corpus.js
 
 # 4. Copy generated parser files to extension source
@@ -220,7 +220,8 @@ cp src/highlight.js ../src/parser/
 - Bison grammar: `M2/Macaulay2/c/grammar.y`
 - Symbol dictionary: `M2/Macaulay2/editors/vim/m2.vim.dict` (1763+ symbols)
 
-**Current status (Feb 2026):** 0.19% error rate across 2594 .m2 files.
+**Current status (Feb 2026):** 0.17% error rate across 2593 .m2 files (1 raw doc file excluded).
+See `M2-Jupyter-Kernel/docs/grammar.md` for architecture details and `M2-Jupyter-Kernel/docs/extension-workflow.md` for full workflow.
 
 ### Stage 2: Documentation Symbols (when M2 version changes or docs update)
 
@@ -288,6 +289,10 @@ jupyter lab
 - **Code Folding**: Parenthesized expressions, call expressions, arrays, lists, block comments
 - **Go-to-Definition**: Tracks symbol definitions from executed cells
 - **Syntax Highlighting**: Lezer parser with 28 precedence levels, keywords (blue), types (teal), builtins (purple), constants (pink), strings (green)
+
+### Extension Change Checklist
+
+After any extension change: run the verify checklist in `M2-Jupyter-Kernel/docs/extension-workflow.md`, update MEMORY.md if stats changed. All build commands have both fish and bash equivalents in the workflow doc.
 
 ## Memories
 - `memorize`
