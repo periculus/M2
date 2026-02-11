@@ -230,7 +230,7 @@ cd M2-Jupyter-Kernel
 
 # Regenerate m2Symbols.json from M2's documentation
 # This parses SimpleDoc files, runs M2 help, and applies fallbacks
-python scripts/generate_symbols.py
+python3 scripts/generate_symbols.py
 ```
 
 **What `generate_symbols.py` does (in order):**

@@ -17,3 +17,4 @@ grammar, highlighting, code intelligence, symbol pipeline, and build workflow.
 - `CLAUDE.md` and `MEMORY.md` may reference these docs but must not duplicate content
 - When updating M2, JupyterLab, or CodeMirror versions, update `extension-workflow.md` first
 - All docs carry a `Last verified:` date + version tuple at the top
+- All Python commands in docs use `python3` (not `python`) — see [extension-workflow.md](extension-workflow.md) for venv setup

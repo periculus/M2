@@ -39,7 +39,7 @@ Source of truth for: generate_symbols.py, m2Symbols.json schema, update procedur
 cd M2-Jupyter-Kernel
 
 # 1. Regenerate symbols (requires M2 in PATH for step 6)
-python scripts/generate_symbols.py
+python3 scripts/generate_symbols.py
 # Output: src/m2Symbols.json
 # Prints coverage stats to stderr
 
@@ -59,7 +59,7 @@ jupyter labextension build --development True .
 ```bash
 # Same commands work in bash
 cd M2-Jupyter-Kernel
-python scripts/generate_symbols.py
+python3 scripts/generate_symbols.py
 npx tsc --sourceMap
 jupyter labextension build --development True .
 ```

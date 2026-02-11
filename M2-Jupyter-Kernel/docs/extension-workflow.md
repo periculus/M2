@@ -20,8 +20,41 @@ Detailed architecture docs: [grammar.md](grammar.md), [highlighting.md](highligh
 | CodeMirror | 6.x | `package.json` → `@codemirror/language` |
 | Lezer (LR) | 1.4.x | `package.json` → `@lezer/lr` |
 | Node.js | 25.1.0 | `node --version` |
-| Python | 3.13.5 | `python --version` |
+| Python | 3.13.5 | `python3 --version` |
 | TypeScript | ~5.0.2 | `package.json` → devDependencies |
+
+> Versions reflect the development venv (`M2-Jupyter-Kernel/venv/`). System-wide versions may differ.
+
+## Python Environment
+
+The extension is developed inside a **per-project venv** at `M2-Jupyter-Kernel/venv/`.
+
+### Setup (one-time)
+
+**fish:**
+```fish
+cd M2-Jupyter-Kernel
+python3 -m venv venv
+source venv/bin/activate.fish
+python3 -m pip install 'jupyterlab>=4.0.0' ipykernel
+python3 -m pip install -e .
+```
+
+**bash:**
+```bash
+cd M2-Jupyter-Kernel
+python3 -m venv venv
+source venv/bin/activate
+python3 -m pip install 'jupyterlab>=4.0.0' ipykernel
+python3 -m pip install -e .
+```
+
+### Conventions
+- Always use `python3` (not `python`) in human-facing commands — `python` may not exist outside venvs
+- Use `python3 -m pip` instead of bare `pip` to avoid interpreter mismatches
+- Each project gets its own venv (never install into system Python)
+- The venv should use Python 3.13+ (current Homebrew stable)
+- Activate the venv before any build/deploy commands
 
 ## Update Triggers
 
@@ -114,7 +147,7 @@ cp src/highlight.js ../src/parser/
 ### Steps
 ```fish
 cd M2-Jupyter-Kernel
-python scripts/generate_symbols.py
+python3 scripts/generate_symbols.py
 # Output: src/m2Symbols.json (~266 KB, 1763 entries)
 ```
 
@@ -177,7 +210,7 @@ cp src/highlight.js ../src/parser/
 cd ..
 
 # Documentation
-python scripts/generate_symbols.py
+python3 scripts/generate_symbols.py
 
 # Extension
 npx tsc --sourceMap
@@ -216,7 +249,7 @@ cp $SRC/static/* $DEST/static/
 cp $SRC/package.json $DEST/
 
 # 6. Symbol generation (only if M2 version changed)
-python scripts/generate_symbols.py
+python3 scripts/generate_symbols.py
 
 # 7. Visual smoke tests in JupyterLab
 jupyter lab
