@@ -33,6 +33,7 @@ export const m2Highlighting = styleTags({
   // Identifiers and basic tokens
   Identifier: t.variableName,
   Number: t.number,
+  LeadingDotNumber: t.number,
   String: t.string,
   TripleString: t.docString,
   LineComment: t.lineComment,

@@ -45,6 +45,7 @@ expression[@isGroup=Expression] {
   Builtin |
   Constant |
   Number |
+  LeadingDotNumber |
   String |
   TripleString |
   Boolean |
@@ -186,6 +187,13 @@ PostfixExpression {
   expression !tilde ("~" | "^~" | "_~" | "_*" | "^*")
 }
 
+// Leading-dot numbers (.4, .5e3, .5p100): parser-level rule using "." + Number.
+// At expression start (no left operand), parser shifts "." into LeadingDotNumber.
+// After an expression, parser shifts "." into BinaryExpression (member access).
+// LR shift/reduce preference resolves: shift for BinaryExpression wins over
+// reduce-then-LeadingDotNumber, so C.0 correctly parses as member access.
+LeadingDotNumber { "." Number }
+
 // Literals
 Boolean { @specialize[@name=Boolean]<Identifier, "true" | "false"> }
 Null { @specialize[@name=Null]<Identifier, "null"> }
@@ -290,10 +298,11 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   // Letterlike Symbols (2100-214F), Math Operators (2200-22FF), Misc Symbols (2A00-2AFF)
   Identifier { $[a-zA-Z\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF] $[a-zA-Z0-9'$\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF]* }
 
-  // M2 number formats: 42, 3.14, .5, 1. (trailing dot), 1p111, 1e-10, 1.5p100e20
+  // M2 number formats: 42, 3.14, 1. (trailing dot), 1p111, 1e-10, 1.5p100e20
+  // NOTE: Leading-dot numbers (.5, .4e3) are handled by external tokenizer (see below)
+  // to avoid conflict with "." member access operator in x.0 patterns.
   Number {
-    @digit+ ("." @digit*)? ("p" @digit+)? ($[eE] $[\-+]? @digit+)? |
-    "." @digit+ ("p" @digit+)? ($[eE] $[\-+]? @digit+)?
+    @digit+ ("." @digit*)? ("p" @digit+)? ($[eE] $[\-+]? @digit+)?
   }
 
   // M2 strings can span multiple lines
@@ -335,7 +344,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     ">=", ">>", ">",
     "^**", "^>=", "^>", "^<=", "^<", "^~", "^*", "^!", "^",
     "_~", "_*", "_!", "|_", "_",
-    "...", "..<", "..", ".?", Number, ".",
+    "...", "..<", "..", ".?", ".",
     "#?", "#",
     TripleString, "//", "/",
     "||", "|-", "|",
@@ -346,7 +355,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     "**", "*",
     "!=", "!",
     "->", "-",
-    String, OperatorSymbol, Identifier, space
+    Number, String, OperatorSymbol, Identifier, space
   }
 }
 

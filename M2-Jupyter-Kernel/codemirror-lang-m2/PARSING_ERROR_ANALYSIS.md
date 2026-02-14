@@ -3,8 +3,8 @@
 **Date**: February 2026 (updated Feb 14)
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
 **Corpus**: 2,407 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/), 187 raw doc files excluded
-**Current error rate**: 0.18% (15,578 errors across 8,871,483 nodes)
-**Fixture tests**: 52 assertions in `test/test_fixtures.js`
+**Current error rate**: 0.10% (8,864 errors across the corpus after doc file filtering)
+**Fixture tests**: 81 assertions in `test/test_fixtures.js`
 
 ## Fixes Applied
 
@@ -13,6 +13,7 @@
 2. **OperatorSymbol boundary guards** — Uses `$[ \t]*` (not `@whitespace*`) to prevent cross-line matching. Standalone `-` excluded to avoid conflicts with `--` (LineComment) and `-*` (BlockComment).
 3. **Raw doc file exclusion** — 187 raw SimpleDoc files excluded (was 1). Detection: files named `doc.m2`/`*-doc.m2` starting with `Node`/`Key` without `doc ///`.
 4. **CatchExpr removed** — Standalone `CatchExpr` caused unresolvable shift/reduce conflict with TryExpr's `catch` clause. Removed; `catch` only appears inside TryExpr.
+5. **LeadingDotNumber** — Parser-level rule `LeadingDotNumber { "." Number }` to distinguish `.4` (leading-dot number literal) from `C.0` (member access). At expression start, the parser shifts `"."` into LeadingDotNumber. After an expression, LR shift/reduce preference makes `"."` shift into BinaryExpression for member access. This resolves the ambiguity without any tokenizer tricks.
 
 ### Feb 10, 2026
 1. **Number literals** — Added trailing dot (`1.`), precision suffix (`1p111`), scientific notation (`1e-10`). (~1000+ errors fixed)
@@ -25,8 +26,8 @@ M2 supports both `try...catch` and `try...then...else`. The grammar only impleme
 
 ## Executive Summary
 
-The 0.18% error rate (code-only) is excellent for a syntax highlighter. The remaining
-15,578 errors cluster around a small number of root causes. This report analyzes all
+The 0.10% error rate (code-only) is excellent for a syntax highlighter. The remaining
+8,864 errors cluster around a small number of root causes. This report analyzes all
 error categories, identifies root causes from the actual M2 source code, and assesses
 fixability.
 
@@ -477,15 +478,13 @@ All minor fixes implemented (Feb 10):
 
 ## Current Error Rate
 
-0.18% (15,578 errors / 8,871,483 nodes across 2,407 files, 187 raw doc files excluded).
+0.10% (8,864 errors across 2,407 files, 187 raw doc files excluded).
 
 Remaining errors are primarily:
 - Cascading recovery errors from other root causes (~40%)
 - `symbol -` (bare minus, 187 occurrences — can't fix without breaking comments)
 - Documentation markup/LaTeX in files that ARE valid M2 but contain prose
 - `try...then...else` patterns (grammar only supports `try...catch`)
-
-The theoretical minimum is ~0.12% (unfixable doc/LaTeX errors).
 
 ---
 

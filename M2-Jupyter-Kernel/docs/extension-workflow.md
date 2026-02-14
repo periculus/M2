@@ -80,7 +80,7 @@ M2-Jupyter-Kernel/
 │   │   └── tokens.ts            # Type/Builtin/Constant token lists
 │   └── test/
 │       ├── test_corpus.js       # Full corpus test (2407 .m2 files, 187 raw doc excluded)
-│       ├── test_fixtures.js     # Parser-shape assertions (52 fixtures)
+│       ├── test_fixtures.js     # Parser-shape assertions (81 fixtures)
 │       └── analyze_errors.js    # Detailed error categorization
 ├── src/                         # Extension TypeScript source
 │   ├── index.ts                 # Extension entry point (registers language, CSS overrides)
@@ -261,6 +261,7 @@ jupyter lab
 
 | Hash | Description |
 |------|-------------|
+| (latest) | LeadingDotNumber parser rule, 0.10% error rate, 81 fixture tests |
 | `4a91e538c6` | OperatorSymbol token for `symbol <op>` patterns, improved doc filtering (187 files) |
 | `5e540d63f3` | Checkpoint before documentation consolidation |
 | `866eb1e602` | Grammar 0.17% error rate (number formats, ellipsis, trailing comma) |
@@ -273,9 +274,9 @@ jupyter lab
 
 ## Current Grammar Status (Feb 2026)
 
-- **0.18% error rate** (15,578 errors / 8.9M nodes across 2,407 files, 187 raw doc files excluded)
+- **0.10% error rate** (8,864 errors across 2,407 files, 187 raw doc files excluded)
 - See `codemirror-lang-m2/PARSING_ERROR_ANALYSIS.md` for detailed breakdown
 - Grammar uses `try...catch` form (M2 also supports `try...then...else`, but this causes a shift/reduce conflict with IfExpr's `then/else`)
 - OperatorSymbol token handles `symbol *`, `symbol ==`, etc. — standalone `-` excluded (conflicts with comments)
-- Fixture tests: `node test/test_fixtures.js` (52 assertions)
+- Fixture tests: `node test/test_fixtures.js` (81 assertions)
 - Known unfixable: `symbol -` (comment conflict), raw SimpleDoc markup, LaTeX in doc strings

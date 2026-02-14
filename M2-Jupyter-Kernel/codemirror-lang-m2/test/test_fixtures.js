@@ -303,23 +303,23 @@ console.log('=== Core Expression Fixtures ===');
 console.log('');
 console.log('=== Leading-Dot Numbers ===');
 
-// .4 parses as Number (not dot + 4)
+// .4 parses as LeadingDotNumber (not dot + 4)
 {
   const code = '.4';
-  const num = findNode(code, 'Number');
-  assert(num !== null && num.text === '.4', `"${code}" should produce Number(.4), got: ${num && num.text}`);
+  const ldn = findNode(code, 'LeadingDotNumber');
+  assert(ldn !== null && ldn.text === '.4', `"${code}" should produce LeadingDotNumber(.4), got: ${ldn && ldn.text}`);
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
 }
 
-// .5e3 parses as Number
+// .5e3 parses as LeadingDotNumber
 {
   const code = '.5e3';
-  const num = findNode(code, 'Number');
-  assert(num !== null && num.text === '.5e3', `"${code}" should produce Number(.5e3), got: ${num && num.text}`);
+  const ldn = findNode(code, 'LeadingDotNumber');
+  assert(ldn !== null && ldn.text === '.5e3', `"${code}" should produce LeadingDotNumber(.5e3), got: ${ldn && ldn.text}`);
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
 }
 
-// .5p100 parses as Number
+// .5p100 parses as LeadingDotNumber
 {
   const code = '.5p100';
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
@@ -329,8 +329,8 @@ console.log('=== Leading-Dot Numbers ===');
 {
   const code = 'x = .4';
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
-  const num = findNode(code, 'Number');
-  assert(num !== null && num.text === '.4', `"${code}" Number should be .4, got: ${num && num.text}`);
+  const ldn = findNode(code, 'LeadingDotNumber');
+  assert(ldn !== null && ldn.text === '.4', `"${code}" LeadingDotNumber should be .4, got: ${ldn && ldn.text}`);
 }
 
 // 1 + .4 (leading-dot after operator)
@@ -342,6 +342,24 @@ console.log('=== Leading-Dot Numbers ===');
 // member access x.y still works (dot as operator)
 {
   const code = 'x.y';
+  const bin = findNode(code, 'BinaryExpression');
+  assert(bin !== null, `"${code}" should produce BinaryExpression (member access)`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// C.0 — member access with digit, MUST be BinaryExpression (not juxtaposition)
+{
+  const code = 'C.0';
+  const bin = findNode(code, 'BinaryExpression');
+  assert(bin !== null, `"${code}" should produce BinaryExpression (member access)`);
+  const ldn = findNode(code, 'LeadingDotNumber');
+  assert(ldn === null, `"${code}" must NOT produce LeadingDotNumber`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// s.0 — same pattern
+{
+  const code = 's.0';
   const bin = findNode(code, 'BinaryExpression');
   assert(bin !== null, `"${code}" should produce BinaryExpression (member access)`);
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);

@@ -55,6 +55,16 @@ Number {
 ```
 Supports: `42`, `3.14`, `.5`, `1.` (trailing dot), `1p111` (precision), `1e-10` (scientific), `1.5p100e20` (combined).
 
+### LeadingDotNumber (parser-level disambiguation)
+
+M2 uses `.` for both leading-dot numbers (`.4`, `.5e-3`) and member access (`C.0`, `M.cache`). These are ambiguous at the token level. The grammar resolves this with a parser-level rule:
+
+```
+LeadingDotNumber { "." Number }
+```
+
+At expression start, the parser shifts `"."` into `LeadingDotNumber`. After an expression, LR shift/reduce preference makes `"."` shift into `BinaryExpression` for member access. So `.4` becomes `LeadingDotNumber` and `C.0` becomes `BinaryExpression`. This avoids any tokenizer-level tricks or external tokenizers.
+
 ## How to Add New Types/Builtins/Constants
 
 1. Edit `codemirror-lang-m2/src/m2.grammar`
