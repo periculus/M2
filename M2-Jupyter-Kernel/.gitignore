@@ -70,3 +70,13 @@ docs/_templates/
 node_modules/
 npm-debug.log
 yarn-error.log
+
+# Generated parser files (source of truth: codemirror-lang-m2/src/m2.grammar)
+src/parser/parser.js
+src/parser/parser.terms.js
+src/parser/highlight.js
+src/parser/m2.grammar
+
+# Generated extension build output (keep _version.py tracked)
+@m2_jupyter/**/labextension/
+tsconfig.tsbuildinfo
