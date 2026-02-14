@@ -79,7 +79,8 @@ M2-Jupyter-Kernel/
 │   │   ├── highlight.js         # Tag → highlighting mappings
 │   │   └── tokens.ts            # Type/Builtin/Constant token lists
 │   └── test/
-│       ├── test_corpus.js       # Full corpus test (2593 .m2 files, 1 raw doc excluded)
+│       ├── test_corpus.js       # Full corpus test (2407 .m2 files, 187 raw doc excluded)
+│       ├── test_fixtures.js     # Parser-shape assertions (52 fixtures)
 │       └── analyze_errors.js    # Detailed error categorization
 ├── src/                         # Extension TypeScript source
 │   ├── index.ts                 # Extension entry point (registers language, CSS overrides)
@@ -260,8 +261,9 @@ jupyter lab
 
 | Hash | Description |
 |------|-------------|
+| `4a91e538c6` | OperatorSymbol token for `symbol <op>` patterns, improved doc filtering (187 files) |
 | `5e540d63f3` | Checkpoint before documentation consolidation |
-| `866eb1e602` | Grammar 0.17% error rate (try/then/else, number formats, ellipsis, trailing comma) |
+| `866eb1e602` | Grammar 0.17% error rate (number formats, ellipsis, trailing comma) |
 | `933ee67528` | Build workflow documentation and parsing error analysis |
 | `8a03ac856c` | Rich docs, 100% symbol coverage, option completion, CallExpr folding |
 | `be4db23d44` | Code intelligence (autocomplete, hover, folding, AI context) |
@@ -269,10 +271,11 @@ jupyter lab
 | `984256101b` | Syntax highlighting colors correct |
 | `ef25f0e92c` | Complete Lezer grammar with expression parsing |
 
-## Current Grammar Status (Feb 10, 2026)
+## Current Grammar Status (Feb 2026)
 
-- **0.17% error rate** (15,201 errors / 8.9M nodes across 2593 files, 1 raw doc excluded)
+- **0.18% error rate** (15,578 errors / 8.9M nodes across 2,407 files, 187 raw doc files excluded)
 - See `codemirror-lang-m2/PARSING_ERROR_ANALYSIS.md` for detailed breakdown
-- Remaining errors: mostly `symbol + operator` patterns (~27%), cascading (~15%)
-- Fixes applied in `866eb1e602`: try/then/else, number formats, ellipsis, trailing comma, not as ckw
-- Known unfixable: `symbol **`, raw SimpleDoc markup, LaTeX in doc strings
+- Grammar uses `try...catch` form (M2 also supports `try...then...else`, but this causes a shift/reduce conflict with IfExpr's `then/else`)
+- OperatorSymbol token handles `symbol *`, `symbol ==`, etc. — standalone `-` excluded (conflicts with comments)
+- Fixture tests: `node test/test_fixtures.js` (52 assertions)
+- Known unfixable: `symbol -` (comment conflict), raw SimpleDoc markup, LaTeX in doc strings

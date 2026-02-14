@@ -76,20 +76,32 @@ node test/analyze_errors.js                             # detailed breakdown
 # Same commands work in bash
 ```
 
+## OperatorSymbol Token
+
+M2 allows `symbol *`, `global ==`, etc. — scope keywords followed by bare operators. These can't be parsed as expressions (operators need operands). The grammar handles this with a built-in `OperatorSymbol` token in `@tokens` that matches scope keyword + horizontal whitespace + operator as a single token, using Lezer's longest-match rule to beat `Identifier`.
+
+Key constraints:
+- **Horizontal whitespace only**: Uses `$[ \t]*` (NOT `@whitespace*`) to prevent matching across newlines
+- **No standalone `-`**: Excluded because it conflicts with `--` (LineComment) and `-*` (BlockComment). Multi-char operators with `-` (`->`, `|-`, `<-`) still work.
+- `symbol -` (bare minus as operator symbol) remains an error — acceptable since `-` can start a unary expression
+
 ## Known Limitations
 
 | Pattern | Example | Fixability | Notes |
 |---------|---------|------------|-------|
-| `symbol` + operator | `symbol **`, `symbol _` | Hard | ~27% of remaining errors |
-| Raw SimpleDoc markup | `Schubert2/doc.m2` | Not fixable | Excluded from corpus test |
+| `symbol -` (bare minus) | `symbol -, Thing, Thing` | Won't fix | `-` conflicts with `--`/`-*` comments |
+| Raw SimpleDoc markup | `Schubert2/doc.m2` | Not fixable | 187 files excluded from corpus test |
 | LaTeX in doc strings | `$\PP^n$` | Not fixable | Inside `///` strings |
 | `$` in identifiers | `$Failed` | Won't fix | Rare, causes cascading |
 
 ## Regression Fixtures
 
-These patterns MUST parse without errors (test manually or via `test/test_fixtures.js`):
+These patterns MUST parse without errors (run `node test/test_fixtures.js`):
 ```
-try f() then g() else h()     -- try/then/else
+try f() catch g()              -- try/catch
+symbol *                       -- OperatorSymbol token
+symbol ==                      -- OperatorSymbol multi-char
+(symbol **, Matrix, Matrix)    -- OperatorSymbol in tuple context
 1.5p100e20                     -- number formats
 f(x, y,)                      -- trailing comma
 gb I                           -- juxtaposition
@@ -98,8 +110,17 @@ for i from 0 to 10 do f(i)    -- for loop
 {a, b, c}                     -- list
 x_0 .. x_n                    -- subscript + range
 /// doc string ///             -- triple string
+if x then y else z             -- if/then/else
 ```
-Expected error: `symbol **` (operator after `symbol` keyword).
+
+Boundary guards (must NOT produce OperatorSymbol):
+```
+symbol\n*x                     -- cross-line: symbol is identifier, *x is unary
+symbol --comment               -- comment: symbol is identifier, -- is LineComment
+symbol -* block *-             -- block comment: symbol is keyword, -* is BlockComment
+```
+
+Expected error: `symbol -` (bare minus — excluded from OperatorSymbol to avoid comment conflicts).
 
 ## M2 Reference Files
 

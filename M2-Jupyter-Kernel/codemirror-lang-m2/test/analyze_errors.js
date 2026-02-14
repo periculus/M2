@@ -526,8 +526,9 @@ console.log(`  + Fix brackets        -> ${(after5/totalNodes*100).toFixed(4)}% (
 console.log();
 console.log(`  Remaining ("other"):  ${cats.other} errors (${(cats.other/totalNodes*100).toFixed(4)}%)`);
 console.log();
-console.log('RECOMMENDED PRIORITY:');
-console.log('  1. Add JuxtapositionExpr rule (72.5% of errors)');
-console.log('  2. Treat newlines as implicit semicolons (7.3% of errors)');
-console.log('  3. Improve number tokenization (4.5%)');
-console.log('  4. Improve /// tokenization (4.1%)');
+console.log('REMAINING CATEGORIES (by share of errors):');
+console.log('  1. other — cascade/misc patterns (dominant)');
+console.log('  2. unmatched_bracket — cascade from earlier failures');
+console.log('  3. juxtaposition_func_arg — newline-separated statements parsed as juxtaposition');
+console.log('  4. number_adjacent — numbers in cascade context');
+console.log('  5. newline_statement_sep — ASI-style newlines (fixable with external tokenizer)');

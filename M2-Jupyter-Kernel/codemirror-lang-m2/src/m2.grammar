@@ -85,11 +85,11 @@ ParenExpr { "(" Body ")" }
 ListExpr { "{" ListItems? "}" }
 ArrayExpr { "[" ListItems? "]" }
 Body { (expression (";" | ","))* expression? }
-ListItems { expression ("," expression)* ","? }
+ListItems { expression ("," expression?)* }
 
 // Assignment and arrow operators
 AssignExpr {
-  expression !assign (":=" | "=" | "<-") expression |
+  expression !assign (":=" | "=" | "??=" | "<-") expression |
   expression !assign ("->" | "=>" | ">>") expression
 }
 
@@ -308,9 +308,13 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   blockCommentContent { ![*] blockCommentContent | "*" blockCommentAfterStar }
   blockCommentAfterStar { "-" | ![*\-] blockCommentContent | "*" blockCommentAfterStar }
 
-  // scope keyword + whitespace + operator as single token (longest-match beats Identifier)
+  // scope keyword + horizontal whitespace + operator as single token (longest-match beats Identifier)
+  // IMPORTANT: $[ \t]* not @whitespace* — must NOT match newlines (prevents cross-line mis-tokenization)
+  // NOTE: standalone "-" is excluded because it conflicts with "--" (LineComment) and "-*" (BlockComment).
+  // Multi-char operators containing "-" (like "->", "|-", "<-") still work.
+  // "symbol -" (bare minus) remains an error — acceptable since "-" CAN start a unary expression.
   OperatorSymbol {
-    ("symbol" | "global" | "local" | "threadLocal") @whitespace*
+    ("symbol" | "global" | "local" | "threadLocal") $[ \t]*
     ("===>" | "<===" | "<==>" |
      "==>" | "<==" | "===" | "=!=" | "^**" | "^>=" | "^<=" |
      "..<" | "..." |
@@ -318,7 +322,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
      "**" | "++" | "//" | "\\\\" | "@@" | "||" | "^^" | "|_" | ".?" |
      "#?" | "|-" | "??" | "_!" | "_~" | "_*" | "^!" | "^~" | "^*" |
      ":=" | ".." |
-     "<<" | "+" | "-" | "*" |
+     "<<" | "+" | "*" |
      "/" | "%" | ">" | "=" | "^" | "_" |
      "." | "!" | "~" | "&" | "|" | ":" | "@" | "?" | "\\" |
      "#")
@@ -331,18 +335,18 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     ">=", ">>", ">",
     "^**", "^>=", "^>", "^<=", "^<", "^~", "^*", "^!", "^",
     "_~", "_*", "_!", "|_", "_",
-    "...", "..<", "..", ".?", ".",
+    "...", "..<", "..", ".?", Number, ".",
     "#?", "#",
     TripleString, "//", "/",
     "||", "|-", "|",
     "\\\\", "\\",
     "++", "+",
     "@@", "@",
-    "??", "?",
+    "??=", "??", "?",
     "**", "*",
     "!=", "!",
     "->", "-",
-    Number, String, OperatorSymbol, Identifier, space
+    String, OperatorSymbol, Identifier, space
   }
 }
 

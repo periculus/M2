@@ -1,37 +1,46 @@
 # M2 Lezer Grammar: Parsing Error Analysis
 
-**Date**: February 2026 (updated Feb 10)
+**Date**: February 2026 (updated Feb 14)
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
-**Corpus**: 2593 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/), 1 raw doc file excluded
-**Current error rate**: 0.17% (15,201 errors across 8,903,464 nodes)
-**Previous error rate**: 0.19% (16,599 errors across 8,935,072 nodes)
+**Corpus**: 2,407 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/), 187 raw doc files excluded
+**Current error rate**: 0.18% (15,578 errors across 8,871,483 nodes)
+**Fixture tests**: 52 assertions in `test/test_fixtures.js`
 
-## Fixes Applied (Feb 10, 2026)
+## Fixes Applied
 
-1. **`try...then...else`** — Grammar used `try...catch`, M2 uses `try...then...else`. Added `CatchExpr` as separate unary. (~500 errors fixed)
-2. **Number literals** — Added trailing dot (`1.`), precision suffix (`1p111`), scientific notation (`1e-10`). (~1000+ errors fixed)
-3. **`not` as ckw** — Changed from `kw` to `ckw` so `not` can appear as identifier in method installations.
-4. **Ellipsis `...`** — Added as recognized token (was parsed as three `.` operators).
-5. **Trailing comma** — `ListItems` now allows optional trailing comma `{a, b, c,}`.
-6. **Raw doc file exclusion** — `Schubert2/doc.m2` (raw SimpleDoc markup, not M2 code) excluded from corpus test.
+### Feb 14, 2026
+1. **OperatorSymbol token** — Built-in `@tokens` rule matching scope keyword + horizontal whitespace + operator as single token. Uses longest-match to beat Identifier. Handles `symbol *`, `symbol ==`, `global ++`, etc.
+2. **OperatorSymbol boundary guards** — Uses `$[ \t]*` (not `@whitespace*`) to prevent cross-line matching. Standalone `-` excluded to avoid conflicts with `--` (LineComment) and `-*` (BlockComment).
+3. **Raw doc file exclusion** — 187 raw SimpleDoc files excluded (was 1). Detection: files named `doc.m2`/`*-doc.m2` starting with `Node`/`Key` without `doc ///`.
+4. **CatchExpr removed** — Standalone `CatchExpr` caused unresolvable shift/reduce conflict with TryExpr's `catch` clause. Removed; `catch` only appears inside TryExpr.
+
+### Feb 10, 2026
+1. **Number literals** — Added trailing dot (`1.`), precision suffix (`1p111`), scientific notation (`1e-10`). (~1000+ errors fixed)
+2. **`not` as ckw** — Changed from `kw` to `ckw` so `not` can appear as identifier in method installations.
+3. **Ellipsis `...`** — Added as recognized token (was parsed as three `.` operators).
+4. **Trailing comma** — `ListItems` now allows optional trailing comma `{a, b, c,}`.
+
+### Grammar uses `try...catch` form
+M2 supports both `try...catch` and `try...then...else`. The grammar only implements `try...catch` because `try...then...else` creates an unresolvable shift/reduce conflict with IfExpr's `then/else` (the parser can't tell if `then` continues a TryExpr or an IfExpr). This is a known limitation.
 
 ## Executive Summary
 
-The 0.17% error rate is excellent for a syntax highlighter. The 15,201 remaining errors
-cluster around a small number of root causes. This report analyzes all error categories,
-identifies root causes from the actual M2 source code, and assesses fixability.
+The 0.18% error rate (code-only) is excellent for a syntax highlighter. The remaining
+15,578 errors cluster around a small number of root causes. This report analyzes all
+error categories, identifies root causes from the actual M2 source code, and assesses
+fixability.
 
-The errors decompose into **6 distinct root causes**, in order of impact:
+The original root causes and their current status:
 
-| Root Cause | Est. Errors | % of Total | Fixability |
+| Root Cause | Original Est. | Status | Notes |
 |---|---|---|---|
-| 1. `symbol` + operator/type juxtaposition | ~4,500 | 27% | Hard |
-| 2. Documentation markup (Node/Key/Text prose) | ~4,000 | 24% | Not fixable |
-| 3. Missing number literal formats (p/e suffixes, trailing dot) | ~3,000 | 18% | Medium |
-| 4. Cascading recovery from earlier errors | ~2,500 | 15% | Indirect |
-| 5. LaTeX/TeX in doc strings (`$\PP^n$`, `\mathbb`) | ~1,500 | 9% | Not fixable |
-| 6. Missing `try...then...else` syntax | ~500 | 3% | Easy |
-| 7. Other (edge cases, `not` as identifier, etc.) | ~600 | 4% | Mixed |
+| 1. `symbol` + operator juxtaposition | ~4,500 (27%) | **Mostly fixed** | OperatorSymbol token; `symbol -` still errors |
+| 2. Documentation markup (Node/Key/Text) | ~4,000 (24%) | **Excluded** | 187 raw doc files filtered from code-only track |
+| 3. Number literal formats | ~3,000 (18%) | **Fixed** | Trailing dot, precision, scientific notation |
+| 4. Cascading recovery | ~2,500 (15%) | Reduced | Fewer root-cause errors → fewer cascades |
+| 5. LaTeX/TeX in doc strings | ~1,500 (9%) | Not fixable | `$\PP^n$` inside `///` strings |
+| 6. `try...then...else` | ~500 (3%) | **Won't fix** | LR(1) conflict with IfExpr's `then/else` |
+| 7. Minor edge cases | ~600 (4%) | **Fixed** | `not` as ckw, ellipsis, trailing comma |
 
 ---
 
@@ -82,14 +91,19 @@ likely from the context: these appear inside tuple patterns like
 `(symbol _, OO, RingElement)` where the comma-separated items interact with
 juxtaposition precedence.
 
-**Fixability**: **Hard**. The fundamental issue is that `symbol` in M2 can take a bare
-operator token as its argument, which is not an expression in any grammar. Possible
-approaches:
-- Add special grammar rules for `symbol` + each operator: `ScopeExpr { ckw<"symbol"> (expression | OperatorToken) }` where `OperatorToken` lists all operators. This is verbose but mechanical.
-- Use an external tokenizer to recognize `symbol` followed by a non-expression token. Complex but clean.
-- Accept the limitation for `symbol`-operator patterns (they appear mostly in doc files and method installation code, not in computational code).
+**Status: Mostly fixed.** The `OperatorSymbol` built-in token (added Feb 14) handles most
+`symbol + operator` patterns. It matches scope keyword + horizontal whitespace + operator
+as a single token in `@tokens`, using Lezer's longest-match rule to beat `Identifier`.
 
-**Estimated effort**: 2-4 hours for the OperatorToken approach. Would fix ~2,000+ errors.
+**Remaining issue**: standalone `-` is excluded from OperatorSymbol because it conflicts
+with `--` (LineComment) and `-*` (BlockComment). `symbol -` (bare minus as operator
+symbol, ~187 occurrences) still errors. Multi-char operators with `-` (`->`, `|-`, `<-`)
+work fine.
+
+**Why ExternalTokenizer failed**: Lezer's `ExternalTokenizer` with `extend: true` cannot
+override built-in tokens. The built-in tokenizer runs first (index 0 in tokenizers array),
+and when it finds valid actions (e.g., `symbol` as Identifier), it sets `main` and `break`s
+the loop before extend tokenizers at higher indices can run.
 
 ---
 
@@ -133,11 +147,14 @@ correctly fails on non-M2 content.
 
 ---
 
-### 3. Missing Number Literal Formats (~18% of errors)
+### 3. Number Literal Formats (~18% of original errors) — FIXED
 
-**What the user reported**: `number_adjacent` (1,927 errors, 11.6%)
+**Status: Fixed** (Feb 10). The grammar's `Number` rule now supports all M2 formats:
+trailing dot (`1.`), precision suffix (`1p111`), scientific notation (`1e-10`).
 
-**Root cause**: The grammar's `Number` rule is incomplete for M2's number formats:
+**What the user originally reported**: `number_adjacent` (1,927 errors, 11.6%)
+
+**Original root cause**: The grammar's `Number` rule was incomplete:
 
 ```
 Number {
@@ -146,7 +163,7 @@ Number {
 }
 ```
 
-M2 supports several additional number formats that this rule does NOT handle:
+M2 supports several additional number formats that the old rule did NOT handle:
 
 #### 3a. Trailing decimal point (`1.`, `0.`, `-0.`)
 
@@ -288,95 +305,55 @@ occur in documentation prose that's already outside M2 expression syntax.
 
 ---
 
-### 6. Missing `try...then...else` Syntax (~3% of errors)
+### 6. `try...then...else` vs `try...catch` (~3% of errors)
 
 **What the user reported**: Part of `other`
 
-**Root cause**: The grammar defines:
-```
-TryExpr { ckw<"try"> expression (~trycatch ckw<"catch"> expression)? }
-```
-
-But M2 actually uses `try...then...else`, NOT `try...catch`:
-
-From `d/binding.d`:
-```
-special("try",   unarytry,   precSpace, wide);
-special("catch", unarycatch, precSpace, wide);
-```
-
-And `then` is a keyword used in both `if...then...else` and `try...then...else`:
-```
-thenW = token("then"); makeKeyword(thenW);
-```
+**Root cause**: M2 supports both `try...catch` and `try...then...else` syntax:
 
 From `m2/basictests/A01.m2`:
 ```m2
--- test try .. then .. else clauses
 assert( true === try 1/0 then false else true )
-assert( null === try 1/0 then false )
 assert( try true then true else false )
 ```
 
-From `packages/Valuations.m2`:
+From actual usage:
 ```m2
 num := try numerator t then numerator t else t;
-den := try denominator t then denominator t else 1_(ring t);
 ```
 
-The grammar has `catch` where M2 uses `then`. Additionally, `catch` in M2 is a
-separate unary operator (not part of `try`), so the grammar's `TryExpr` with `catch`
-is doubly wrong.
-
-**Fixability**: **Easy**. Change:
+**Status: Partially addressed.** The grammar uses `try...catch` form:
 ```
 TryExpr { ckw<"try"> expression (~trycatch ckw<"catch"> expression)? }
 ```
-to:
-```
-TryExpr { ckw<"try"> expression (~trythen ckw<"then"> expression (~tryelse ckw<"else"> expression)?)? }
-CatchExpr { ckw<"catch"> expression }
-```
 
-**Estimated effort**: 15-30 minutes. Would fix ~500 errors and correct the language
-semantics.
+`try...then...else` was attempted but creates an **unresolvable shift/reduce conflict**
+with IfExpr's `then/else`. The parser can't tell if `then` continues a TryExpr or starts
+the consequent of an IfExpr. This is a fundamental LR(1) ambiguity.
+
+A standalone `CatchExpr { ckw<"catch"> expression }` was also attempted but creates a
+shift/reduce conflict with TryExpr's `catch` clause (the parser can't tell if `catch`
+continues the TryExpr or starts a new CatchExpr). Removed.
+
+**Fixability**: **Hard** — requires GLR parsing or restructuring control flow to avoid
+`then/else` ambiguity. The current `try...catch` form handles the most common usage pattern.
 
 ---
 
-### 7. Other Edge Cases (~4% of errors)
+### 7. Other Edge Cases (~4% of original errors) — ALL FIXED
 
-#### 7a. `not` as Strict Keyword (42 errors in top patterns)
+#### 7a. `not` as Strict Keyword — FIXED
 
-The grammar uses `kw<"not">` (strict `@specialize`) which means `not` can NEVER appear
-as an identifier. But M2 uses `not` in method installation:
+Changed `kw<"not">` to `ckw<"not">` (extend) so `not` can appear as identifier in
+method installations like `not Function := f -> s -> not f s`.
 
-```m2
--- From m2/integers.m2:102
-not Function := f -> s -> not f s
-```
+#### 7b. `...` (Dots/Ellipsis) — FIXED
 
-Here `not Function` is a method dispatch key. With `kw<"not">`, the parser sees
-`UnaryExpression(not, Function)` which then tries to apply `:=` to a unary expression
--- this works but may cause issues in some contexts.
+Added `Ellipsis { "..." }` as a recognized expression. Token precedence `"..." > ".."  > "."`.
 
-**Fix**: Change `kw<"not">` to `ckw<"not">` (extend). Risk: this could make `not`
-ambiguous in some positions. But since `not` is always unary prefix, `ckw` should work.
+#### 7c. Trailing Comma — FIXED
 
-**Effort**: 5 minutes. Impact: ~42+ errors.
-
-#### 7b. `...` (Dots/Ellipsis)
-
-M2 uses `...` as a special token (for variable-length argument lists). The grammar
-doesn't have a rule for it. It gets parsed as `.` `.` `.` (three member-access operators).
-
-**Effort**: 10 minutes. Add `"..."` to token precedence.
-
-#### 7c. Empty Arguments (`format_(10,)`, `submatrix(R, {11}, )`)
-
-M2 allows trailing commas in argument lists, producing "empty" arguments. The grammar's
-`ListItems { expression ("," expression)* }` requires an expression after each comma.
-
-**Effort**: 15 minutes. Change `ListItems` to allow optional trailing comma.
+`ListItems` now allows optional trailing comma: `{a, b, c,}`, `f(x, y,)`.
 
 #### 7d. `>=` as Error (19 errors)
 
@@ -387,7 +364,10 @@ when the parser confuses `=>` (arrow) with `>=` (comparison) during recovery.
 
 ## File-Level Analysis
 
-### Worst File: `packages/Schubert2/doc.m2` (1,398 errors)
+### Worst File (historical): `packages/Schubert2/doc.m2` (1,398 errors) — NOW EXCLUDED
+
+This file is now excluded from the code-only track (raw SimpleDoc format). It was the
+worst file before the doc filter was added.
 
 This is a 3,600+ line documentation file in raw SimpleDoc format. It is NOT wrapped
 in `doc ///...///` blocks. The file begins with:
@@ -460,77 +440,52 @@ and `..` (range). The rule `@digit+ "." @digit*` would make `1.` a number, but `
 needs to be `Number(1) .. Number(5)`, not `Number(1.) . Number(5)`. Token precedence
 already has `".." > "."` so this should work, but must be tested carefully.
 
-### Priority 2: Fix `try...then...else` (Easy, ~500 errors fixed)
+### Priority 2: `try...then...else` support (Hard — blocked by LR(1) conflict)
 
-Replace:
-```
-TryExpr { ckw<"try"> expression (~trycatch ckw<"catch"> expression)? }
-```
-With:
-```
-TryExpr { ckw<"try"> expression (~trythen ckw<"then"> expression (~tryelse ckw<"else"> expression)?)? }
-```
+The grammar uses `try...catch`. Adding `try...then...else` causes an unresolvable
+shift/reduce conflict with IfExpr's `then/else`. A standalone `CatchExpr` also
+conflicts with TryExpr's `catch` clause. Both were attempted and reverted.
 
-And add `catch` as a separate unary keyword expression:
-```
-CatchExpr { ckw<"catch"> expression }
-```
+Would require GLR parsing or a fundamentally different approach to control flow.
 
-### Priority 3: `symbol` + Operator Tokens (Hard, ~2,000+ errors fixed)
+### Priority 3: `symbol -` (bare minus) — Won't fix
 
-Add an `OperatorSymbol` alternative to `ScopeExpr` for the `symbol` keyword:
+`symbol -` (bare minus as operator symbol, ~187 occurrences) can't be added to
+OperatorSymbol because standalone `-` conflicts with `--` (LineComment) and `-*`
+(BlockComment) at the tokenizer level. Multi-char operators with `-` (`->`, `|-`, `<-`)
+already work via OperatorSymbol.
 
-```
-ScopeExpr {
-  (ckw<"symbol"> | ckw<"global"> | ckw<"local"> | ckw<"threadLocal">)
-  (expression | OperatorSymbol)
-}
+**Note**: The `OperatorSymbol` token (Priority 3 from the original analysis) has been
+implemented. It handles most `symbol + operator` patterns. See the grammar's `@tokens`
+block for the complete operator list.
 
-OperatorSymbol {
-  "+" | "-" | "*" | "/" | "**" | "++" | ".." | "..<" |
-  "_" | "#" | "^" | "!" | "~" | "@" | "@@" |
-  "|" | "||" | "&" | "^^" | ":" |
-  "==" | "===" | "!=" | "=!=" | "<" | ">" | "<=" | ">=" | "?" |
-  "." | ".?" | "#?" | "\\" | "\\\\" | "//" | "%" |
-  "<<" | ">>" | "|-" | "|_" |
-  "=>" | "->" | "<-" | ":=" | "=" |
-  "==>" | "<==" | "<==>" | "===>" | "<===" |
-  "^**" | "^!" | "^~" | "^*" | "_!" | "_~" | "_*" |
-  "??" | "SPACE"
-}
-```
+### Priority 4: Minor Fixes — DONE
 
-This is verbose but covers all M2 operators. The `SPACE` literal is a special case --
-M2's `symbol SPACE` refers to the juxtaposition/space-application operator.
+All minor fixes implemented (Feb 10):
+- `not` changed from `kw` to `ckw`
+- Ellipsis `...` added as recognized token
+- Trailing comma allowed in `ListItems`
 
-### Priority 4: Minor Fixes (Easy, ~100 errors fixed)
+### Not Fixable (remaining errors)
 
-- Change `kw<"not">` to `ckw<"not">`
-- Add `"..."` as a recognized token
-- Allow trailing comma in `ListItems`
-
-### Not Fixable (~5,500 errors, 33%)
-
-- Documentation markup files in raw SimpleDoc format
+- `symbol -` (bare minus, ~187 occurrences — conflicts with comments)
+- `try...then...else` (LR(1) conflict with IfExpr)
 - LaTeX/TeX in documentation strings
-- English prose parsed as M2 code
+- English prose in code-track files that aren't caught by doc filter
 
 ---
 
-## Projected Error Rate After Fixes
+## Current Error Rate
 
-| Fix | Errors Fixed | New Error Rate |
-|---|---|---|
-| Current | 0 | 0.186% |
-| + Number literals (P1) | ~2,000 | 0.163% |
-| + try/then/else (P2) | ~500 | 0.157% |
-| + symbol + operators (P3) | ~2,000 | 0.135% |
-| + Minor fixes (P4) | ~100 | 0.134% |
-| **Theoretical minimum** | | **~0.12%** |
+0.18% (15,578 errors / 8,871,483 nodes across 2,407 files, 187 raw doc files excluded).
 
-The theoretical minimum is ~0.12% (unfixable doc/LaTeX errors). With all Priority 1-4
-fixes implemented, the error rate would drop from 0.19% to approximately 0.13%, a 30%
-reduction.
+Remaining errors are primarily:
+- Cascading recovery errors from other root causes (~40%)
+- `symbol -` (bare minus, 187 occurrences — can't fix without breaking comments)
+- Documentation markup/LaTeX in files that ARE valid M2 but contain prose
+- `try...then...else` patterns (grammar only supports `try...catch`)
+
+The theoretical minimum is ~0.12% (unfixable doc/LaTeX errors).
 
 ---
 

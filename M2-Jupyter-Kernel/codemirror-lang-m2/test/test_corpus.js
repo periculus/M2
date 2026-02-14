@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Full corpus test: parse ALL .m2 files and report error rates
+// Reports dual-track metrics: ALL files and CODE-ONLY (doc-filtered)
 const {parser} = require('../src/parser.js');
 const fs = require('fs');
 const path = require('path');
@@ -39,14 +40,6 @@ function analyzeTree(code, tree) {
   return { totalNodes, errorNodes, errorTexts };
 }
 
-// Main
-const m2Root = path.resolve(__dirname, '../../../M2/Macaulay2');
-const dirs = [
-  path.join(m2Root, 'm2'),
-  path.join(m2Root, 'tests'),
-  path.join(m2Root, 'packages'),
-];
-
 // Detect raw SimpleDoc files (documentation markup, not M2 code)
 // These start with Node/Key/Headline blocks WITHOUT doc /// wrappers
 function isRawDocFile(code, filePath) {
@@ -59,7 +52,17 @@ function isRawDocFile(code, filePath) {
   return /^\s*(Node|Key)\b/m.test(firstLines) && !/\bdoc\s*\/\/\//.test(firstLines);
 }
 
-let totalFiles = 0, totalNodes = 0, totalErrors = 0;
+// Main
+const m2Root = path.resolve(__dirname, '../../../M2/Macaulay2');
+const dirs = [
+  path.join(m2Root, 'm2'),
+  path.join(m2Root, 'tests'),
+  path.join(m2Root, 'packages'),
+];
+
+// Dual-track counters
+let allFiles = 0, allNodes = 0, allErrors = 0;
+let codeFiles = 0, codeNodes = 0, codeErrors = 0;
 let skippedDocFiles = 0;
 let worstFiles = [];
 let errorCounts = {};
@@ -74,50 +77,60 @@ for (const dir of dirs) {
       const code = fs.readFileSync(file, 'utf-8');
       if (code.length > 500000) continue; // skip very large files
 
-      // Skip raw SimpleDoc files (documentation markup, not M2 code)
-      if (isRawDocFile(code, file)) { skippedDocFiles++; continue; }
+      const isDoc = isRawDocFile(code, file);
+      if (isDoc) skippedDocFiles++;
 
       const tree = parser.parse(code);
       const { totalNodes: nodes, errorNodes: errors, errorTexts } = analyzeTree(code, tree);
 
-      totalFiles++;
-      totalNodes += nodes;
-      totalErrors += errors;
+      // ALL track (every file)
+      allFiles++;
+      allNodes += nodes;
+      allErrors += errors;
 
-      const errorRate = nodes > 0 ? (errors / nodes * 100) : 0;
-      if (errorRate > 10 && nodes > 20) {
-        worstFiles.push({ file: path.relative(m2Root, file), errorRate: errorRate.toFixed(1), nodes, errors });
-      }
+      // CODE-ONLY track (excluding raw doc files)
+      if (!isDoc) {
+        codeFiles++;
+        codeNodes += nodes;
+        codeErrors += errors;
 
-      // Count common error patterns
-      for (const text of errorTexts) {
-        const key = text.substring(0, 20);
-        errorCounts[key] = (errorCounts[key] || 0) + 1;
+        const errorRate = nodes > 0 ? (errors / nodes * 100) : 0;
+        if (errorRate > 10 && nodes > 20) {
+          worstFiles.push({ file: path.relative(m2Root, file), errorRate: errorRate.toFixed(1), nodes, errors });
+        }
+
+        // Count common error patterns (code-only)
+        for (const text of errorTexts) {
+          const key = text.substring(0, 20);
+          errorCounts[key] = (errorCounts[key] || 0) + 1;
+        }
       }
     } catch (e) { /* skip unreadable files */ }
   }
 }
 
+const allRate = allNodes > 0 ? (allErrors / allNodes * 100) : 0;
+const codeRate = codeNodes > 0 ? (codeErrors / codeNodes * 100) : 0;
+
 console.log('\n=== CORPUS TEST RESULTS ===');
-console.log(`Files tested: ${totalFiles}` + (skippedDocFiles > 0 ? ` (${skippedDocFiles} raw doc files excluded)` : ''));
-console.log(`Total nodes: ${totalNodes}`);
-console.log(`Error nodes: ${totalErrors}`);
-console.log(`Error rate: ${(totalErrors / totalNodes * 100).toFixed(2)}%`);
-console.log(`Target: <5%`);
-console.log(`Status: ${(totalErrors / totalNodes * 100) < 5 ? 'PASS' : 'NEEDS IMPROVEMENT'}`);
+console.log(`  ALL files:  ${allFiles} files | ${allNodes} nodes | ${allErrors} errors | ${allRate.toFixed(2)}%`);
+console.log(`  CODE only:  ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate.toFixed(2)}%`);
+console.log(`  Doc files excluded: ${skippedDocFiles}`);
+console.log(`Target: <5% (code-only)`);
+console.log(`Status: ${codeRate < 5 ? 'PASS' : 'NEEDS IMPROVEMENT'}`);
 
 if (worstFiles.length > 0) {
-  console.log(`\n=== WORST FILES (>10% error rate) ===`);
+  console.log(`\n=== WORST FILES (>10% error rate, code-only) ===`);
   worstFiles.sort((a, b) => b.errorRate - a.errorRate);
   worstFiles.slice(0, 15).forEach(f => {
     console.log(`  ${f.errorRate}% errors | ${f.errors}/${f.nodes} nodes | ${f.file}`);
   });
 }
 
-// Top error patterns
+// Top error patterns (code-only)
 const sorted = Object.entries(errorCounts).sort((a, b) => b[1] - a[1]);
 if (sorted.length > 0) {
-  console.log(`\n=== TOP ERROR PATTERNS ===`);
+  console.log(`\n=== TOP ERROR PATTERNS (code-only) ===`);
   sorted.slice(0, 15).forEach(([text, count]) => {
     console.log(`  ${count}x | "${text}"`);
   });
