@@ -25,6 +25,19 @@ Detailed architecture docs: [grammar.md](grammar.md), [highlighting.md](highligh
 
 > Versions reflect the development venv (`M2-Jupyter-Kernel/venv/`). System-wide versions may differ.
 
+## Build Requirements
+
+**Building from source requires Node.js + JLPM (or npm).** Generated parser files and webpack bundles are not tracked in git (see `.gitignore`). After cloning, run `npm run build` to generate everything from `codemirror-lang-m2/src/m2.grammar`.
+
+| Requirement | Why |
+|-------------|-----|
+| Node.js 18+ | Lezer grammar generator, TypeScript compiler, webpack |
+| JLPM or npm | Package management, build script runner |
+| Python 3.8+ | JupyterLab extension build (`jupyter labextension build`) |
+| JupyterLab 4.x | Extension host |
+
+The Lezer generator version is pinned in `codemirror-lang-m2/package.json` (`@lezer/generator@1.8.0`). Run `cd codemirror-lang-m2 && npm install` to install it locally before building.
+
 ## Python Environment
 
 The extension is developed inside a **per-project venv** at `M2-Jupyter-Kernel/venv/`.
