@@ -124,6 +124,18 @@ const m2Funcs = new Set([
   'undocumented', 'exportMutable',
 ]);
 
+// Detect raw SimpleDoc files (documentation markup, not M2 code)
+// These start with Node/Key/Headline blocks WITHOUT doc /// wrappers
+function isRawDocFile(code, filePath) {
+  // Files named *-doc.m2 or */doc.m2 that use raw SimpleDoc format (no doc ///)
+  const basename = path.basename(filePath);
+  const isDocName = basename === 'doc.m2' || basename.endsWith('-doc.m2');
+  if (!isDocName) return false;
+  // Check if file uses raw SimpleDoc (starts with Node/Key lines, not wrapped in doc ///)
+  const firstLines = code.substring(0, 500);
+  return /^\s*(Node|Key)\b/m.test(firstLines) && !/\bdoc\s*\/\/\//.test(firstLines);
+}
+
 // ============================================================
 // Main
 // ============================================================
@@ -139,6 +151,7 @@ for (const dir of dirs) {
 }
 
 const cats = {
+  symbol_operator: 0,
   juxtaposition_func_arg: 0,
   juxtaposition_english_text: 0,
   newline_statement_sep: 0,
@@ -148,6 +161,12 @@ const cats = {
   number_adjacent: 0,
   other: 0
 };
+
+// Scope keywords that take operator arguments
+const scopeKeywords = new Set(['symbol', 'global', 'local', 'threadLocal']);
+
+// Operator characters (punctuation that forms M2 operators)
+const operatorChars = new Set('+-*/%^~!@#&|<>=.:?_\\'.split(''));
 
 const catSamples = {};
 for (const k of Object.keys(cats)) catSamples[k] = [];
@@ -162,7 +181,7 @@ const juxtaPairs = {};
 // Per-directory stats
 const dirStats = {};
 
-let totalNodes = 0, totalErrors = 0, totalChars = 0, totalFiles = 0;
+let totalNodes = 0, totalErrors = 0, totalChars = 0, totalFiles = 0, skippedDocFiles = 0;
 const fileStats = [];
 
 console.log();
@@ -181,6 +200,9 @@ for (const dir of dirs) {
     try {
       const code = fs.readFileSync(file, 'utf-8');
       if (code.length > 500000) continue;
+
+      // Skip raw SimpleDoc files (documentation markup, not M2 code)
+      if (isRawDocFile(code, file)) { skippedDocFiles++; continue; }
 
       totalChars += code.length;
       dirStats[dirName].chars += code.length;
@@ -274,7 +296,10 @@ for (const dir of dirs) {
               'WhileExpr', 'ListItems'].includes(nextName);
 
             if (prevIsIdent && nextIsExpr) {
-              if (englishWords.has(prevText.toLowerCase()) ||
+              // Check for symbol/global/local/threadLocal + operator pattern
+              if (scopeKeywords.has(prevText)) {
+                category = 'symbol_operator';
+              } else if (englishWords.has(prevText.toLowerCase()) ||
                   englishWords.has((nextText.match(/^[a-zA-Z]+/) || [''])[0].toLowerCase())) {
                 category = 'juxtaposition_english_text';
               } else {
@@ -304,6 +329,10 @@ for (const dir of dirs) {
             const lastWord = prevText.match(/([a-zA-Z][a-zA-Z0-9']*)\s*$/);
             if (lastWord) {
               const word = lastWord[1];
+              // Check for symbol/global/local/threadLocal + operator pattern
+              if (scopeKeywords.has(word) && trimmedError.length > 0 && operatorChars.has(trimmedError[0])) {
+                category = 'symbol_operator';
+              } else {
               const errFirstWord = trimmedError.match(/^([a-zA-Z][a-zA-Z0-9']*)/);
               if (errFirstWord) {
                 if (englishWords.has(word.toLowerCase()) || englishWords.has(errFirstWord[1].toLowerCase())) {
@@ -320,6 +349,7 @@ for (const dir of dirs) {
                 category = 'juxtaposition_func_arg';
               } else {
                 category = 'other';
+              }
               }
             } else if (/^\d/.test(trimmedError) || /^\.\d/.test(trimmedError)) {
               category = 'number_adjacent';
@@ -369,7 +399,7 @@ console.log();
 console.log('='.repeat(70));
 console.log('OVERALL STATISTICS');
 console.log('='.repeat(70));
-console.log(`Files parsed:        ${totalFiles}`);
+console.log(`Files parsed:        ${totalFiles}` + (skippedDocFiles > 0 ? ` (${skippedDocFiles} raw doc files excluded)` : ''));
 console.log(`Total characters:    ${(totalChars / 1e6).toFixed(2)}M`);
 console.log(`Total tree nodes:    ${totalNodes}`);
 console.log(`Total error nodes:   ${totalErrors}`);
@@ -436,7 +466,7 @@ if (Object.keys(juxtaPairs).length > 0) {
 // ============================================================
 // SAMPLES PER CATEGORY
 // ============================================================
-for (const cat of ['juxtaposition_func_arg', 'other', 'newline_statement_sep',
+for (const cat of ['symbol_operator', 'juxtaposition_func_arg', 'other', 'newline_statement_sep',
                     'number_adjacent', 'unmatched_bracket', 'doc_string',
                     'juxtaposition_english_text', 'missing_semicolon_after_bracket']) {
   const samples = catSamples[cat];

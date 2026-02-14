@@ -56,7 +56,7 @@ function isRawDocFile(code, filePath) {
   if (!isDocName) return false;
   // Check if file uses raw SimpleDoc (starts with Node/Key lines, not wrapped in doc ///)
   const firstLines = code.substring(0, 500);
-  return /^\s*Node\b/m.test(firstLines) && !/\bdoc\s*\/\/\//.test(firstLines);
+  return /^\s*(Node|Key)\b/m.test(firstLines) && !/\bdoc\s*\/\/\//.test(firstLines);
 }
 
 let totalFiles = 0, totalNodes = 0, totalErrors = 0;

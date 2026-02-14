@@ -27,6 +27,9 @@ export const m2Highlighting = styleTags({
   Null: t.atom,
   "null": t.atom,
 
+  // Operator used as symbol argument (e.g., symbol *, global ==)
+  OperatorSymbol: t.operator,
+
   // Identifiers and basic tokens
   Identifier: t.variableName,
   Number: t.number,

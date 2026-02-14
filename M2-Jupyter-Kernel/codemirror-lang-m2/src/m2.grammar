@@ -63,6 +63,7 @@ expression[@isGroup=Expression] {
   UseExpr |
   ExportExpr |
   ScopeExpr |
+  OperatorSymbol |
   TimeExpr |
   ElapsedTimeExpr |
   ShieldExpr |
@@ -71,7 +72,6 @@ expression[@isGroup=Expression] {
   WhileExpr |
   ForExpr |
   TryExpr |
-  CatchExpr |
   NewExpr |
   ReturnExpr |
   BreakExpr |
@@ -137,8 +137,7 @@ ForExpr {
   (ckw<"by"> expression)?
   ckw<"do"> expression
 }
-TryExpr { ckw<"try"> expression (~trythen ckw<"then"> expression (~tryelse ckw<"else"> expression)?)? }
-CatchExpr { ckw<"catch"> expression }
+TryExpr { ckw<"try"> expression (~trycatch ckw<"catch"> expression)? }
 NewExpr { ckw<"new"> expression (~newof ckw<"of"> expression)? }
 ReturnExpr { ckw<"return"> expression }
 BreakExpr { ckw<"break"> expression }
@@ -309,6 +308,22 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   blockCommentContent { ![*] blockCommentContent | "*" blockCommentAfterStar }
   blockCommentAfterStar { "-" | ![*\-] blockCommentContent | "*" blockCommentAfterStar }
 
+  // scope keyword + whitespace + operator as single token (longest-match beats Identifier)
+  OperatorSymbol {
+    ("symbol" | "global" | "local" | "threadLocal") @whitespace*
+    ("===>" | "<===" | "<==>" |
+     "==>" | "<==" | "===" | "=!=" | "^**" | "^>=" | "^<=" |
+     "..<" | "..." |
+     "==" | "!=" | "<=" | ">=" | "<-" | "->" | "=>" | ">>" |
+     "**" | "++" | "//" | "\\\\" | "@@" | "||" | "^^" | "|_" | ".?" |
+     "#?" | "|-" | "??" | "_!" | "_~" | "_*" | "^!" | "^~" | "^*" |
+     ":=" | ".." |
+     "<<" | "+" | "-" | "*" |
+     "/" | "%" | ">" | "=" | "^" | "_" |
+     "." | "!" | "~" | "&" | "|" | ":" | "@" | "?" | "\\" |
+     "#")
+  }
+
   @precedence {
     LineComment, BlockComment,
     "===>" , "===" , "==>" , "==" , "=!=" , "=>" , "=" ,
@@ -327,7 +342,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     "**", "*",
     "!=", "!",
     "->", "-",
-    Number, String, Identifier, space
+    Number, String, OperatorSymbol, Identifier, space
   }
 }
 
