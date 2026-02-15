@@ -51,6 +51,28 @@ function findNode(code, typeName) {
   return found;
 }
 
+// Collect all node names in tree (for parse-shape assertions)
+function allNodeNames(code) {
+  const tree = parser.parse(code);
+  const names = new Set();
+  tree.iterate({ enter: (node) => { names.add(node.name); } });
+  return names;
+}
+
+// Check that a specific text fragment parses as a specific node type
+function hasNodeWithText(code, typeName, expectedText) {
+  const tree = parser.parse(code);
+  let found = false;
+  tree.iterate({
+    enter: (node) => {
+      if (node.name === typeName && code.slice(node.from, node.to) === expectedText) {
+        found = true;
+      }
+    }
+  });
+  return found;
+}
+
 function assert(condition, message) {
   if (condition) {
     passed++;
@@ -333,6 +355,115 @@ console.log('=== IfExpr ===');
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
   const tryNode = findNode(code, 'TryExpr');
   assert(tryNode !== null, `"${code}" should produce TryExpr`);
+}
+
+console.log('');
+console.log('=== Control-Flow Keywords as Identifiers (Negative Tests) ===');
+// When if/then/else/try/catch appear outside control-flow context, the external
+// tokenizer's canShift() must return false, letting them remain as Identifier.
+
+// "then" as standalone identifier (no preceding if)
+{
+  const code = 'then';
+  const id = findNode(code, 'Identifier');
+  assert(id !== null && id.text === 'then', `"${code}" should be Identifier, got: ${id && id.name}`);
+  const ifNode = findNode(code, 'IfExpr');
+  assert(ifNode === null, `"${code}" must NOT produce IfExpr`);
+}
+
+// "else" as standalone identifier (no preceding if...then)
+{
+  const code = 'else';
+  const id = findNode(code, 'Identifier');
+  assert(id !== null && id.text === 'else', `"${code}" should be Identifier`);
+}
+
+// "catch" as standalone identifier (no preceding try)
+{
+  const code = 'catch';
+  const id = findNode(code, 'Identifier');
+  assert(id !== null && id.text === 'catch', `"${code}" should be Identifier`);
+}
+
+// Assignment to "then" — M2 allows this
+{
+  const code = 'then = 5';
+  const assign = findNode(code, 'AssignExpr');
+  assert(assign !== null, `"${code}" should produce AssignExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// "then" in arithmetic — no IfExpr context
+{
+  const code = 'then + else * catch';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  const ifNode = findNode(code, 'IfExpr');
+  assert(ifNode === null, `"${code}" must NOT produce IfExpr`);
+  const tryNode = findNode(code, 'TryExpr');
+  assert(tryNode === null, `"${code}" must NOT produce TryExpr`);
+}
+
+// Known tradeoff: "if" and "try" are always keyword-like (external tokens).
+// Inside a list, canShift(IfKw) returns true because IfExpr IS a valid expression.
+// So {if, then, else, try, catch} → IfKw starts IfExpr, comma is unexpected → error.
+// This is acceptable: using "if"/"try" as bare identifiers in lists is extremely rare.
+{
+  const code = '{then, else, catch}';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+// But if/try start control flow, so they cause errors when used as identifiers in lists:
+{
+  const code = '{if, try}';
+  assert(errorCount(code) > 0, `"${code}" should have errors (if/try are always keywords)`);
+}
+
+// Member access: x.then — "then" is identifier on RHS of dot
+{
+  const code = 'x.then';
+  const bin = findNode(code, 'BinaryExpression');
+  assert(bin !== null, `"${code}" should produce BinaryExpression (member access)`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Subscript: x_catch — "catch" is identifier
+{
+  const code = 'x_catch';
+  const bin = findNode(code, 'BinaryExpression');
+  assert(bin !== null, `"${code}" should produce BinaryExpression (subscript)`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Function call with keyword names as args: f(then, else)
+{
+  const code = 'f(then, else)';
+  const call = findNode(code, 'CallExpr');
+  assert(call !== null, `"${code}" should produce CallExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  const ifNode = findNode(code, 'IfExpr');
+  assert(ifNode === null, `"${code}" must NOT produce IfExpr`);
+}
+
+// Assignment: catch = x -> x (method installation)
+{
+  const code = 'catch = x -> x';
+  const assign = findNode(code, 'AssignExpr');
+  assert(assign !== null, `"${code}" should produce AssignExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// "try" as identifier in arithmetic
+{
+  const code = 'try + 1';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Known limitation: "if"/"try" as identifiers in method installations now error.
+// With external tokens, `if` always starts IfExpr, so `if Thing := ...` parses
+// as IfExpr{condition=Thing, ...} and := is unexpected. This is the tradeoff
+// for correct nested parsing of (if x then y else z).
+{
+  const code = 'if Thing := (x) -> x > 0';
+  assert(errorCount(code) > 0, `"${code}" should have errors (if is always a keyword)`);
 }
 
 console.log('');
@@ -681,6 +812,172 @@ console.log('=== Truncation Operators _> _>= _< _<= ===');
   const code = 'symbol _>';
   const os = findNode(code, 'OperatorSymbol');
   assert(os !== null, `"${code}" should produce OperatorSymbol`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+console.log('');
+console.log('=== Parse-Shape Assertions (AST structure, not just error count) ===');
+
+// IfExpr structure: must contain IfKw, ThenKw, ElseKw as node names
+{
+  const code = 'if x then y else z';
+  const names = allNodeNames(code);
+  assert(names.has('IfExpr'), `"${code}" tree must contain IfExpr`);
+  assert(names.has('IfKw'), `"${code}" tree must contain IfKw`);
+  assert(names.has('ThenKw'), `"${code}" tree must contain ThenKw`);
+  assert(names.has('ElseKw'), `"${code}" tree must contain ElseKw`);
+}
+
+// IfExpr without else: no ElseKw
+{
+  const code = 'if x then y';
+  const names = allNodeNames(code);
+  assert(names.has('IfExpr'), `"${code}" tree must contain IfExpr`);
+  assert(names.has('ThenKw'), `"${code}" tree must contain ThenKw`);
+  assert(!names.has('ElseKw'), `"${code}" tree must NOT contain ElseKw`);
+}
+
+// TryExpr with catch: must contain TryKw, CatchKw
+{
+  const code = 'try f() catch g()';
+  const names = allNodeNames(code);
+  assert(names.has('TryExpr'), `"${code}" tree must contain TryExpr`);
+  assert(names.has('TryKw'), `"${code}" tree must contain TryKw`);
+  assert(names.has('CatchKw'), `"${code}" tree must contain CatchKw`);
+  assert(names.has('TrySuffix'), `"${code}" tree must contain TrySuffix`);
+}
+
+// TryExpr with then/else: must contain ThenKw, ElseKw, NOT CatchKw
+{
+  const code = 'try x then y else z';
+  const names = allNodeNames(code);
+  assert(names.has('TryExpr'), `"${code}" tree must contain TryExpr`);
+  assert(names.has('ThenKw'), `"${code}" tree must contain ThenKw`);
+  assert(names.has('ElseKw'), `"${code}" tree must contain ElseKw`);
+  assert(!names.has('CatchKw'), `"${code}" tree must NOT contain CatchKw`);
+}
+
+// Nested IfExpr inside parens: still has full structure
+{
+  const code = '(if a then b else c)';
+  const names = allNodeNames(code);
+  assert(names.has('ParenExpr'), `"${code}" tree must contain ParenExpr`);
+  assert(names.has('IfExpr'), `"${code}" tree must contain IfExpr`);
+  assert(names.has('IfKw'), `"${code}" tree must contain IfKw`);
+  assert(names.has('ThenKw'), `"${code}" tree must contain ThenKw`);
+  assert(names.has('ElseKw'), `"${code}" tree must contain ElseKw`);
+}
+
+// Nested IfExpr as function argument
+{
+  const code = 'f(if a then b else c, d)';
+  const names = allNodeNames(code);
+  assert(names.has('CallExpr'), `"${code}" tree must contain CallExpr`);
+  assert(names.has('IfExpr'), `"${code}" tree must contain IfExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// ForExpr: check clause keywords present (uses ckw, so atoms-only on each side)
+{
+  const code = 'for i from 0 to 10 do f(i)';
+  const names = allNodeNames(code);
+  assert(names.has('ForExpr'), `"${code}" tree must contain ForExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// ForExpr with when clause
+{
+  const code = 'for i from 0 to n when even(i) do print i';
+  const names = allNodeNames(code);
+  assert(names.has('ForExpr'), `"${code}" tree must contain ForExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// WhileExpr (condition must be atom-like for ckw to work)
+{
+  const code = 'while cond do f()';
+  const names = allNodeNames(code);
+  assert(names.has('WhileExpr'), `"${code}" tree must contain WhileExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Assignment with arrow: specific node text
+{
+  const code = 'f = x -> x + 1';
+  assert(hasNodeWithText(code, 'AssignExpr', 'f = x -> x + 1'), `"${code}" AssignExpr should span full text`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// JuxtapositionExpr shape: flatten entries M should have nested juxtaposition
+{
+  const code = 'flatten entries M';
+  const names = allNodeNames(code);
+  assert(names.has('JuxtapositionExpr'), `"${code}" tree must contain JuxtapositionExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// LoadExpr shape
+{
+  const code = 'load "MyPackage.m2"';
+  const names = allNodeNames(code);
+  assert(names.has('LoadExpr'), `"${code}" tree must contain LoadExpr`);
+  assert(names.has('String'), `"${code}" tree must contain String`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// ScopeExpr shape with OperatorSymbol: global == should NOT produce ScopeExpr
+{
+  const code = 'global ==';
+  const names = allNodeNames(code);
+  assert(names.has('OperatorSymbol'), `"${code}" tree must contain OperatorSymbol`);
+  assert(!names.has('ScopeExpr'), `"${code}" tree must NOT contain ScopeExpr (OperatorSymbol wins)`);
+}
+
+console.log('');
+console.log('=== Comment/Operator Boundary Edge Cases ===');
+
+// symbol followed by "-" then identifier (bare minus excluded from OperatorSymbol)
+{
+  const code = 'symbol -x';
+  const os = findNode(code, 'OperatorSymbol');
+  assert(os === null, `"symbol -x" must NOT produce OperatorSymbol (bare minus excluded)`);
+}
+
+// symbol followed by "- " (minus space) — not OperatorSymbol
+{
+  const code = 'symbol - x';
+  const os = findNode(code, 'OperatorSymbol');
+  assert(os === null, `"symbol - x" must NOT produce OperatorSymbol`);
+}
+
+// symbol followed by "->" (multi-char with minus) IS OperatorSymbol
+{
+  const code = 'symbol ->';
+  const os = findNode(code, 'OperatorSymbol');
+  assert(os !== null, `"${code}" should produce OperatorSymbol`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// symbol followed by "|-" IS OperatorSymbol
+{
+  const code = 'symbol |-';
+  const os = findNode(code, 'OperatorSymbol');
+  assert(os !== null, `"${code}" should produce OperatorSymbol`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// "-- " at start of line is always LineComment, even after identifier
+{
+  const code = 'x -- comment';
+  const lc = findNode(code, 'LineComment');
+  assert(lc !== null, `"${code}" should produce LineComment`);
+}
+
+// "-* *-" block comment in expression context
+{
+  const code = 'x -* block *- + y';
+  const bc = findNode(code, 'BlockComment');
+  assert(bc !== null, `"${code}" should produce BlockComment`);
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
 }
 

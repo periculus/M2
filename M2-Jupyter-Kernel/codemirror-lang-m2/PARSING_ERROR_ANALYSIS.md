@@ -1,12 +1,29 @@
 # M2 Lezer Grammar: Parsing Error Analysis
 
-**Date**: February 2026 (updated Feb 14)
+**Date**: February 2026 (updated Feb 15)
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
-**Corpus**: 2,407 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/), 187 raw doc files excluded
-**Current error rate**: 0.10% (8,864 errors across the corpus after doc file filtering)
-**Fixture tests**: 81 assertions in `test/test_fixtures.js`
+**Corpus**: 2,594 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/)
+**Current error rate**: 0.06% code-only (5,478 errors / 8,807,116 nodes) | 0.08% all files (6,741 / 8,874,353)
+**Doc files excluded**: 187 raw SimpleDoc files
+**Fixture tests**: 203 assertions in `test/test_fixtures.js`
+
+## Metrics Policy
+
+The corpus test (`test/test_corpus.js`) reports **dual metrics**:
+- **ALL files**: Every `.m2` file in the corpus (includes raw doc files)
+- **CODE-ONLY**: Excludes raw SimpleDoc files that aren't M2 code
+
+The primary metric is **CODE-ONLY error rate**. Both are tracked for trend analysis.
 
 ## Fixes Applied
+
+### Feb 15, 2026
+1. **External tokenizer for control-flow keywords** — `IfKw`, `ThenKw`, `ElseKw`, `TryKw`, `CatchKw` emitted by `controlFlowTokenizer.js` using `stack.canShift()` gating. Replaces `ckw` (`@extend`) which failed inside parens/braces because juxtaposition consumed keywords as Identifiers. Error rate: 0.10% → 0.06% (3,284 errors eliminated).
+2. **Full TryExpr support** — All 5 forms: `try e`, `try e catch e`, `try e then e`, `try e then e else e`, `try e else e`. Previously only `try...catch` was supported.
+3. **AngleBarListExpr** — `<| ... |>` syntax for angle-bar lists. 53 errors eliminated.
+4. **Truncation operators** — `_>`, `_>=`, `_<`, `_<=` as single binary operators. 18 errors eliminated.
+5. **`<` in OperatorSymbol** — `symbol <` now produces OperatorSymbol.
+6. **Dangling-else resolution** — `!ambigElse` precedence marker (like JavaScript's Lezer grammar) + `~ambigThen` GLR marker.
 
 ### Feb 14, 2026
 1. **OperatorSymbol token** — Built-in `@tokens` rule matching scope keyword + horizontal whitespace + operator as single token. Uses longest-match to beat Identifier. Handles `symbol *`, `symbol ==`, `global ++`, etc.
@@ -21,13 +38,13 @@
 3. **Ellipsis `...`** — Added as recognized token (was parsed as three `.` operators).
 4. **Trailing comma** — `ListItems` now allows optional trailing comma `{a, b, c,}`.
 
-### Grammar uses `try...catch` form
-M2 supports both `try...catch` and `try...then...else`. The grammar only implements `try...catch` because `try...then...else` creates an unresolvable shift/reduce conflict with IfExpr's `then/else` (the parser can't tell if `then` continues a TryExpr or an IfExpr). This is a known limitation.
+### Grammar supports all TryExpr forms (Feb 15 fix)
+M2 supports `try...catch`, `try...then`, `try...then...else`, and `try...else`. All 5 forms are now supported thanks to the external tokenizer approach. Previously only `try...catch` worked because `ckw` keywords created unresolvable shift/reduce conflicts with IfExpr's `then/else`. The external tokenizer with `canShift()` gating + `~ambigThen` GLR marker + `!ambigElse` precedence marker resolves all conflicts.
 
 ## Executive Summary
 
-The 0.10% error rate (code-only) is excellent for a syntax highlighter. The remaining
-8,864 errors cluster around a small number of root causes. This report analyzes all
+The 0.06% error rate (code-only) is excellent for a syntax highlighter. The remaining
+5,478 errors cluster around a small number of root causes. This report analyzes all
 error categories, identifies root causes from the actual M2 source code, and assesses
 fixability.
 
@@ -40,8 +57,9 @@ The original root causes and their current status:
 | 3. Number literal formats | ~3,000 (18%) | **Fixed** | Trailing dot, precision, scientific notation |
 | 4. Cascading recovery | ~2,500 (15%) | Reduced | Fewer root-cause errors → fewer cascades |
 | 5. LaTeX/TeX in doc strings | ~1,500 (9%) | Not fixable | `$\PP^n$` inside `///` strings |
-| 6. `try...then...else` | ~500 (3%) | **Won't fix** | LR(1) conflict with IfExpr's `then/else` |
+| 6. `try...then...else` | ~500 (3%) | **Fixed** | External tokenizer resolves all forms |
 | 7. Minor edge cases | ~600 (4%) | **Fixed** | `not` as ckw, ellipsis, trailing comma |
+| 8. Control flow in nested contexts | ~3,284 | **Fixed** | External tokenizer for if/then/else/try/catch |
 
 ---
 
@@ -306,38 +324,25 @@ occur in documentation prose that's already outside M2 expression syntax.
 
 ---
 
-### 6. `try...then...else` vs `try...catch` (~3% of errors)
+### 6. `try...then...else` vs `try...catch` (~3% of errors) — FIXED
 
-**What the user reported**: Part of `other`
+**Status: Fixed** (Feb 15). The external tokenizer approach resolves all forms.
 
-**Root cause**: M2 supports both `try...catch` and `try...then...else` syntax:
+M2 supports 5 forms: `try e`, `try e catch e`, `try e then e`, `try e then e else e`, `try e else e`.
 
-From `m2/basictests/A01.m2`:
-```m2
-assert( true === try 1/0 then false else true )
-assert( try true then true else false )
-```
+**Previous approach (ckw)**: Used `@extend` contextual keywords. This created an
+unresolvable shift/reduce conflict between TryExpr's `then/else` and IfExpr's `then/else`.
 
-From actual usage:
-```m2
-num := try numerator t then numerator t else t;
-```
+**Current approach (external tokens)**: `controlFlowTokenizer.js` emits `TryKw`, `ThenKw`,
+`ElseKw`, `CatchKw` as distinct terminals using `stack.canShift()`. Dangling-then resolved
+with `~ambigThen` GLR marker. Dangling-else resolved with `!ambigElse` precedence marker
+(same pattern as JavaScript's Lezer grammar). See `docs/grammar.md` "External Tokenizer"
+section for full architecture.
 
-**Status: Partially addressed.** The grammar uses `try...catch` form:
-```
-TryExpr { ckw<"try"> expression (~trycatch ckw<"catch"> expression)? }
-```
-
-`try...then...else` was attempted but creates an **unresolvable shift/reduce conflict**
-with IfExpr's `then/else`. The parser can't tell if `then` continues a TryExpr or starts
-the consequent of an IfExpr. This is a fundamental LR(1) ambiguity.
-
-A standalone `CatchExpr { ckw<"catch"> expression }` was also attempted but creates a
-shift/reduce conflict with TryExpr's `catch` clause (the parser can't tell if `catch`
-continues the TryExpr or starts a new CatchExpr). Removed.
-
-**Fixability**: **Hard** — requires GLR parsing or restructuring control flow to avoid
-`then/else` ambiguity. The current `try...catch` form handles the most common usage pattern.
+**Known tradeoff**: `if` and `try` are now always keyword-like (canShift always true where
+an expression is expected). Method installations like `if Thing := ...` will get parse
+errors. This is acceptable because nested control flow `(if x then y else z)` is far more
+common in the corpus.
 
 ---
 
@@ -441,13 +446,10 @@ and `..` (range). The rule `@digit+ "." @digit*` would make `1.` a number, but `
 needs to be `Number(1) .. Number(5)`, not `Number(1.) . Number(5)`. Token precedence
 already has `".." > "."` so this should work, but must be tested carefully.
 
-### Priority 2: `try...then...else` support (Hard — blocked by LR(1) conflict)
+### Priority 2: `try...then...else` support — DONE (Feb 15)
 
-The grammar uses `try...catch`. Adding `try...then...else` causes an unresolvable
-shift/reduce conflict with IfExpr's `then/else`. A standalone `CatchExpr` also
-conflicts with TryExpr's `catch` clause. Both were attempted and reverted.
-
-Would require GLR parsing or a fundamentally different approach to control flow.
+All 5 TryExpr forms now work, including inside nested contexts (parens, braces,
+function calls). Resolved via external tokenizer with `canShift()` gating.
 
 ### Priority 3: `symbol -` (bare minus) — Won't fix
 
@@ -470,46 +472,82 @@ All minor fixes implemented (Feb 10):
 ### Not Fixable (remaining errors)
 
 - `symbol -` (bare minus, ~187 occurrences — conflicts with comments)
-- `try...then...else` (LR(1) conflict with IfExpr)
 - LaTeX/TeX in documentation strings
 - English prose in code-track files that aren't caught by doc filter
+- `ckw` keywords (`for`, `while`, `do`) in nested contexts with binary operators (e.g., `while x > 0 do ...` inside parens fails because `>` breaks the ckw mechanism)
+
+### Known Tradeoffs
+
+- `if`/`try` are now always keyword-like (external tokens). Method installations like `if Thing := (x) -> ...` produce parse errors. This is the cost of correct nested parsing.
+- `then`/`else`/`catch` as standalone identifiers work correctly (canShift returns false without preceding if/try).
 
 ---
+
+## Known Non-Code Inputs
+
+The corpus contains files that are valid M2 but NOT normal executable code. These are
+**intentionally excluded** from the CODE-ONLY error metric but **included** in the ALL metric.
+
+### Raw SimpleDoc Files (187 files, excluded from CODE-ONLY)
+
+**Detection criteria** (implemented in `test/test_corpus.js:isRawDocFile()`):
+1. Filename is `doc.m2` or ends with `-doc.m2`
+2. First 500 chars contain `Node` or `Key` at line start (raw SimpleDoc markup)
+3. First 500 chars do NOT contain `doc ///` (not wrapped in M2 syntax)
+
+**Why excluded**: These files use SimpleDoc markup format (Node/Key/Headline/Text/Example
+blocks) that is loaded by M2's documentation system but is not M2 expression syntax.
+English prose, LaTeX math, and HTML-like markup produce cascading parse errors.
+
+**Examples**: `packages/Schubert2/doc.m2` (1,398 errors), `packages/Varieties/doc-maps.m2`,
+`packages/Macaulay2Doc/operators/tensor.m2`
+
+### LaTeX/TeX in Documentation Strings (NOT excluded)
+
+Files containing `///` doc blocks with embedded LaTeX (`$\PP^n$`, `$$\psi$$`) are **not
+excluded** — they are valid M2 code where the TripleString token handles most of the content.
+Errors occur at `$` signs that break out of string boundaries, which is rare.
+
+### Prose in Code Comments (NOT excluded)
+
+English text in `--` line comments and `-* *-` block comments is correctly parsed as
+comment tokens and produces zero errors. Only prose OUTSIDE of comments/strings causes errors.
 
 ## Current Error Rate
 
-0.10% (8,864 errors across 2,407 files, 187 raw doc files excluded).
+0.06% code-only (5,478 errors across 2,407 files) | 0.08% all files (6,741 across 2,594).
+187 raw SimpleDoc files excluded from code-only track.
 
 Remaining errors are primarily:
 - Cascading recovery errors from other root causes (~40%)
-- `symbol -` (bare minus, 187 occurrences — can't fix without breaking comments)
-- Documentation markup/LaTeX in files that ARE valid M2 but contain prose
-- `try...then...else` patterns (grammar only supports `try...catch`)
+- `symbol -` (bare minus — can't fix without breaking comments)
+- Documentation markup/LaTeX in code-track files that aren't caught by doc filter
+- `ckw` keywords (`for`, `while`, `do`, etc.) failing inside nested contexts with operators
 
 ---
 
-## Appendix: Top Error Patterns from Corpus Test
+## Appendix: Top Error Patterns from Corpus Test (Feb 15, 2026)
 
 These are the actual error text snippets reported by the parser (first 20 chars of
-each error node's content):
+each error node's content, code-only track):
 
 | Count | Error Text | Root Cause |
 |---|---|---|
-| 1,919 | `;` | Cascading: semicolons eaten during recovery |
-| 1,679 | `,` | Cascading: commas eaten during recovery |
-| 1,481 | `)` | Cascading: closing parens eaten during recovery |
-| 524 | `.` | Number trailing dot OR member access in error |
-| 454 | `$` | LaTeX dollar signs in documentation |
-| 214 | `\` | LaTeX backslash in documentation |
-| 130 | `}` | Cascading: closing braces eaten during recovery |
-| 42 | `not` | `not` as strict keyword in non-unary context |
-| 28 | `))` | Cascading: double close-paren recovery |
-| 26 | `},` | Cascading recovery |
+| 1,399 | `,` | Cascading: commas eaten during recovery |
+| 899 | `)` | Cascading: closing parens eaten during recovery |
+| 576 | `;` | Cascading: semicolons eaten during recovery |
+| 61 | `}` | Cascading: closing braces eaten during recovery |
 | 19 | `>=` | Comparison operator in error context |
-| 19 | `?` | Question mark operator in error context |
-| 14 | `);` | Cascading recovery |
-| 9 | `...,` | Ellipsis not recognized |
-| 8 | `$,` | LaTeX dollar + comma in doc |
+| 17 | `?` | Question mark operator in error context |
+| 10 | `))` | Cascading: double close-paren recovery |
+| 9 | `symbol ^` | OperatorSymbol edge case |
+| 6 | `\` | LaTeX backslash |
+| 5 | `'` | Apostrophe in identifier context |
+| 5 | `};` | Cascading recovery |
+| 4 | `??` | Null-coalescing operator in error context |
+| 4 | `symbol ==` | OperatorSymbol edge case |
+| 4 | `),` | Cascading recovery |
+| 3 | `·` | Unicode character in error context |
 
 ---
 
