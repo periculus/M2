@@ -214,9 +214,20 @@ console.log('=== ScopeExpr (symbol + expression) ===');
 }
 
 console.log('');
-console.log('=== TryExpr (try...catch form) ===');
+console.log('=== TryExpr (all 5 forms) ===');
+// External tokenizer (controlFlowTokenizer.js) provides IfKw, ThenKw, ElseKw,
+// TryKw, CatchKw as distinct tokens from Identifier. This enables correct parsing
+// of control flow inside any context (parens, braces, function call args).
 
-// try...catch
+// Form 1: try e
+{
+  const code = 'try f()';
+  const tryNode = findNode(code, 'TryExpr');
+  assert(tryNode !== null, `"${code}" should produce TryExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Form 2: try e catch e
 {
   const code = 'try f() catch g()';
   const tryNode = findNode(code, 'TryExpr');
@@ -224,12 +235,104 @@ console.log('=== TryExpr (try...catch form) ===');
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
 }
 
-// try without catch
+// Form 3: try e then e
 {
-  const code = 'try f()';
+  const code = 'try x then y';
   const tryNode = findNode(code, 'TryExpr');
   assert(tryNode !== null, `"${code}" should produce TryExpr`);
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Form 4: try e then e else e
+{
+  const code = 'try 1/0 then false else true';
+  const tryNode = findNode(code, 'TryExpr');
+  assert(tryNode !== null, `"${code}" should produce TryExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Form 5: try e else e
+{
+  const code = 'try x else y';
+  const tryNode = findNode(code, 'TryExpr');
+  assert(tryNode !== null, `"${code}" should produce TryExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Parse-shape: then/else consumed by TryExpr as keywords (not Identifier)
+{
+  const code = 'try 1/0 then false else true';
+  const tree = parser.parse(code);
+  let thenAsIdentifier = false;
+  let elseAsIdentifier = false;
+  tree.iterate({enter: (node) => {
+    if (node.name === 'Identifier') {
+      const text = code.slice(node.from, node.to);
+      if (text === 'then') { thenAsIdentifier = true; }
+      if (text === 'else') { elseAsIdentifier = true; }
+    }
+  }});
+  assert(!thenAsIdentifier, `"${code}" must NOT have "then" as Identifier`);
+  assert(!elseAsIdentifier, `"${code}" must NOT have "else" as Identifier`);
+}
+
+// try with catch and binary expression before catch
+{
+  const code = 'try 1/0 catch e';
+  const tryNode = findNode(code, 'TryExpr');
+  assert(tryNode !== null, `"${code}" should produce TryExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+console.log('');
+console.log('=== IfExpr ===');
+
+// IfExpr at top level
+{
+  const code = 'if x then y else z';
+  const ifNode = findNode(code, 'IfExpr');
+  assert(ifNode !== null, `"${code}" should produce IfExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// IfExpr inside parens (previously failed with ckw)
+{
+  const code = '(if x then y else z)';
+  const ifNode = findNode(code, 'IfExpr');
+  assert(ifNode !== null, `"${code}" should produce IfExpr inside parens`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// IfExpr as function argument
+{
+  const code = 'f(if x then y else z)';
+  const ifNode = findNode(code, 'IfExpr');
+  assert(ifNode !== null, `"${code}" should produce IfExpr inside call`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// TryExpr inside parens with binary expression
+{
+  const code = '(try 1/0 then false else true)';
+  const tryNode = findNode(code, 'TryExpr');
+  assert(tryNode !== null, `"${code}" should produce TryExpr inside parens`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// TryExpr as function argument
+{
+  const code = 'f(try 1/0 then y else z)';
+  const tryNode = findNode(code, 'TryExpr');
+  assert(tryNode !== null, `"${code}" should produce TryExpr inside call`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// assert(try ... then ... else ...) — from A01.m2
+{
+  const code = 'assert(try true then true else false)';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  const tryNode = findNode(code, 'TryExpr');
+  assert(tryNode !== null, `"${code}" should produce TryExpr`);
 }
 
 console.log('');
@@ -440,6 +543,144 @@ console.log('=== ??= Assignment Operator ===');
   const code = 'x ?? y';
   const bin = findNode(code, 'BinaryExpression');
   assert(bin !== null, `"${code}" should produce BinaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+console.log('');
+console.log('=== AngleBarList <| |> ===');
+
+// Basic angle bar list literal
+{
+  const code = '<| x, y, z |>';
+  const abl = findNode(code, 'AngleBarListExpr');
+  assert(abl !== null, `"${code}" should produce AngleBarListExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Empty angle bar list
+{
+  const code = '<| |>';
+  const abl = findNode(code, 'AngleBarListExpr');
+  assert(abl !== null, `"${code}" should produce AngleBarListExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Angle bar list in assignment
+{
+  const code = 'i = <| x, y, z |>';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  const abl = findNode(code, 'AngleBarListExpr');
+  assert(abl !== null, `"${code}" should produce AngleBarListExpr`);
+  const assign = findNode(code, 'AssignExpr');
+  assert(assign !== null, `"${code}" should produce AssignExpr`);
+}
+
+// R<|T|> — parses as juxtaposition + AngleBarListExpr (correct highlighting)
+{
+  const code = 'R<|T|>';
+  const abl = findNode(code, 'AngleBarListExpr');
+  assert(abl !== null, `"${code}" should produce AngleBarListExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// R<|T,X|> — multiple args
+{
+  const code = 'R<|T,X|>';
+  const abl = findNode(code, 'AngleBarListExpr');
+  assert(abl !== null, `"${code}" should produce AngleBarListExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Parse shape: <| should NOT produce CompareOp
+{
+  const code = '<| x, y |>';
+  const cmp = findNode(code, 'CompareOp');
+  assert(cmp === null, `"${code}" must NOT produce CompareOp (< should not be separate)`);
+}
+
+// < still works as comparison when not followed by |
+{
+  const code = 'x < y';
+  const cmp = findNode(code, 'CompareOp');
+  assert(cmp !== null, `"${code}" should produce CompareOp`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// | still works as binary operator when not followed by >
+{
+  const code = 'x | y';
+  const bin = findNode(code, 'BinaryExpression');
+  assert(bin !== null, `"${code}" should produce BinaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// symbol <| tokenizes as OperatorSymbol
+{
+  const code = 'symbol <|';
+  const os = findNode(code, 'OperatorSymbol');
+  assert(os !== null, `"${code}" should produce OperatorSymbol`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// symbol < tokenizes as OperatorSymbol (bare less-than)
+{
+  const code = 'symbol <';
+  const os = findNode(code, 'OperatorSymbol');
+  assert(os !== null, `"${code}" should produce OperatorSymbol`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+console.log('');
+console.log('=== Truncation Operators _> _>= _< _<= ===');
+
+// _> as single binary operator (not _ then >)
+{
+  const code = '2 _> 3';
+  const bin = findNode(code, 'BinaryExpression');
+  assert(bin !== null, `"${code}" should produce BinaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  // Should NOT produce CompareOp
+  const cmp = findNode(code, 'CompareOp');
+  assert(cmp === null, `"${code}" must NOT produce CompareOp (> should not be separate)`);
+}
+
+// _>= as single operator
+{
+  const code = '2 _>= 3';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// _< as single operator
+{
+  const code = '2 _< 3';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// _<= as single operator
+{
+  const code = '2 _<= 3';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Plain _ still works as subscript
+{
+  const code = 'x_0';
+  const bin = findNode(code, 'BinaryExpression');
+  assert(bin !== null, `"${code}" should produce BinaryExpression (subscript)`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// Method installation form: ZZ _> ZZ := (a,b) -> a^b
+{
+  const code = 'ZZ _> ZZ := (a,b) -> a^b';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// symbol _> tokenizes as OperatorSymbol
+{
+  const code = 'symbol _>';
+  const os = findNode(code, 'OperatorSymbol');
+  assert(os !== null, `"${code}" should produce OperatorSymbol`);
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
 }
 

@@ -75,6 +75,7 @@ yarn-error.log
 src/parser/parser.js
 src/parser/parser.terms.js
 src/parser/highlight.js
+src/parser/controlFlowTokenizer.js
 src/parser/m2.grammar
 
 # Generated extension build output

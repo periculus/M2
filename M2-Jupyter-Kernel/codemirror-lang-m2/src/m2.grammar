@@ -7,6 +7,15 @@
 
 @skip { space | LineComment | BlockComment }
 
+// External contextual tokens for control-flow clause keywords.
+// These are distinct from Identifier, so the parser can shift ThenKw/ElseKw/CatchKw
+// without juxtaposition consuming them. The tokenizer uses canShift() to only emit
+// them when the parser state actually expects them; otherwise "then"/"else"/"catch"
+// fall through to Identifier from the built-in tokenizer.
+@external tokens controlFlowKw from "./controlFlowTokenizer.js" {
+  IfKw, ThenKw, ElseKw, TryKw, CatchKw
+}
+
 // Precedence: highest (tightest binding) listed first
 @precedence {
   member @left,
@@ -36,7 +45,8 @@
   ded @right,
   shift @left,
   assign @right,
-  comma @left
+  comma @left,
+  ambigElse @left
 }
 
 expression[@isGroup=Expression] {
@@ -53,6 +63,7 @@ expression[@isGroup=Expression] {
   ParenExpr |
   ListExpr |
   ArrayExpr |
+  AngleBarListExpr |
   AssignExpr |
   BinaryExpression |
   UnaryExpression |
@@ -85,6 +96,7 @@ expression[@isGroup=Expression] {
 ParenExpr { "(" Body ")" }
 ListExpr { "{" ListItems? "}" }
 ArrayExpr { "[" ListItems? "]" }
+AngleBarListExpr { "<|" ListItems? "|>" }
 Body { (expression (";" | ","))* expression? }
 ListItems { expression ("," expression?)* }
 
@@ -124,10 +136,12 @@ ElapsedTimeExpr { ckw<"elapsedTime"> expression }
 ShieldExpr { ckw<"shield"> expression }
 DebugExpr { ckw<"debug"> expression }
 
-// Control flow
-// Control flow — use ckw (extend) for keywords that also appear as identifiers
-// in M2 (e.g., method installations: `not Function := ...`, `new Class from ...`)
-IfExpr { ckw<"if"> expression ckw<"then"> expression (~ifelse ckw<"else"> expression)? }
+// Control flow — use ckw (extend) for starter keywords (if, try, while, for, etc.)
+// so they can also appear as identifiers in method installations.
+// Clause keywords (then, else, catch) use external tokens (ThenKw, ElseKw, CatchKw)
+// so the parser can distinguish them from Identifier, fixing nested control flow
+// inside parens/braces (e.g., `(if x then y else z)` now produces IfExpr).
+IfExpr { IfKw expression ~ambigThen ThenKw expression (!ambigElse ElseKw expression)? }
 WhileExpr { ckw<"while"> expression ckw<"do"> expression }
 ForExpr {
   ckw<"for"> expression
@@ -138,7 +152,12 @@ ForExpr {
   (ckw<"by"> expression)?
   ckw<"do"> expression
 }
-TryExpr { ckw<"try"> expression (~trycatch ckw<"catch"> expression)? }
+TryExpr { TryKw expression ~ambigThen TrySuffix? }
+TrySuffix {
+  CatchKw expression |
+  !ambigElse ElseKw expression |
+  ThenKw expression (!ambigElse ElseKw expression)?
+}
 NewExpr { ckw<"new"> expression (~newof ckw<"of"> expression)? }
 ReturnExpr { ckw<"return"> expression }
 BreakExpr { ckw<"break"> expression }
@@ -148,7 +167,7 @@ ThrowExpr { ckw<"throw"> expression }
 // Binary operators by precedence
 BinaryExpression {
   expression !member ("." | ".?") expression |
-  expression !subscript ("_" | "#" | "#?" | "|_") expression |
+  expression !subscript ("_" | "_>" | "_>=" | "_<" | "_<=" | "#" | "#?" | "|_") expression |
   expression !power ("^" | "^**" | "^>" | "^>=" | "^<" | "^<=") expression |
   expression !comp "@@" expression |
   expression !at "@" expression |
@@ -329,10 +348,10 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
      "..<" | "..." |
      "==" | "!=" | "<=" | ">=" | "<-" | "->" | "=>" | ">>" |
      "**" | "++" | "//" | "\\\\" | "@@" | "||" | "^^" | "|_" | ".?" |
-     "#?" | "|-" | "??" | "_!" | "_~" | "_*" | "^!" | "^~" | "^*" |
+     "#?" | "|-" | "??" | "_!" | "_~" | "_*" | "_>" | "_>=" | "_<" | "_<=" | "^!" | "^~" | "^*" | "<|" | "|>" |
      ":=" | ".." |
      "<<" | "+" | "*" |
-     "/" | "%" | ">" | "=" | "^" | "_" |
+     "/" | "%" | ">" | "<" | "=" | "^" | "_" |
      "." | "!" | "~" | "&" | "|" | ":" | "@" | "?" | "\\" |
      "#")
   }
@@ -340,14 +359,14 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   @precedence {
     LineComment, BlockComment,
     "===>" , "===" , "==>" , "==" , "=!=" , "=>" , "=" ,
-    "<===", "<==>", "<==", "<=", "<-", "<<", "<",
+    "<===", "<==>", "<==", "<=", "<-", "<<", "<|", "<",
     ">=", ">>", ">",
     "^**", "^>=", "^>", "^<=", "^<", "^~", "^*", "^!", "^",
-    "_~", "_*", "_!", "|_", "_",
+    "_>=", "_>", "_<=", "_<", "_~", "_*", "_!", "|_", "_",
     "...", "..<", "..", ".?", ".",
     "#?", "#",
     TripleString, "//", "/",
-    "||", "|-", "|",
+    "||", "|-", "|>", "|",
     "\\\\", "\\",
     "++", "+",
     "@@", "@",
