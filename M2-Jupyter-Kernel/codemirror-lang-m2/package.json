@@ -1,6 +1,7 @@
 {
   "name": "@codemirror/lang-m2",
   "version": "0.1.0",
+  "type": "module",
   "description": "Macaulay2 language support for CodeMirror",
   "main": "dist/index.js",
   "module": "dist/index.js",

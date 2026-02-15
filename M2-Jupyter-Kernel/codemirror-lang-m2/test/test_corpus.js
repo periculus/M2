@@ -1,9 +1,10 @@
-#!/usr/bin/env node
 // Full corpus test: parse ALL .m2 files and report error rates
 // Reports dual-track metrics: ALL files and CODE-ONLY (doc-filtered)
-const {parser} = require('../src/parser.js');
-const fs = require('fs');
-const path = require('path');
+import {parser} from '../src/parser.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Find all .m2 files recursively
 function findFiles(dir, ext, results = []) {
@@ -40,16 +41,23 @@ function analyzeTree(code, tree) {
   return { totalNodes, errorNodes, errorTexts };
 }
 
-// Detect raw SimpleDoc files (documentation markup, not M2 code)
-// These start with Node/Key/Headline blocks WITHOUT doc /// wrappers
+// Detect raw SimpleDoc / documentation-only files (markup, not M2 code).
+// Two detection strategies:
+// 1. Filename-based: doc.m2 / *-doc.m2 starting with Node/Key (raw SimpleDoc)
+// 2. Content-based: files that are purely document{} blocks (e.g. ov_language.m2)
 function isRawDocFile(code, filePath) {
-  // Files named *-doc.m2 or */doc.m2 that use raw SimpleDoc format (no doc ///)
   const basename = path.basename(filePath);
-  const isDocName = basename === 'doc.m2' || basename.endsWith('-doc.m2');
-  if (!isDocName) return false;
-  // Check if file uses raw SimpleDoc (starts with Node/Key lines, not wrapped in doc ///)
   const firstLines = code.substring(0, 500);
-  return /^\s*(Node|Key)\b/m.test(firstLines) && !/\bdoc\s*\/\/\//.test(firstLines);
+  // Filename-based: doc.m2 / *-doc.m2 with raw Node/Key markup (not wrapped in doc ///)
+  const isDocName = basename === 'doc.m2' || basename.endsWith('-doc.m2');
+  if (isDocName && /^\s*(Node|Key)\b/m.test(firstLines) && !/\bdoc\s*\/\/\//.test(firstLines)) {
+    return true;
+  }
+  // Content-based: files starting with document{} blocks containing Key => (raw SimpleDoc)
+  if (/^\s*document\s*\{/m.test(firstLines) && /Key\s*=>/m.test(firstLines)) {
+    return true;
+  }
+  return false;
 }
 
 // Main

@@ -1,14 +1,14 @@
-// External tokenizer for M2 control-flow clause keywords (then, else, catch).
-// These are emitted as distinct tokens (ThenKw, ElseKw, CatchKw) only when the
-// parser state can use them, preventing JuxtapositionExpr from consuming them
-// as Identifiers. The starter keywords (if, try) remain as ckw (@extend) so
-// they can still be used as identifiers in method installations.
+// External tokenizer for M2 control-flow keywords (if, then, else, try, catch).
+// All 5 are emitted as distinct tokens (IfKw, ThenKw, ElseKw, TryKw, CatchKw)
+// only when stack.canShift() says the parser state can use them. Otherwise the
+// built-in tokenizer produces Identifier. This prevents JuxtapositionExpr from
+// consuming these words as Identifiers inside parens/braces/brackets.
 import {ExternalTokenizer} from "@lezer/lr"
 import {IfKw, ThenKw, ElseKw, TryKw, CatchKw} from "./parser.terms.js"
 
-// Conservative: includes chars that could continue an identifier-like word.
-// M2 identifiers are [a-zA-Z'][a-zA-Z0-9']*, but we also block _ and $ to
-// avoid matching partial words in unusual contexts.
+// Characters that can continue an identifier-like word.
+// M2 identifiers are [a-zA-Z'][a-zA-Z0-9'$]* — note _ is NOT included
+// because it's the subscript operator in M2, not an identifier character.
 function isIdentChar(ch) {
   return (
     (ch >= 48 && ch <= 57) ||   // 0-9

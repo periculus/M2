@@ -1,9 +1,8 @@
-#!/usr/bin/env node
 // Parser-shape fixtures: verify specific patterns produce expected parse trees.
 // Each fixture specifies input code, then asserts on the node types at the top level.
 //
 // Run: node test/test_fixtures.js
-const {parser} = require('../src/parser.js');
+import {parser} from '../src/parser.js';
 
 let passed = 0, failed = 0;
 

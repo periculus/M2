@@ -3,8 +3,8 @@
 **Date**: February 2026 (updated Feb 15)
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
 **Corpus**: 2,594 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/)
-**Current error rate**: 0.06% code-only (5,478 errors / 8,807,116 nodes) | 0.08% all files (6,741 / 8,874,353)
-**Doc files excluded**: 187 raw SimpleDoc files
+**Current error rate**: 0.06% code-only (5,273 errors / 8,697,246 nodes) | 0.08% all files (6,741 / 8,874,353)
+**Code files**: 2,317 | **Doc files excluded**: 277 raw SimpleDoc files
 **Fixture tests**: 203 assertions in `test/test_fixtures.js`
 
 ## Metrics Policy
@@ -479,6 +479,8 @@ All minor fixes implemented (Feb 10):
 ### Known Tradeoffs
 
 - `if`/`try` are now always keyword-like (external tokens). Method installations like `if Thing := (x) -> ...` produce parse errors. This is the cost of correct nested parsing.
+  - **Corpus search (Feb 15)**: 0 instances of `if`/`try` used as identifiers across all 2,619 .m2 files. The regression is theoretical only — no real M2 code is affected.
+  - Negative fixtures in `test_fixtures.js` (lines 384-444) document and assert this behavior.
 - `then`/`else`/`catch` as standalone identifiers work correctly (canShift returns false without preceding if/try).
 
 ---
