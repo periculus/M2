@@ -30,7 +30,7 @@ The primary metric is **CODE-ONLY error rate**. Both are tracked for trend analy
 ### Feb 14, 2026
 1. **OperatorSymbol token** — Built-in `@tokens` rule matching scope keyword + horizontal whitespace + operator as single token. Uses longest-match to beat Identifier. Handles `symbol *`, `symbol ==`, `global ++`, etc.
 2. **OperatorSymbol boundary guards** — Uses `$[ \t]*` (not `@whitespace*`) to prevent cross-line matching. Standalone `-` excluded to avoid conflicts with `--` (LineComment) and `-*` (BlockComment).
-3. **Raw doc file exclusion** — 187 raw SimpleDoc files excluded (was 1). Detection: files named `doc.m2`/`*-doc.m2` starting with `Node`/`Key` without `doc ///`.
+3. **Raw doc file exclusion** — 277 raw SimpleDoc files excluded (initially 1, expanded to 187 via filename detection, then 277 via content-based detection). Detection: files named `doc.m2`/`*-doc.m2` starting with `Node`/`Key` without `doc ///`, plus files starting with `document { ... Key => ... }` blocks.
 4. **CatchExpr removed** — Standalone `CatchExpr` caused unresolvable shift/reduce conflict with TryExpr's `catch` clause. Removed; `catch` only appears inside TryExpr.
 5. **LeadingDotNumber** — Parser-level rule `LeadingDotNumber { "." Number }` to distinguish `.4` (leading-dot number literal) from `C.0` (member access). At expression start, the parser shifts `"."` into LeadingDotNumber. After an expression, LR shift/reduce preference makes `"."` shift into BinaryExpression for member access. This resolves the ambiguity without any tokenizer tricks.
 
@@ -55,7 +55,7 @@ The original root causes and their current status:
 | Root Cause | Original Est. | Status | Notes |
 |---|---|---|---|
 | 1. `symbol` + operator juxtaposition | ~4,500 (27%) | **Mostly fixed** | OperatorSymbol token; `symbol -` still errors |
-| 2. Documentation markup (Node/Key/Text) | ~4,000 (24%) | **Excluded** | 187 raw doc files filtered from code-only track |
+| 2. Documentation markup (Node/Key/Text) | ~4,000 (24%) | **Excluded** | 277 raw doc files filtered from code-only track |
 | 3. Number literal formats | ~3,000 (18%) | **Fixed** | Trailing dot, precision, scientific notation |
 | 4. Cascading recovery | ~2,500 (15%) | Reduced | Fewer root-cause errors → fewer cascades |
 | 5. LaTeX/TeX in doc strings | ~1,500 (9%) | Not fixable | `$\PP^n$` inside `///` strings |
@@ -481,7 +481,7 @@ All minor fixes implemented (Feb 10):
 ### Known Tradeoffs
 
 - `if`/`try` are now always keyword-like (external tokens). Method installations like `if Thing := (x) -> ...` produce parse errors. This is the cost of correct nested parsing.
-  - **Corpus search (Feb 15)**: 0 instances of `if`/`try` used as identifiers across all 2,619 .m2 files. The regression is theoretical only — no real M2 code is affected.
+  - **Corpus search (Feb 15)**: 0 instances of `if`/`try` used as identifiers across all 2,594 .m2 files. The regression is theoretical only — no real M2 code is affected.
   - Negative fixtures in `test_fixtures.js` (lines 384-444) document and assert this behavior.
 - `then`/`else`/`catch` as standalone identifiers work correctly (canShift returns false without preceding if/try).
 
@@ -490,7 +490,7 @@ All minor fixes implemented (Feb 10):
 Re-evaluate these decisions if:
 - **Doc preprocessing**: Doc-region errors exceed 5% of code-only errors (currently 0.7% per `analyze_errors.js` DOC-REGION section), or doc-file detector misses increase beyond 10 files
 - **Bare `-` fix**: `symbol -` errors exceed 500 occurrences (currently ~187), or an external tokenizer approach is found that doesn't conflict with `--`/`-*` comments
-- **`if`/`try` keyword regression**: Any real-world `.m2` file uses `if` or `try` as an identifier (currently 0 instances in 2,619 files)
+- **`if`/`try` keyword regression**: Any real-world `.m2` file uses `if` or `try` as an identifier (currently 0 instances in 2,594 files)
 - **ckw nested contexts**: `for`/`while`/`do` inside parens with binary operators becomes a common pattern (currently rare in corpus)
 
 ---
@@ -502,7 +502,7 @@ The corpus contains files that are valid M2 but NOT normal executable code. Thes
 
 ### Raw SimpleDoc Files (277 files, excluded from CODE-ONLY)
 
-**Detection criteria** (implemented in `test/test_corpus.js:isRawDocFile()`):
+**Detection criteria** (implemented in `test/doc_detection.js:isRawDocFile()`, shared by `test_corpus.js` and `analyze_errors.js`):
 1. Filename is `doc.m2` or ends with `-doc.m2`, with raw `Node`/`Key` markup
 2. Content-based: files starting with `document { ... Key => ...}` blocks (raw SimpleDoc)
 3. First 500 chars do NOT contain `doc ///` (not wrapped in M2 syntax)

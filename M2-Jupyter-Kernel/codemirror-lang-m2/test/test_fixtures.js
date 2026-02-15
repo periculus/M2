@@ -981,8 +981,12 @@ console.log('=== Comment/Operator Boundary Edge Cases ===');
 }
 
 console.log('');
-console.log('=== OperatorSymbol Complete Matrix ===');
+console.log('=== OperatorSymbol Representative Matrix ===');
 
+// Tests a representative sample of operators across all 4 scope starters.
+// Not exhaustive (67 operators exist); validates cross-product coverage for
+// 11 structurally distinct operators. Full operator coverage is validated
+// by test/validate_operators.js against binding.d.
 // A. All 4 scope starters × representative operators
 {
   const starters = ['symbol', 'global', 'local', 'threadLocal'];

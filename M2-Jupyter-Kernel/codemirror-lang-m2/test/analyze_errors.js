@@ -22,6 +22,7 @@ import {parser} from '../src/parser.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { isRawDocFile } from './doc_detection.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ============================================================
@@ -66,6 +67,10 @@ function isInRegion(pos, regions) {
 
 // Find `document { ... }` blocks via balanced-brace matching.
 // Returns sorted array of {from, to} spans.
+// CAVEAT: This is a heuristic — it counts raw braces without token awareness,
+// so braces inside strings or comments can skew region boundaries. Sufficient
+// for error-distribution percentages (doc regions are <1% of errors) but not
+// suitable for precise source-mapping.
 function findDocumentBlocks(code) {
   const regions = [];
   const re = /\bdocument\s*\{/g;
@@ -148,24 +153,7 @@ const m2Funcs = new Set([
   'undocumented', 'exportMutable',
 ]);
 
-// Detect raw SimpleDoc / documentation-only files (markup, not M2 code).
-// Two detection strategies:
-// 1. Filename-based: doc.m2 / *-doc.m2 starting with Node/Key (raw SimpleDoc)
-// 2. Content-based: files that are purely document{} blocks (e.g. ov_language.m2)
-function isRawDocFile(code, filePath) {
-  const basename = path.basename(filePath);
-  const firstLines = code.substring(0, 500);
-  // Filename-based: doc.m2 / *-doc.m2 with raw Node/Key markup (not wrapped in doc ///)
-  const isDocName = basename === 'doc.m2' || basename.endsWith('-doc.m2');
-  if (isDocName && /^\s*(Node|Key)\b/m.test(firstLines) && !/\bdoc\s*\/\/\//.test(firstLines)) {
-    return true;
-  }
-  // Content-based: files starting with document{} blocks containing Key => (raw SimpleDoc)
-  if (/^\s*document\s*\{/m.test(firstLines) && /Key\s*=>/m.test(firstLines)) {
-    return true;
-  }
-  return false;
-}
+// isRawDocFile imported from ./doc_detection.js (shared with test_corpus.js)
 
 // ============================================================
 // Main
