@@ -56,12 +56,34 @@ function findTripleStringRegions(code) {
   return regions;
 }
 
-function isInTripleString(pos, regions) {
+function isInRegion(pos, regions) {
   for (const r of regions) {
     if (pos >= r.from && pos < r.to) return true;
     if (r.from > pos) break;
   }
   return false;
+}
+
+// Find `document { ... }` blocks via balanced-brace matching.
+// Returns sorted array of {from, to} spans.
+function findDocumentBlocks(code) {
+  const regions = [];
+  const re = /\bdocument\s*\{/g;
+  let m;
+  while ((m = re.exec(code)) !== null) {
+    const braceStart = code.indexOf('{', m.index + 8); // skip "document"
+    if (braceStart === -1) continue;
+    let depth = 1, i = braceStart + 1;
+    while (i < code.length && depth > 0) {
+      if (code[i] === '{') depth++;
+      else if (code[i] === '}') depth--;
+      i++;
+    }
+    if (depth === 0) {
+      regions.push({ from: m.index, to: i });
+    }
+  }
+  return regions;
 }
 
 function getErrorContext(code, from, to, maxBefore = 15, maxAfter = 15) {
@@ -191,6 +213,8 @@ const juxtaPairs = {};
 const dirStats = {};
 
 let totalNodes = 0, totalErrors = 0, totalChars = 0, totalFiles = 0, skippedDocFiles = 0;
+// Doc-region error distribution (point 1 from reviewer)
+let errorsInTripleString = 0, errorsInDocumentBlock = 0, errorsInPureCode = 0;
 const fileStats = [];
 
 console.log();
@@ -217,6 +241,7 @@ for (const dir of dirs) {
       dirStats[dirName].chars += code.length;
       const tree = parser.parse(code);
       const tripleRegions = findTripleStringRegions(code);
+      const docBlocks = findDocumentBlocks(code);
 
       const allNodes = [];
       tree.iterate({
@@ -241,8 +266,14 @@ for (const dir of dirs) {
         const from = node.from;
         const to = node.to;
 
-        // --- doc string check ---
-        if (isInTripleString(from, tripleRegions)) {
+        // --- doc region check (triple-string and document{} blocks) ---
+        const inTriple = isInRegion(from, tripleRegions);
+        const inDocBlock = !inTriple && isInRegion(from, docBlocks);
+        if (inTriple) errorsInTripleString++;
+        else if (inDocBlock) errorsInDocumentBlock++;
+        else errorsInPureCode++;
+
+        if (inTriple) {
           cats.doc_string++;
           fileDocErrors++;
           if (catSamples.doc_string.length < 200)
@@ -541,3 +572,23 @@ console.log('  2. unmatched_bracket — cascade from earlier failures');
 console.log('  3. juxtaposition_func_arg — newline-separated statements parsed as juxtaposition');
 console.log('  4. number_adjacent — numbers in cascade context');
 console.log('  5. newline_statement_sep — ASI-style newlines (fixable with external tokenizer)');
+console.log();
+
+// ============================================================
+// DOC-REGION ERROR DISTRIBUTION
+// ============================================================
+console.log('='.repeat(70));
+console.log('DOC-REGION ERROR DISTRIBUTION');
+console.log('='.repeat(70));
+const docRegionTotal = errorsInTripleString + errorsInDocumentBlock + errorsInPureCode;
+const pctTriple = docRegionTotal > 0 ? (errorsInTripleString / docRegionTotal * 100).toFixed(1) : '0.0';
+const pctDocBlock = docRegionTotal > 0 ? (errorsInDocumentBlock / docRegionTotal * 100).toFixed(1) : '0.0';
+const pctPure = docRegionTotal > 0 ? (errorsInPureCode / docRegionTotal * 100).toFixed(1) : '0.0';
+console.log(`  Inside TripleString:    ${String(errorsInTripleString).padStart(6)} errors (${pctTriple}%)`);
+console.log(`  Inside document{}:      ${String(errorsInDocumentBlock).padStart(6)} errors (${pctDocBlock}%)`);
+console.log(`  Pure code regions:      ${String(errorsInPureCode).padStart(6)} errors (${pctPure}%)`);
+console.log();
+console.log(`  Doc preprocessing value: ${errorsInDocumentBlock === 0 ? 'NONE — zero errors in document{} blocks' :
+  errorsInDocumentBlock < docRegionTotal * 0.05 ? 'LOW — fewer than 5% of errors in doc regions' :
+  'SIGNIFICANT — consider implementing doc preprocessing'}`);
+console.log();

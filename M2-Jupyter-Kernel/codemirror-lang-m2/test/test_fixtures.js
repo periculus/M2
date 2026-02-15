@@ -980,6 +980,122 @@ console.log('=== Comment/Operator Boundary Edge Cases ===');
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
 }
 
+console.log('');
+console.log('=== OperatorSymbol Complete Matrix ===');
+
+// A. All 4 scope starters × representative operators
+{
+  const starters = ['symbol', 'global', 'local', 'threadLocal'];
+  const ops = ['*', '==', '++', '^**', '_>=', '<|', '...', '||', '|-', '#', '\\'];
+  for (const kw of starters) {
+    for (const op of ops) {
+      const code = `${kw} ${op}`;
+      const os = findNode(code, 'OperatorSymbol');
+      assert(os !== null, `"${code}" should produce OperatorSymbol`);
+      assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+    }
+  }
+}
+
+// B. Boundary cases
+{
+  // Tab separator
+  const tabCode = 'symbol\t*';
+  assert(findNode(tabCode, 'OperatorSymbol') !== null, `"symbol\\t*" (tab) should produce OperatorSymbol`);
+  assert(errorCount(tabCode) === 0, `"symbol\\t*" should have 0 errors`);
+
+  // Multiple spaces
+  const spaceCode = 'symbol  *';
+  assert(findNode(spaceCode, 'OperatorSymbol') !== null, `"symbol  *" (2 spaces) should produce OperatorSymbol`);
+  assert(errorCount(spaceCode) === 0, `"symbol  *" should have 0 errors`);
+
+  // Newline rejects (cross-line guard)
+  const nlCode = 'symbol\n*x';
+  assert(findNode(nlCode, 'OperatorSymbol') === null, `"symbol\\n*x" must NOT produce OperatorSymbol (cross-line)`);
+
+  // Bare scope keyword (no operator follows)
+  const bareCode = 'symbol x';
+  assert(findNode(bareCode, 'OperatorSymbol') === null, `"symbol x" must NOT produce OperatorSymbol (x is identifier)`);
+}
+
+// C. Comment collisions
+{
+  // -- starts LineComment, not OperatorSymbol
+  const dashDash = 'symbol --comment';
+  assert(findNode(dashDash, 'OperatorSymbol') === null, `"symbol --comment" must NOT produce OperatorSymbol`);
+  assert(findNode(dashDash, 'LineComment') !== null, `"symbol --comment" must produce LineComment`);
+
+  // -* starts BlockComment, not OperatorSymbol
+  const dashStar = 'symbol -* block *-';
+  assert(findNode(dashStar, 'OperatorSymbol') === null, `"symbol -* block *-" must NOT produce OperatorSymbol`);
+  assert(findNode(dashStar, 'BlockComment') !== null, `"symbol -* block *-" must produce BlockComment`);
+
+  // Bare minus: NOT OperatorSymbol (already tested, but included for completeness)
+  assert(findNode('symbol -x', 'OperatorSymbol') === null, `"symbol -x" must NOT produce OperatorSymbol`);
+  assert(findNode('symbol - x', 'OperatorSymbol') === null, `"symbol - x" must NOT produce OperatorSymbol`);
+
+  // Multi-char with minus: IS OperatorSymbol
+  assert(findNode('symbol ->', 'OperatorSymbol') !== null, `"symbol ->" should produce OperatorSymbol`);
+  assert(findNode('symbol |-', 'OperatorSymbol') !== null, `"symbol |-" should produce OperatorSymbol`);
+  assert(findNode('symbol <-', 'OperatorSymbol') !== null, `"symbol <-" should produce OperatorSymbol`);
+}
+
+// D. Longest-match conflicts
+{
+  // ... vs .. — ellipsis should win when fully present
+  const dotdotdot = findNode('symbol ...', 'OperatorSymbol');
+  assert(dotdotdot !== null, `"symbol ..." should produce OperatorSymbol`);
+  // Verify it matched the full "..." not just ".."
+  assert(dotdotdot && dotdotdot.text.endsWith('...'), `"symbol ..." OperatorSymbol should end with "..."`);
+
+  const dotdot = findNode('symbol ..', 'OperatorSymbol');
+  assert(dotdot !== null, `"symbol .." should produce OperatorSymbol`);
+
+  // <| vs < — <| should win
+  const angleBar = findNode('symbol <|', 'OperatorSymbol');
+  assert(angleBar !== null, `"symbol <|" should produce OperatorSymbol`);
+  assert(angleBar && angleBar.text.endsWith('<|'), `"symbol <|" should match full "<|"`);
+
+  const lt = findNode('symbol <', 'OperatorSymbol');
+  assert(lt !== null, `"symbol <" should produce OperatorSymbol`);
+
+  // === vs == — === should win
+  const tripleEq = findNode('symbol ===', 'OperatorSymbol');
+  assert(tripleEq !== null, `"symbol ===" should produce OperatorSymbol`);
+  assert(tripleEq && tripleEq.text.endsWith('==='), `"symbol ===" should match full "==="`);
+
+  const doubleEq = findNode('symbol ==', 'OperatorSymbol');
+  assert(doubleEq !== null, `"symbol ==" should produce OperatorSymbol`);
+
+  // ^** vs ^* vs ^ — longest wins
+  const hatStarStar = findNode('symbol ^**', 'OperatorSymbol');
+  assert(hatStarStar !== null, `"symbol ^**" should produce OperatorSymbol`);
+  assert(hatStarStar && hatStarStar.text.endsWith('^**'), `"symbol ^**" should match full "^**"`);
+
+  const hatStar = findNode('symbol ^*', 'OperatorSymbol');
+  assert(hatStar !== null, `"symbol ^*" should produce OperatorSymbol`);
+
+  const hat = findNode('symbol ^', 'OperatorSymbol');
+  assert(hat !== null, `"symbol ^" should produce OperatorSymbol`);
+
+  // _>= vs _> vs _ — longest wins
+  const underscoreGE = findNode('symbol _>=', 'OperatorSymbol');
+  assert(underscoreGE !== null, `"symbol _>=" should produce OperatorSymbol`);
+  assert(underscoreGE && underscoreGE.text.endsWith('_>='), `"symbol _>=" should match full "_>="`);
+
+  const underscoreGT = findNode('symbol _>', 'OperatorSymbol');
+  assert(underscoreGT !== null, `"symbol _>" should produce OperatorSymbol`);
+
+  const underscore = findNode('symbol _', 'OperatorSymbol');
+  assert(underscore !== null, `"symbol _" should produce OperatorSymbol`);
+
+  // New: ^> and ^< (added by validate_operators.js finding)
+  assert(findNode('symbol ^>', 'OperatorSymbol') !== null, `"symbol ^>" should produce OperatorSymbol`);
+  assert(errorCount('symbol ^>') === 0, `"symbol ^>" should have 0 errors`);
+  assert(findNode('symbol ^<', 'OperatorSymbol') !== null, `"symbol ^<" should produce OperatorSymbol`);
+  assert(errorCount('symbol ^<') === 0, `"symbol ^<" should have 0 errors`);
+}
+
 // ============================================================
 // Summary
 // ============================================================

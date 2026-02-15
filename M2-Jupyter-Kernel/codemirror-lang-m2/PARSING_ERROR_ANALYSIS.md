@@ -3,9 +3,11 @@
 **Date**: February 2026 (updated Feb 15)
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
 **Corpus**: 2,594 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/)
-**Current error rate**: 0.06% code-only (5,273 errors / 8,697,246 nodes) | 0.08% all files (6,741 / 8,874,353)
+**Canonical metric source**: `node test/test_corpus.js` — run to regenerate all numbers below
+**Current error rate**: 0.06% code-only | 0.08% all files
 **Code files**: 2,317 | **Doc files excluded**: 277 raw SimpleDoc files
-**Fixture tests**: 203 assertions in `test/test_fixtures.js`
+**Fixture tests**: 327 assertions in `test/test_fixtures.js`
+**Operator validation**: 67/67 operators covered — `node test/validate_operators.js`
 
 ## Metrics Policy
 
@@ -44,7 +46,7 @@ M2 supports `try...catch`, `try...then`, `try...then...else`, and `try...else`. 
 ## Executive Summary
 
 The 0.06% error rate (code-only) is excellent for a syntax highlighter. The remaining
-5,478 errors cluster around a small number of root causes. This report analyzes all
+~5,270 errors cluster around a small number of root causes. This report analyzes all
 error categories, identifies root causes from the actual M2 source code, and assesses
 fixability.
 
@@ -483,6 +485,14 @@ All minor fixes implemented (Feb 10):
   - Negative fixtures in `test_fixtures.js` (lines 384-444) document and assert this behavior.
 - `then`/`else`/`catch` as standalone identifiers work correctly (canShift returns false without preceding if/try).
 
+### Revisit Triggers
+
+Re-evaluate these decisions if:
+- **Doc preprocessing**: Doc-region errors exceed 5% of code-only errors (currently 0.7% per `analyze_errors.js` DOC-REGION section), or doc-file detector misses increase beyond 10 files
+- **Bare `-` fix**: `symbol -` errors exceed 500 occurrences (currently ~187), or an external tokenizer approach is found that doesn't conflict with `--`/`-*` comments
+- **`if`/`try` keyword regression**: Any real-world `.m2` file uses `if` or `try` as an identifier (currently 0 instances in 2,619 files)
+- **ckw nested contexts**: `for`/`while`/`do` inside parens with binary operators becomes a common pattern (currently rare in corpus)
+
 ---
 
 ## Known Non-Code Inputs
@@ -490,11 +500,11 @@ All minor fixes implemented (Feb 10):
 The corpus contains files that are valid M2 but NOT normal executable code. These are
 **intentionally excluded** from the CODE-ONLY error metric but **included** in the ALL metric.
 
-### Raw SimpleDoc Files (187 files, excluded from CODE-ONLY)
+### Raw SimpleDoc Files (277 files, excluded from CODE-ONLY)
 
 **Detection criteria** (implemented in `test/test_corpus.js:isRawDocFile()`):
-1. Filename is `doc.m2` or ends with `-doc.m2`
-2. First 500 chars contain `Node` or `Key` at line start (raw SimpleDoc markup)
+1. Filename is `doc.m2` or ends with `-doc.m2`, with raw `Node`/`Key` markup
+2. Content-based: files starting with `document { ... Key => ...}` blocks (raw SimpleDoc)
 3. First 500 chars do NOT contain `doc ///` (not wrapped in M2 syntax)
 
 **Why excluded**: These files use SimpleDoc markup format (Node/Key/Headline/Text/Example
@@ -517,8 +527,8 @@ comment tokens and produces zero errors. Only prose OUTSIDE of comments/strings 
 
 ## Current Error Rate
 
-0.06% code-only (5,478 errors across 2,407 files) | 0.08% all files (6,741 across 2,594).
-187 raw SimpleDoc files excluded from code-only track.
+0.06% code-only | 0.08% all files. 277 raw SimpleDoc files excluded from code-only track.
+Run `node test/test_corpus.js` for exact numbers (canonical source).
 
 Remaining errors are primarily:
 - Cascading recovery errors from other root causes (~40%)

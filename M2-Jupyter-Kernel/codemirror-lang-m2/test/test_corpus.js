@@ -4,6 +4,7 @@ import {parser} from '../src/parser.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Find all .m2 files recursively
@@ -120,7 +121,15 @@ for (const dir of dirs) {
 const allRate = allNodes > 0 ? (allErrors / allNodes * 100) : 0;
 const codeRate = codeNodes > 0 ? (codeErrors / codeNodes * 100) : 0;
 
-console.log('\n=== CORPUS TEST RESULTS ===');
+// Canonical metric source: commit hash + date
+let commitInfo = '';
+try {
+  const hash = execSync('git rev-parse --short HEAD', { cwd: __dirname }).toString().trim();
+  const date = execSync('git log -1 --format=%ci HEAD', { cwd: __dirname }).toString().trim().split(' ')[0];
+  commitInfo = ` (commit ${hash}, ${date})`;
+} catch (e) { /* git not available */ }
+
+console.log(`\n=== CORPUS TEST RESULTS${commitInfo} ===`);
 console.log(`  ALL files:  ${allFiles} files | ${allNodes} nodes | ${allErrors} errors | ${allRate.toFixed(2)}%`);
 console.log(`  CODE only:  ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate.toFixed(2)}%`);
 console.log(`  Doc files excluded: ${skippedDocFiles}`);
