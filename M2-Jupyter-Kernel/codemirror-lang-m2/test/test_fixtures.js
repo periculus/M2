@@ -1100,6 +1100,88 @@ console.log('=== OperatorSymbol Representative Matrix ===');
   assert(errorCount('symbol ^<') === 0, `"symbol ^<" should have 0 errors`);
 }
 
+console.log('');
+console.log('=== TripleString Lexer Fidelity ===');
+// Partial fidelity increment: tests prove which M2 //// escape patterns
+// achieve parity with lex.d:getstringslashes. The grammar rule adds "////"
+// as a content alternative, so 4 consecutive slashes are consumed as content
+// rather than triggering a premature close.
+
+// 1. Basic triple-string
+{
+  const code = '///hello///';
+  assert(findNode(code, 'TripleString') !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// 2. Four-slash escape (M2's //// → 1 output slash)
+{
+  const code = '///before //// after///';
+  const ts = findNode(code, 'TripleString');
+  assert(ts !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  // Verify single TripleString spans entire input
+  assert(ts && ts.from === 0 && ts.to === code.length, `"${code}" TripleString should span entire input`);
+}
+
+// 3. Real-world XML-like pattern: //// in middle with proper /// close
+//    In XML.m2, ////<bar/>////\n continues to next line (no close on same line).
+//    This test verifies the useful case: //// escape mid-string with clean close.
+{
+  const code = '////<foo>bar</foo>//// and more///';
+  const ts = findNode(code, 'TripleString');
+  assert(ts !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  assert(ts && ts.from === 0 && ts.to === code.length, `"${code}" TripleString should span entire input`);
+}
+
+// 4. Multiple escapes
+{
+  const code = '///a //// b //// c///';
+  const ts = findNode(code, 'TripleString');
+  assert(ts !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  assert(ts && ts.from === 0 && ts.to === code.length, `"${code}" TripleString should span entire input`);
+}
+
+// 5. Seven slashes: //// (content) + /// (close) = 7
+{
+  const code = '///content///////';
+  const ts = findNode(code, 'TripleString');
+  assert(ts !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// 6. Eight slashes: //// + //// = 8 (stays open, needs closing ///)
+{
+  const code = '///a //////// b///';
+  const ts = findNode(code, 'TripleString');
+  assert(ts !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  assert(ts && ts.from === 0 && ts.to === code.length, `"${code}" TripleString should span entire input`);
+}
+
+// 7. Empty triple-string: /// + /// = 6 slashes
+{
+  const code = '//////';
+  assert(findNode(code, 'TripleString') !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// 8. One slash in content
+{
+  const code = '///a/b///';
+  assert(findNode(code, 'TripleString') !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
+// 9. Two slashes in content
+{
+  const code = '///a//b///';
+  assert(findNode(code, 'TripleString') !== null, `"${code}" should produce TripleString`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+}
+
 // ============================================================
 // Summary
 // ============================================================

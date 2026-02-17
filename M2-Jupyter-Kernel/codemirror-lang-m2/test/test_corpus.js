@@ -1,11 +1,11 @@
 // Full corpus test: parse ALL .m2 files and report error rates
-// Reports dual-track metrics: ALL files and CODE-ONLY (doc-filtered)
+// Reports metrics: ALL files, CODE-ONLY (canonical), and DOC_HEAVY (informational)
 import {parser} from '../src/parser.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { isRawDocFile } from './doc_detection.js';
+import { isRawDocFile, classifyFile } from './doc_detection.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Find all .m2 files recursively
@@ -51,12 +51,17 @@ const dirs = [
   path.join(m2Root, 'packages'),
 ];
 
-// Dual-track counters
+// Track counters
 let allFiles = 0, allNodes = 0, allErrors = 0;
 let codeFiles = 0, codeNodes = 0, codeErrors = 0;
+// DOC_HEAVY informational counters (these files stay IN CODE_ONLY)
+let docHeavyFiles = 0, docHeavyNodes = 0, docHeavyErrors = 0;
 let skippedDocFiles = 0;
+let corruptFiles = 0;
 let worstFiles = [];
 let errorCounts = {};
+
+const startTime = Date.now();
 
 for (const dir of dirs) {
   if (!fs.existsSync(dir)) { console.log('Skipping (not found):', dir); continue; }
@@ -68,8 +73,7 @@ for (const dir of dirs) {
       const code = fs.readFileSync(file, 'utf-8');
       if (code.length > 500000) continue; // skip very large files
 
-      const isDoc = isRawDocFile(code, file);
-      if (isDoc) skippedDocFiles++;
+      const classification = classifyFile(code, file);
 
       const tree = parser.parse(code);
       const { totalNodes: nodes, errorNodes: errors, errorTexts } = analyzeTree(code, tree);
@@ -79,29 +83,51 @@ for (const dir of dirs) {
       allNodes += nodes;
       allErrors += errors;
 
-      // CODE-ONLY track (excluding raw doc files)
-      if (!isDoc) {
-        codeFiles++;
-        codeNodes += nodes;
-        codeErrors += errors;
+      if (classification === 'corrupt') {
+        corruptFiles++;
+        continue; // excluded from CODE_ONLY
+      }
 
-        const errorRate = nodes > 0 ? (errors / nodes * 100) : 0;
-        if (errorRate > 10 && nodes > 20) {
-          worstFiles.push({ file: path.relative(m2Root, file), errorRate: errorRate.toFixed(1), nodes, errors });
-        }
+      if (classification === 'raw_doc') {
+        skippedDocFiles++;
+        continue; // excluded from CODE_ONLY
+      }
 
-        // Count common error patterns (code-only)
-        for (const text of errorTexts) {
-          const key = text.substring(0, 20);
-          errorCounts[key] = (errorCounts[key] || 0) + 1;
-        }
+      // CODE-ONLY track (includes 'code' AND 'doc_heavy' files)
+      codeFiles++;
+      codeNodes += nodes;
+      codeErrors += errors;
+
+      // Track doc-heavy separately (informational only, NOT excluded)
+      if (classification === 'doc_heavy') {
+        docHeavyFiles++;
+        docHeavyNodes += nodes;
+        docHeavyErrors += errors;
+      }
+
+      const errorRate = nodes > 0 ? (errors / nodes * 100) : 0;
+      if (errorRate > 10 && nodes > 20) {
+        worstFiles.push({ file: path.relative(m2Root, file), errorRate: errorRate.toFixed(1), nodes, errors });
+      }
+
+      // Count common error patterns (code-only)
+      for (const text of errorTexts) {
+        const key = text.substring(0, 20);
+        errorCounts[key] = (errorCounts[key] || 0) + 1;
       }
     } catch (e) { /* skip unreadable files */ }
   }
 }
 
+const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 const allRate = allNodes > 0 ? (allErrors / allNodes * 100) : 0;
 const codeRate = codeNodes > 0 ? (codeErrors / codeNodes * 100) : 0;
+
+// Informational: what CODE_ONLY looks like without doc-heavy files
+const strictFiles = codeFiles - docHeavyFiles;
+const strictNodes = codeNodes - docHeavyNodes;
+const strictErrors = codeErrors - docHeavyErrors;
+const strictRate = strictNodes > 0 ? (strictErrors / strictNodes * 100) : 0;
 
 // Canonical metric source: commit hash + date
 let commitInfo = '';
@@ -112,9 +138,11 @@ try {
 } catch (e) { /* git not available */ }
 
 console.log(`\n=== CORPUS TEST RESULTS${commitInfo} ===`);
-console.log(`  ALL files:  ${allFiles} files | ${allNodes} nodes | ${allErrors} errors | ${allRate.toFixed(2)}%`);
-console.log(`  CODE only:  ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate.toFixed(2)}%`);
-console.log(`  Doc files excluded: ${skippedDocFiles}`);
+console.log(`  ALL files:    ${allFiles} files | ${allNodes} nodes | ${allErrors} errors | ${allRate.toFixed(2)}%`);
+console.log(`  CODE only:    ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate.toFixed(2)}%`);
+console.log(`  Strict code:  ${strictFiles} files | ${strictNodes} nodes | ${strictErrors} errors | ${strictRate.toFixed(2)}%  (informational: CODE only minus ${docHeavyFiles} doc-heavy files)`);
+console.log(`  Excluded: ${skippedDocFiles} raw SimpleDoc + ${corruptFiles} corrupt (merge markers)`);
+console.log(`  Parse time: ${elapsed}s`);
 console.log(`Target: <5% (code-only)`);
 console.log(`Status: ${codeRate < 5 ? 'PASS' : 'NEEDS IMPROVEMENT'}`);
 

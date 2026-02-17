@@ -328,7 +328,12 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   String { '"' (![\\\"] | "\\" _)* '"' }
 
   // Triple-slash documentation strings: /// ... ///
-  TripleString { "///" (![/] | "/" ![/] | "//" ![/])* "///" }
+  // M2's lexer (lex.d:getstringslashes) treats //// as an escape (4 slashes → 1 output slash).
+  // The "////" alternative handles this: Lezer's DFA longest-match picks //// over /// when 4+
+  // slashes appear, keeping the string open. Exactly 3 slashes still match the closing "///".
+  // This is a partial fidelity increment — covers common cases (XML.m2, OpenMath.m2, Text.m2)
+  // but may not replicate all edge cases of M2's character-by-character state machine.
+  TripleString { "///" (![/] | "/" ![/] | "//" ![/] | "////")* "///" }
 
   LineComment { "--" ![\n]* }
 

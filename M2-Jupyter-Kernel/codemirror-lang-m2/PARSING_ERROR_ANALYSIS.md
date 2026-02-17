@@ -1,23 +1,31 @@
 # M2 Lezer Grammar: Parsing Error Analysis
 
-**Date**: February 2026 (updated Feb 15)
+**Date**: February 2026 (updated Feb 17)
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
 **Corpus**: 2,594 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/)
 **Canonical metric source**: `node test/test_corpus.js` — run to regenerate all numbers below
-**Current error rate**: 0.06% code-only | 0.08% all files
-**Code files**: 2,317 | **Doc files excluded**: 277 raw SimpleDoc files
-**Fixture tests**: 327 assertions in `test/test_fixtures.js`
+**Current error rate**: 0.06% code-only (5,250 errors / 8,789,221 nodes) | 0.07% all files
+**Code files**: 2,552 | **Doc files excluded**: 42 raw SimpleDoc + 0 corrupt
+**Doc-heavy files** (informational, included in code-only): 388 (Macaulay2Doc/, *-doc.m2)
+**Fixture tests**: 349 assertions in `test/test_fixtures.js` + 17 classifier tests
 **Operator validation**: 67/67 operators covered — `node test/validate_operators.js`
 
 ## Metrics Policy
 
-The corpus test (`test/test_corpus.js`) reports **dual metrics**:
+The corpus test (`test/test_corpus.js`) reports **three tracks**:
 - **ALL files**: Every `.m2` file in the corpus (includes raw doc files)
-- **CODE-ONLY**: Excludes raw SimpleDoc files that aren't M2 code
+- **CODE-ONLY**: Excludes raw SimpleDoc and corrupt files — **primary metric**
+- **Strict code**: Informational — CODE-ONLY minus doc-heavy files (Macaulay2Doc/, *-doc.m2 with >50% `document{}` blocks). Doc-heavy files are valid M2 code wrapping documentation; they stay in CODE-ONLY.
 
-The primary metric is **CODE-ONLY error rate**. Both are tracked for trend analysis.
+The primary metric is **CODE-ONLY error rate**. Parse time is reported for regression detection.
 
 ## Fixes Applied
+
+### Feb 17, 2026
+1. **TripleString `////` escape (partial fidelity)** — Added `"////"` as content alternative in TripleString token rule. M2's lexer (`lex.d:getstringslashes`) treats `////` as an escape (4 slashes → 1 output slash). The grammar-level fix handles common cases (XML.m2, OpenMath.m2, Text.m2 patterns where `////` appears mid-string before a proper `///` close). Error rate: 5,269 → 5,050 (219 errors eliminated, parser change only). Full parity with M2's character-by-character state machine may require an external tokenizer in a future pass.
+2. **3-track file classification** — `classifyFile()` in `doc_detection.js` returns `'code'`, `'raw_doc'`, `'doc_heavy'`, or `'corrupt'`. Classification order: `corrupt` → `doc_heavy` (path-based) → `raw_doc` (content-based) → `code`. Merge conflict marker detection added (zero found, cheap insurance). Doc-heavy track is informational — files stay in CODE-ONLY.
+3. **Classification ordering fix** — Moved path-based `doc_heavy` check (Macaulay2Doc/, *-doc.m2) BEFORE content-based `raw_doc` check. Without this, `isRawDocFile`'s `document { Key => }` heuristic caught 235 Macaulay2Doc files as `raw_doc` (excluded) instead of `doc_heavy` (included). Raw doc exclusions: 277 → 42. Doc-heavy informational: 153 → 388.
+4. **Parse-tree TripleString regions** — `analyze_errors.js`'s `findTripleStringRegions()` now extracts TripleString node positions from the parse tree instead of using naive `indexOf("///")` scanning, which mishandled `////` escapes.
 
 ### Feb 15, 2026
 1. **External tokenizer for control-flow keywords** — `IfKw`, `ThenKw`, `ElseKw`, `TryKw`, `CatchKw` emitted by `controlFlowTokenizer.js` using `stack.canShift()` gating. Replaces `ckw` (`@extend`) which failed inside parens/braces because juxtaposition consumed keywords as Identifiers. Error rate: 0.10% → 0.06% (3,284 errors eliminated).
@@ -46,7 +54,7 @@ M2 supports `try...catch`, `try...then`, `try...then...else`, and `try...else`. 
 ## Executive Summary
 
 The 0.06% error rate (code-only) is excellent for a syntax highlighter. The remaining
-~5,270 errors cluster around a small number of root causes. This report analyzes all
+~5,250 errors cluster around a small number of root causes. This report analyzes all
 error categories, identifies root causes from the actual M2 source code, and assesses
 fixability.
 
@@ -228,21 +236,9 @@ separate expression.
 
 **Frequency**: ~229 occurrences of `p` and `e` suffixed numbers across the corpus.
 
-**Fixability**: **Medium**. The Number token rule can be extended:
-
-```
-Number {
-  @digit+ ("." @digit*)? ("p" @digit+)? ("e" "-"? @digit+)? |
-  "." @digit+ ("p" @digit+)? ("e" "-"? @digit+)?
-}
-```
-
-Key concern: The `p` and `e` characters also start identifiers, so token precedence
-must be handled carefully. `1p` should still be `Number(1) Identifier(p)` if no digits
-follow. The `e` suffix is trickier because `e` alone is a common variable name.
-
-**Estimated effort**: 1-2 hours. Would fix ~1,500-2,000 errors. The trailing-dot fix
-alone (`1.` as a valid Number) could be done in minutes and would fix ~500 errors.
+**Fixability**: **DONE** (Feb 10). Number token now supports trailing dot, precision suffix (`p`),
+and scientific notation (`e`). Leading-dot numbers handled by `LeadingDotNumber` parser rule (Feb 14).
+~1,000+ errors eliminated.
 
 ---
 
@@ -423,30 +419,17 @@ This file extensively tests M2's number system. The errors come almost entirely 
 
 **Root causes**: Missing number formats (#3, ~70%), cascading (#4, ~30%).
 
-**Highly fixable** -- extending the Number token would eliminate most errors in this file.
+**Mostly fixed** — Number token extensions (Feb 10) eliminated ~1000+ errors from this file.
 
 ---
 
 ## Recommended Fix Priority
 
-### Priority 1: Extend Number Literals (Medium effort, ~2,000 errors fixed)
+### Priority 1: Extend Number Literals — DONE (Feb 10)
 
-Add support for:
-- Trailing decimal point: `1.` (change `("." @digit+)?` to `("." @digit*)?`)
-- Precision suffix: `p` followed by digits
-- Scientific notation: `e` followed by optional `-` and digits
-
-```
-Number {
-  @digit+ ("." @digit*)? ("p" @digit+)? ("e" ("-" | "+")? @digit+)? |
-  "." @digit+ ("p" @digit+)? ("e" ("-" | "+")? @digit+)?
-}
-```
-
-Note: Trailing-dot (`1.`) requires careful token precedence with `.` (member access)
-and `..` (range). The rule `@digit+ "." @digit*` would make `1.` a number, but `1..5`
-needs to be `Number(1) .. Number(5)`, not `Number(1.) . Number(5)`. Token precedence
-already has `".." > "."` so this should work, but must be tested carefully.
+Number token now supports trailing dot (`1.`), precision suffix (`1p111`), scientific
+notation (`1e-10`), and leading-dot numbers via `LeadingDotNumber` parser rule.
+See Feb 10 fixes above.
 
 ### Priority 2: `try...then...else` support — DONE (Feb 15)
 
@@ -488,7 +471,7 @@ All minor fixes implemented (Feb 10):
 ### Revisit Triggers
 
 Re-evaluate these decisions if:
-- **Doc preprocessing**: Doc-region errors exceed 5% of code-only errors (currently 0.7% per `analyze_errors.js` DOC-REGION section), or doc-file detector misses increase beyond 10 files
+- **Doc preprocessing**: Doc-region errors exceed 5% of code-only errors (currently 4.0% per `analyze_errors.js` DOC-REGION section), or doc-file detector misses increase beyond 10 files
 - **Bare `-` fix**: `symbol -` errors exceed 500 occurrences (currently ~187), or an external tokenizer approach is found that doesn't conflict with `--`/`-*` comments
 - **`if`/`try` keyword regression**: Any real-world `.m2` file uses `if` or `try` as an identifier (currently 0 instances in 2,594 files)
 - **ckw nested contexts**: `for`/`while`/`do` inside parens with binary operators becomes a common pattern (currently rare in corpus)
@@ -500,19 +483,22 @@ Re-evaluate these decisions if:
 The corpus contains files that are valid M2 but NOT normal executable code. These are
 **intentionally excluded** from the CODE-ONLY error metric but **included** in the ALL metric.
 
-### Raw SimpleDoc Files (277 files, excluded from CODE-ONLY)
+### Raw SimpleDoc Files (42 files, excluded from CODE-ONLY)
 
 **Detection criteria** (implemented in `test/doc_detection.js:isRawDocFile()`, shared by `test_corpus.js` and `analyze_errors.js`):
-1. Filename is `doc.m2` or ends with `-doc.m2`, with raw `Node`/`Key` markup
+1. Filename is `doc.m2` or ends with `-doc.m2`, with raw `Node`/`Key` markup at start
 2. Content-based: files starting with `document { ... Key => ...}` blocks (raw SimpleDoc)
 3. First 500 chars do NOT contain `doc ///` (not wrapped in M2 syntax)
+
+**Important**: Path-based `doc_heavy` checks run BEFORE `isRawDocFile` to prevent
+Macaulay2Doc files (which often start with `document { Key => }`) from being incorrectly
+excluded as `raw_doc`.
 
 **Why excluded**: These files use SimpleDoc markup format (Node/Key/Headline/Text/Example
 blocks) that is loaded by M2's documentation system but is not M2 expression syntax.
 English prose, LaTeX math, and HTML-like markup produce cascading parse errors.
 
-**Examples**: `packages/Schubert2/doc.m2` (1,398 errors), `packages/Varieties/doc-maps.m2`,
-`packages/Macaulay2Doc/operators/tensor.m2`
+**Examples**: `packages/Schubert2/doc.m2` (1,398 errors), `packages/Varieties/doc-maps.m2`
 
 ### LaTeX/TeX in Documentation Strings (NOT excluded)
 
@@ -527,7 +513,7 @@ comment tokens and produces zero errors. Only prose OUTSIDE of comments/strings 
 
 ## Current Error Rate
 
-0.06% code-only | 0.08% all files. 277 raw SimpleDoc files excluded from code-only track.
+0.06% code-only | 0.07% all files. 42 raw SimpleDoc files excluded from code-only track.
 Run `node test/test_corpus.js` for exact numbers (canonical source).
 
 Remaining errors are primarily:
@@ -538,22 +524,21 @@ Remaining errors are primarily:
 
 ---
 
-## Appendix: Top Error Patterns from Corpus Test (Feb 15, 2026)
+## Appendix: Top Error Patterns from Corpus Test (Feb 17, 2026)
 
 These are the actual error text snippets reported by the parser (first 20 chars of
 each error node's content, code-only track):
 
 | Count | Error Text | Root Cause |
 |---|---|---|
-| 1,399 | `,` | Cascading: commas eaten during recovery |
-| 899 | `)` | Cascading: closing parens eaten during recovery |
-| 576 | `;` | Cascading: semicolons eaten during recovery |
-| 61 | `}` | Cascading: closing braces eaten during recovery |
+| 1,363 | `,` | Cascading: commas eaten during recovery |
+| 888 | `)` | Cascading: closing parens eaten during recovery |
+| 553 | `;` | Cascading: semicolons eaten during recovery |
+| 55 | `}` | Cascading: closing braces eaten during recovery |
 | 19 | `>=` | Comparison operator in error context |
 | 17 | `?` | Question mark operator in error context |
 | 10 | `))` | Cascading: double close-paren recovery |
-| 9 | `symbol ^` | OperatorSymbol edge case |
-| 6 | `\` | LaTeX backslash |
+| 7 | `symbol ^` | OperatorSymbol edge case |
 | 5 | `'` | Apostrophe in identifier context |
 | 5 | `};` | Cascading recovery |
 | 4 | `??` | Null-coalescing operator in error context |

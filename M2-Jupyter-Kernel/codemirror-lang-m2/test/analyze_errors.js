@@ -22,7 +22,7 @@ import {parser} from '../src/parser.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { isRawDocFile } from './doc_detection.js';
+import { isRawDocFile, classifyFile } from './doc_detection.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ============================================================
@@ -43,17 +43,18 @@ function findFiles(dir, ext, results = []) {
   return results;
 }
 
-function findTripleStringRegions(code) {
+// Extract TripleString regions from the parse tree (not raw indexOf).
+// This correctly handles //// escapes inside triple-strings, which the
+// naive indexOf("///") approach would misparse as early close delimiters.
+function findTripleStringRegions(tree) {
   const regions = [];
-  let idx = 0;
-  while (idx < code.length - 2) {
-    const start = code.indexOf('///', idx);
-    if (start === -1) break;
-    const end = code.indexOf('///', start + 3);
-    if (end === -1) break;
-    regions.push({ from: start, to: end + 3 });
-    idx = end + 3;
-  }
+  tree.iterate({
+    enter: (node) => {
+      if (node.name === 'TripleString') {
+        regions.push({ from: node.from, to: node.to });
+      }
+    }
+  });
   return regions;
 }
 
@@ -201,6 +202,7 @@ const juxtaPairs = {};
 const dirStats = {};
 
 let totalNodes = 0, totalErrors = 0, totalChars = 0, totalFiles = 0, skippedDocFiles = 0;
+let docHeavyFileCount = 0, docHeavyErrors = 0, corruptFileCount = 0;
 // Doc-region error distribution (point 1 from reviewer)
 let errorsInTripleString = 0, errorsInDocumentBlock = 0, errorsInPureCode = 0;
 const fileStats = [];
@@ -222,13 +224,16 @@ for (const dir of dirs) {
       const code = fs.readFileSync(file, 'utf-8');
       if (code.length > 500000) continue;
 
-      // Skip raw SimpleDoc files (documentation markup, not M2 code)
-      if (isRawDocFile(code, file)) { skippedDocFiles++; continue; }
+      // Classify and skip non-code files
+      const classification = classifyFile(code, file);
+      if (classification === 'corrupt') { corruptFileCount++; continue; }
+      if (classification === 'raw_doc') { skippedDocFiles++; continue; }
+      const isDocHeavy = classification === 'doc_heavy';
 
       totalChars += code.length;
       dirStats[dirName].chars += code.length;
       const tree = parser.parse(code);
-      const tripleRegions = findTripleStringRegions(code);
+      const tripleRegions = findTripleStringRegions(tree);
       const docBlocks = findDocumentBlocks(code);
 
       const allNodes = [];
@@ -402,6 +407,7 @@ for (const dir of dirs) {
       totalFiles++;
       totalNodes += fileNodes;
       totalErrors += fileErrors;
+      if (isDocHeavy) { docHeavyFileCount++; docHeavyErrors += fileErrors; }
       dirStats[dirName].files++;
       dirStats[dirName].nodes += fileNodes;
       dirStats[dirName].errors += fileErrors;
@@ -579,4 +585,10 @@ console.log();
 console.log(`  Doc preprocessing value: ${errorsInDocumentBlock === 0 ? 'NONE — zero errors in document{} blocks' :
   errorsInDocumentBlock < docRegionTotal * 0.05 ? 'LOW — fewer than 5% of errors in doc regions' :
   'SIGNIFICANT — consider implementing doc preprocessing'}`);
+console.log();
+console.log('FILE CLASSIFICATION:');
+console.log(`  Code files:     ${totalFiles}`);
+console.log(`  Doc-heavy:      ${docHeavyFileCount} files, ${docHeavyErrors} errors (informational, included in totals)`);
+console.log(`  Raw SimpleDoc:  ${skippedDocFiles} files (excluded from analysis)`);
+console.log(`  Corrupt:        ${corruptFileCount} files (excluded from analysis)`);
 console.log();
