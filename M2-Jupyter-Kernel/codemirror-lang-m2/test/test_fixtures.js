@@ -1302,6 +1302,158 @@ console.log('\n=== Implicit Statement Separation ===');
 }
 
 // ============================================================
+// Augmented Assignment Operators
+// ============================================================
+console.log('\n=== Augmented Assignment Operators ===');
+
+// Positive: core arithmetic augmented (must parse as AssignExpr, 0 errors)
+{
+  const ops = [
+    ['x += 3', '+='],
+    ['x -= 4', '-='],
+    ['x *= 5', '*='],
+    ['x /= 7', '/='],
+    ['x ^= 6', '^='],
+    ['x %= 1', '%='],
+  ];
+  for (const [code, op] of ops) {
+    assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+    assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  }
+}
+
+// Positive: bitwise/logical augmented
+{
+  const ops = [
+    ['x &= 6', '&='],
+    ['x |= y', '|='],
+    ['x ^^= 5', '^^='],
+  ];
+  for (const [code, op] of ops) {
+    assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+    assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  }
+}
+
+// Positive: compound operators
+{
+  const ops = [
+    ['x ||= y', '||='],
+    ['x //= 3', '//='],
+    ['x ++= y', '++='],
+    ['x **= y', '**='],
+    ['x @@= f', '@@='],
+    ['x @= y', '@='],
+    ['x <<= 3', '<<='],
+    ['x >>= 4', '>>='],
+    ['x ..= y', '..='],
+    ['x ^**= 3', '^**='],
+    ['x |-= y', '|-='],
+    ['x |_= y', '|_='],
+  ];
+  for (const [code, op] of ops) {
+    assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+    assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  }
+}
+
+// Positive: backslash and subscript augmented
+{
+  const ops = [
+    ['x \\= y', '\\='],      // single backslash augmented
+    ['x \\\\= y', '\\\\='],  // double backslash augmented
+    ['x _= y', '_='],
+  ];
+  for (const [code, op] of ops) {
+    assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+    assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  }
+}
+
+// Positive: "deferred" quartet (long arrow augmented + range-less-than)
+{
+  const ops = [
+    ['x ..<= y', '..<= '],
+    ['x <==>= y', '<=>='],
+    ['x ==>= y', '==>='],
+    ['x ===>= y', '===>='],
+  ];
+  for (const [code, op] of ops) {
+    assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+    assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  }
+}
+
+// Negative: must NOT break existing parsing
+{
+  // Space between operator parts → NOT augmented assignment
+  const code1 = 'x + 3';
+  assert(findNode(code1, 'BinaryExpression') !== null, `"x + 3" must be BinaryExpression not AssignExpr`);
+  assert(findNode(code1, 'AssignExpr') === null, `"x + 3" must NOT produce AssignExpr`);
+
+  // Plain assignment still works
+  const code2 = 'x = 5';
+  assert(findNode(code2, 'AssignExpr') !== null, `"x = 5" must produce AssignExpr`);
+  assert(errorCount(code2) === 0, `"x = 5" should have 0 errors, got ${errorCount(code2)}`);
+
+  // Existing ??= still works
+  const code3 = 'x ??= 2';
+  assert(findNode(code3, 'AssignExpr') !== null, `"x ??= 2" must produce AssignExpr`);
+  assert(errorCount(code3) === 0, `"x ??= 2" should have 0 errors, got ${errorCount(code3)}`);
+
+  // >> as output/assignment still works
+  const code4 = 'x >> y';
+  assert(findNode(code4, 'AssignExpr') !== null, `"x >> y" must produce AssignExpr`);
+  assert(errorCount(code4) === 0, `"x >> y" should have 0 errors, got ${errorCount(code4)}`);
+
+  // -- is still LineComment (not confused with -=)
+  const code5 = '-- comment';
+  assert(findNode(code5, 'LineComment') !== null, `"-- comment" must produce LineComment`);
+  assert(errorCount(code5) === 0, `"-- comment" should have 0 errors, got ${errorCount(code5)}`);
+}
+
+// Real corpus patterns: augmented assignment with subscript/member access
+{
+  const code1 = 'x#0 += 3';
+  assert(findNode(code1, 'AssignExpr') !== null, `"x#0 += 3" must contain AssignExpr`);
+  assert(errorCount(code1) === 0, `"x#0 += 3" should have 0 errors, got ${errorCount(code1)}`);
+
+  const code2 = 'x.foo += 3';
+  assert(findNode(code2, 'AssignExpr') !== null, `"x.foo += 3" must contain AssignExpr`);
+  assert(errorCount(code2) === 0, `"x.foo += 3" should have 0 errors, got ${errorCount(code2)}`);
+
+  const code3 = 'x_0 += 3';
+  assert(findNode(code3, 'AssignExpr') !== null, `"x_0 += 3" must contain AssignExpr`);
+  assert(errorCount(code3) === 0, `"x_0 += 3" should have 0 errors, got ${errorCount(code3)}`);
+}
+
+// OperatorSymbol fixtures for augmented forms used in method installation
+{
+  const code1 = 'symbol +=';
+  assert(findNode(code1, 'OperatorSymbol') !== null, `"symbol +=" must produce OperatorSymbol`);
+  assert(errorCount(code1) === 0, `"symbol +=" should have 0 errors, got ${errorCount(code1)}`);
+
+  const code2 = 'symbol -=';
+  assert(findNode(code2, 'OperatorSymbol') !== null, `"symbol -=" must produce OperatorSymbol`);
+  assert(errorCount(code2) === 0, `"symbol -=" should have 0 errors, got ${errorCount(code2)}`);
+
+  const code3 = 'symbol ..<= ';
+  assert(findNode(code3, 'OperatorSymbol') !== null, `"symbol ..<=" must produce OperatorSymbol`);
+  assert(errorCount(code3) === 0, `"symbol ..<=" should have 0 errors, got ${errorCount(code3)}`);
+
+  const code4 = 'symbol |_=';
+  assert(findNode(code4, 'OperatorSymbol') !== null, `"symbol |_=" must produce OperatorSymbol`);
+  assert(errorCount(code4) === 0, `"symbol |_=" should have 0 errors, got ${errorCount(code4)}`);
+}
+
+// ^^ as binary operator (pre-existing fix: was broken before augmented assignment work)
+{
+  const code = 'x ^^ y';
+  assert(findNode(code, 'BinaryExpression') !== null, `"x ^^ y" must produce BinaryExpression`);
+  assert(errorCount(code) === 0, `"x ^^ y" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// ============================================================
 // Summary
 // ============================================================
 console.log('');
