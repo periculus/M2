@@ -90,10 +90,12 @@ M2-Jupyter-Kernel/
 │   │   ├── parser.js            # Generated parser (npx lezer-generator output)
 │   │   ├── parser.terms.js      # Generated term IDs
 │   │   ├── highlight.js         # Tag → highlighting mappings
+│   │   ├── controlFlowTokenizer.js  # External tokenizer: if/then/else/try/catch
+│   │   ├── implicitSemiTokenizer.js # ContextTracker + ExternalTokenizer for newline-as-semi
 │   │   └── tokens.ts            # Type/Builtin/Constant token lists
 │   └── test/
-│       ├── test_corpus.js       # Full corpus test (2407 .m2 files, 187 raw doc excluded)
-│       ├── test_fixtures.js     # Parser-shape assertions (81 fixtures)
+│       ├── test_corpus.js       # Full corpus test (2594 .m2 files, 42 raw doc excluded)
+│       ├── test_fixtures.js     # Parser-shape assertions (376 fixtures)
 │       └── analyze_errors.js    # Detailed error categorization
 ├── src/                         # Extension TypeScript source
 │   ├── index.ts                 # Extension entry point (registers language, CSS overrides)
@@ -105,7 +107,9 @@ M2-Jupyter-Kernel/
 │       ├── m2.grammar           # Copied from codemirror-lang-m2 (gitignored)
 │       ├── parser.js            # Copied from codemirror-lang-m2 (gitignored)
 │       ├── parser.terms.js      # Copied from codemirror-lang-m2 (gitignored)
-│       └── highlight.js         # Copied from codemirror-lang-m2 (gitignored)
+│       ├── highlight.js         # Copied from codemirror-lang-m2 (gitignored)
+│       ├── controlFlowTokenizer.js  # Copied from codemirror-lang-m2 (gitignored)
+│       └── implicitSemiTokenizer.js # Copied from codemirror-lang-m2 (gitignored)
 ├── lib/                         # tsc output (gitignored)
 ├── scripts/
 │   └── generate_symbols.py      # Documentation extraction script
@@ -226,7 +230,7 @@ npm run build
 
 # 2. Tests
 cd codemirror-lang-m2
-node test/test_fixtures.js   # 81 fixture assertions
+node test/test_fixtures.js   # 376 fixture assertions
 node test/test_corpus.js     # target: <1% error rate
 cd ..
 
@@ -255,9 +259,10 @@ jupyter lab
 
 ## Current Grammar Status (Feb 2026)
 
-- **0.10% error rate** (8,864 errors across 2,407 files, 187 raw doc files excluded)
+- **0.058% error rate** (5,166 errors across 2,552 code files, 42 raw doc files excluded)
 - See `codemirror-lang-m2/PARSING_ERROR_ANALYSIS.md` for detailed breakdown
-- Grammar uses `try...catch` form (M2 also supports `try...then...else`, but this causes a shift/reduce conflict with IfExpr's `then/else`)
+- Grammar uses `try...catch`/`try...then`/`try...then...else`/`try...else` forms (external tokenizer resolves all conflicts)
 - OperatorSymbol token handles `symbol *`, `symbol ==`, etc. — standalone `-` excluded (conflicts with comments)
-- Fixture tests: `node test/test_fixtures.js` (81 assertions)
+- **ImplicitSemi**: newline-as-statement-separator via ContextTracker + ExternalTokenizer (fallback + canShift guard). Only in Program, not Body.
+- Fixture tests: `node test/test_fixtures.js` (376 assertions)
 - Known unfixable: `symbol -` (comment conflict), raw SimpleDoc markup, LaTeX in doc strings

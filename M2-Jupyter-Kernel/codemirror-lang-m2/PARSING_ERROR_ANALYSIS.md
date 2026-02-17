@@ -4,10 +4,10 @@
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
 **Corpus**: 2,594 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/)
 **Canonical metric source**: `node test/test_corpus.js` — run to regenerate all numbers below
-**Current error rate**: 0.06% code-only (5,250 errors / 8,789,221 nodes) | 0.07% all files
+**Current error rate**: 0.058% code-only (5,166 errors / 8,915,934 nodes) | 0.07% all files
 **Code files**: 2,552 | **Doc files excluded**: 42 raw SimpleDoc + 0 corrupt
 **Doc-heavy files** (informational, included in code-only): 388 (Macaulay2Doc/, *-doc.m2)
-**Fixture tests**: 349 assertions in `test/test_fixtures.js` + 17 classifier tests
+**Fixture tests**: 376 assertions in `test/test_fixtures.js` + 17 classifier tests
 **Operator validation**: 67/67 operators covered — `node test/validate_operators.js`
 
 ## Metrics Policy
@@ -22,7 +22,8 @@ The primary metric is **CODE-ONLY error rate**. Parse time is reported for regre
 ## Fixes Applied
 
 ### Feb 17, 2026
-1. **TripleString `////` escape (partial fidelity)** — Added `"////"` as content alternative in TripleString token rule. M2's lexer (`lex.d:getstringslashes`) treats `////` as an escape (4 slashes → 1 output slash). The grammar-level fix handles common cases (XML.m2, OpenMath.m2, Text.m2 patterns where `////` appears mid-string before a proper `///` close). Error rate: 5,269 → 5,050 (219 errors eliminated, parser change only). Full parity with M2's character-by-character state machine may require an external tokenizer in a future pass.
+1. **Implicit statement separation (ImplicitSemi)** — Added ContextTracker + ExternalTokenizer for newline-as-statement-separator, following the JavaScript Lezer ASI pattern. `spaces[@export]` + `newline[@export]` replace single `space` token; ContextTracker tracks newline boundaries; ExternalTokenizer emits zero-width `ImplicitSemi` with `fallback:true` + `canShift()` guard. Only active in `@top Program`, NOT in `Body` (parenthesized expressions). The `canShift` guard is critical: without it, `fallback:true` emits at error recovery positions causing +2,400 regression; with it, net -84 errors. Key patterns fixed: `Identifier|AssignExpr` 402→327 (-18.7%), `Number|AssignExpr` 217→185 (-14.7%), `newline_statement_sep` 53→18 (-66%). Error rate: 5,250 → 5,166 (0.0597% → 0.0579%).
+2. **TripleString `////` escape (partial fidelity)** — Added `"////"` as content alternative in TripleString token rule. M2's lexer (`lex.d:getstringslashes`) treats `////` as an escape (4 slashes → 1 output slash). The grammar-level fix handles common cases (XML.m2, OpenMath.m2, Text.m2 patterns where `////` appears mid-string before a proper `///` close). Error rate: 5,269 → 5,050 (219 errors eliminated, parser change only). Full parity with M2's character-by-character state machine may require an external tokenizer in a future pass.
 2. **3-track file classification** — `classifyFile()` in `doc_detection.js` returns `'code'`, `'raw_doc'`, `'doc_heavy'`, or `'corrupt'`. Classification order: `corrupt` → `doc_heavy` (path-based) → `raw_doc` (content-based) → `code`. Merge conflict marker detection added (zero found, cheap insurance). Doc-heavy track is informational — files stay in CODE-ONLY.
 3. **Classification ordering fix** — Moved path-based `doc_heavy` check (Macaulay2Doc/, *-doc.m2) BEFORE content-based `raw_doc` check. Without this, `isRawDocFile`'s `document { Key => }` heuristic caught 235 Macaulay2Doc files as `raw_doc` (excluded) instead of `doc_heavy` (included). Raw doc exclusions: 277 → 42. Doc-heavy informational: 153 → 388.
 4. **Parse-tree TripleString regions** — `analyze_errors.js`'s `findTripleStringRegions()` now extracts TripleString node positions from the parse tree instead of using naive `indexOf("///")` scanning, which mishandled `////` escapes.
@@ -53,8 +54,8 @@ M2 supports `try...catch`, `try...then`, `try...then...else`, and `try...else`. 
 
 ## Executive Summary
 
-The 0.06% error rate (code-only) is excellent for a syntax highlighter. The remaining
-~5,250 errors cluster around a small number of root causes. This report analyzes all
+The 0.058% error rate (code-only) is excellent for a syntax highlighter. The remaining
+~5,166 errors cluster around a small number of root causes. This report analyzes all
 error categories, identifies root causes from the actual M2 source code, and assesses
 fixability.
 
@@ -70,6 +71,7 @@ The original root causes and their current status:
 | 6. `try...then...else` | ~500 (3%) | **Fixed** | External tokenizer resolves all forms |
 | 7. Minor edge cases | ~600 (4%) | **Fixed** | `not` as ckw, ellipsis, trailing comma |
 | 8. Control flow in nested contexts | ~3,284 | **Fixed** | External tokenizer for if/then/else/try/catch |
+| 9. Cross-line juxtaposition | ~84 | **Reduced** | ImplicitSemi at Program level (canShift guard) |
 
 ---
 
@@ -513,7 +515,7 @@ comment tokens and produces zero errors. Only prose OUTSIDE of comments/strings 
 
 ## Current Error Rate
 
-0.06% code-only | 0.07% all files. 42 raw SimpleDoc files excluded from code-only track.
+0.058% code-only (5,166 errors) | 0.07% all files. 42 raw SimpleDoc files excluded from code-only track.
 Run `node test/test_corpus.js` for exact numbers (canonical source).
 
 Remaining errors are primarily:
@@ -521,6 +523,7 @@ Remaining errors are primarily:
 - `symbol -` (bare minus — can't fix without breaking comments)
 - Documentation markup/LaTeX in code-track files that aren't caught by doc filter
 - `ckw` keywords (`for`, `while`, `do`, etc.) failing inside nested contexts with operators
+- Cross-line juxtaposition (reduced by ImplicitSemi but not eliminated — only fires at Program level)
 
 ---
 
@@ -531,20 +534,20 @@ each error node's content, code-only track):
 
 | Count | Error Text | Root Cause |
 |---|---|---|
-| 1,363 | `,` | Cascading: commas eaten during recovery |
-| 888 | `)` | Cascading: closing parens eaten during recovery |
-| 553 | `;` | Cascading: semicolons eaten during recovery |
-| 55 | `}` | Cascading: closing braces eaten during recovery |
-| 19 | `>=` | Comparison operator in error context |
-| 17 | `?` | Question mark operator in error context |
-| 10 | `))` | Cascading: double close-paren recovery |
+| 1,313 | `,` | Cascading: commas eaten during recovery |
+| 826 | `)` | Cascading: closing parens eaten during recovery |
+| 604 | `;` | Cascading: semicolons eaten during recovery |
+| 53 | `}` | Cascading: closing braces eaten during recovery |
+| 34 | `\|` | Pipe operator in error context |
+| 26 | `?` | Question mark operator in error context |
+| 20 | `>=` | Comparison operator in error context |
+| 11 | `//` | Division in error context |
+| 9 | `\|_` | Subscript pipe in error context |
+| 9 | `==>` | Arrow operator in error context |
 | 7 | `symbol ^` | OperatorSymbol edge case |
+| 6 | `??` | Null-coalescing operator in error context |
+| 6 | `///` | TripleString boundary |
 | 5 | `'` | Apostrophe in identifier context |
-| 5 | `};` | Cascading recovery |
-| 4 | `??` | Null-coalescing operator in error context |
-| 4 | `symbol ==` | OperatorSymbol edge case |
-| 4 | `),` | Cascading recovery |
-| 3 | `·` | Unicode character in error context |
 
 ---
 

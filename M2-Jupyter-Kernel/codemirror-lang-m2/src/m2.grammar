@@ -2,10 +2,15 @@
 // Based on M2's grammar.y and operator precedence from binding.d
 // IMPORTANT: underscore (_) is an OPERATOR in M2, not part of identifiers
 
-// Semicolons are optional — M2 uses newlines as implicit statement separators
-@top Program { ";"* (expression ";"*)* }
+// M2 uses newlines as implicit statement separators (grammar.y: exprlist).
+// ImplicitSemi is a zero-width fallback token emitted by the ContextTracker +
+// ExternalTokenizer in implicitSemiTokenizer.js. It fires at newline boundaries
+// when (1) a newline was seen, (2) no built-in token is usable, and (3) the
+// parser state expects semi (canShift guard). Only used in Program, not Body.
+semi { ";" | ImplicitSemi }
+@top Program { semi* (expression semi*)* }
 
-@skip { space | LineComment | BlockComment }
+@skip { spaces | newline | LineComment | BlockComment }
 
 // External contextual tokens for control-flow clause keywords.
 // These are distinct from Identifier, so the parser can shift ThenKw/ElseKw/CatchKw
@@ -14,6 +19,16 @@
 // fall through to Identifier from the built-in tokenizer.
 @external tokens controlFlowKw from "./controlFlowTokenizer.js" {
   IfKw, ThenKw, ElseKw, TryKw, CatchKw
+}
+
+// Context tracker: sets stack.context = true when a newline was seen between
+// the previous real token and the current position. Used by ImplicitSemi.
+@context trackNewline from "./implicitSemiTokenizer.js"
+
+// External token for implicit statement separation:
+//   ImplicitSemi — emitted when newline seen and parser expects semi (fallback mode)
+@external tokens implicitSemicolon from "./implicitSemiTokenizer.js" {
+  ImplicitSemi
 }
 
 // Precedence: highest (tightest binding) listed first
@@ -309,7 +324,10 @@ ckw<term> { @extend[@name={term}]<Identifier, term> }
 CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
 
 @tokens {
-  space { @whitespace+ }
+  // Whitespace split: spaces (horizontal) vs newline (line terminators).
+  // The ContextTracker needs to see newline tokens separately to track line boundaries.
+  spaces[@export] { $[\t \u000b\u000c\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]+ }
+  newline[@export] { $[\r\n\u2028\u2029] }
 
   // Identifiers: letters + digits + prime + Unicode, NO underscore
   // M2 allows Unicode identifiers (e.g., ω, α) and $ in some contexts
@@ -379,7 +397,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     "**", "*",
     "!=", "!",
     "->", "-",
-    Number, String, OperatorSymbol, Identifier, space
+    Number, String, OperatorSymbol, Identifier, spaces, newline
   }
 }
 

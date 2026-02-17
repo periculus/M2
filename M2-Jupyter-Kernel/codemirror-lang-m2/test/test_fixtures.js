@@ -1183,6 +1183,125 @@ console.log('=== TripleString Lexer Fidelity ===');
 }
 
 // ============================================================
+// Implicit Statement Separation (ImplicitSemi)
+// ============================================================
+console.log('\n=== Implicit Statement Separation ===');
+
+// --- Positive: newline separation works ---
+
+// Two assignments on separate lines → 2 top-level AssignExpr, 0 errors
+{
+  const code = 'x = 1\ny = 2';
+  const nodes = topNodes(code);
+  const assigns = nodes.filter(n => n.name === 'AssignExpr');
+  assert(assigns.length === 2, `"x = 1\\ny = 2" should produce 2 AssignExpr, got ${assigns.length}`);
+  assert(errorCount(code) === 0, `"x = 1\\ny = 2" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Number then assignment on next line → 0 errors
+{
+  const code = '42\nx = 1';
+  assert(errorCount(code) === 0, `"42\\nx = 1" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Assignment after line comment → 0 errors
+{
+  const code = 'x = 1 -- comment\ny = 2';
+  assert(errorCount(code) === 0, `"x = 1 -- comment\\ny = 2" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Three lines of assignments → 3 AssignExpr, 0 errors
+{
+  const code = 'x = 1\ny = 2\nz = 3';
+  const nodes = topNodes(code);
+  const assigns = nodes.filter(n => n.name === 'AssignExpr');
+  assert(assigns.length === 3, `"x = 1\\ny = 2\\nz = 3" should produce 3 AssignExpr, got ${assigns.length}`);
+  assert(errorCount(code) === 0, `"x = 1\\ny = 2\\nz = 3" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Real corpus pattern: R = QQ[x,y,z] then I = ideal(...)
+{
+  const code = 'R = QQ[x,y,z]\nI = ideal(x^2, y^2)';
+  const nodes = topNodes(code);
+  const assigns = nodes.filter(n => n.name === 'AssignExpr');
+  assert(assigns.length === 2, `ring + ideal should produce 2 AssignExpr, got ${assigns.length}`);
+  assert(errorCount(code) === 0, `ring + ideal should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Real corpus pattern: numbered variables
+{
+  const code = 'i1 = 42\ni2 = 99';
+  const nodes = topNodes(code);
+  const assigns = nodes.filter(n => n.name === 'AssignExpr');
+  assert(assigns.length === 2, `"i1 = 42\\ni2 = 99" should produce 2 AssignExpr, got ${assigns.length}`);
+  assert(errorCount(code) === 0, `"i1 = 42\\ni2 = 99" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// --- Negative: must NOT split (same-line juxtaposition preserved) ---
+
+// Same-line juxtaposition: gb I
+{
+  const code = 'gb I';
+  assert(findNode(code, 'JuxtapositionExpr') !== null, `"gb I" must produce JuxtapositionExpr`);
+  assert(errorCount(code) === 0, `"gb I" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Same-line juxtaposition: print x
+{
+  assert(findNode('print x', 'JuxtapositionExpr') !== null, `"print x" must produce JuxtapositionExpr`);
+}
+
+// Operator continuation across lines
+{
+  const code = 'x = 1 +\n  2';
+  assert(errorCount(code) === 0, `operator continuation should have 0 errors, got ${errorCount(code)}`);
+  const assigns = topNodes(code).filter(n => n.name === 'AssignExpr');
+  assert(assigns.length === 1, `operator continuation should produce 1 AssignExpr, got ${assigns.length}`);
+}
+
+// Multi-line function call
+{
+  const code = 'f(\n  x,\n  y\n)';
+  assert(findNode(code, 'CallExpr') !== null, `multi-line call should produce CallExpr`);
+  assert(errorCount(code) === 0, `multi-line call should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Multi-line if/then/else
+{
+  const code = 'if x\n  then y\n  else z';
+  assert(findNode(code, 'IfExpr') !== null, `multi-line if/then/else must produce IfExpr`);
+  assert(errorCount(code) === 0, `multi-line if/then/else should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Multi-line for loop
+{
+  const code = 'for i from 0\n  to 10\n  do f(i)';
+  assert(findNode(code, 'ForExpr') !== null, `multi-line for loop must produce ForExpr`);
+  assert(errorCount(code) === 0, `multi-line for loop should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Multi-line while loop
+{
+  const code = 'while cond\n  do f()';
+  assert(findNode(code, 'WhileExpr') !== null, `multi-line while must produce WhileExpr`);
+  assert(errorCount(code) === 0, `multi-line while should have 0 errors, got ${errorCount(code)}`);
+}
+
+// Multi-line try/catch
+{
+  const code = 'try f()\n  catch e';
+  assert(findNode(code, 'TryExpr') !== null, `multi-line try/catch must produce TryExpr`);
+  assert(errorCount(code) === 0, `multi-line try/catch should have 0 errors, got ${errorCount(code)}`);
+}
+
+// then continuation across line
+{
+  const code = 'if x then\n  y else z';
+  assert(findNode(code, 'IfExpr') !== null, `"if x then\\n  y else z" must produce IfExpr`);
+  assert(errorCount(code) === 0, `then continuation should have 0 errors, got ${errorCount(code)}`);
+}
+
+// ============================================================
 // Summary
 // ============================================================
 console.log('');
