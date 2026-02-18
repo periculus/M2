@@ -6,7 +6,7 @@
 // ImplicitSemi is a zero-width fallback token emitted by the ContextTracker +
 // ExternalTokenizer in implicitSemiTokenizer.js. It fires at newline boundaries
 // when (1) a newline was seen, (2) no built-in token is usable, and (3) the
-// parser state expects semi (canShift guard). Only used in Program, not Body.
+// parser state expects semi (canShift guard).
 semi { ";" | ImplicitSemi }
 @top Program { semi* (expression semi*)* }
 
@@ -25,14 +25,23 @@ semi { ";" | ImplicitSemi }
 // the previous real token and the current position. Used by ImplicitSemi.
 @context trackNewline from "./implicitSemiTokenizer.js"
 
-// External token for implicit statement separation:
-//   ImplicitSemi — emitted when newline seen and parser expects semi (fallback mode)
+// External tokens for implicit statement separation.
+// ImplicitSemi fires at newline boundaries when parser expects semi.
 @external tokens implicitSemicolon from "./implicitSemiTokenizer.js" {
   ImplicitSemi
 }
 
+// External token for `symbol -` (bare minus as scope operand).
+// Emits ScopeMinus only when '-' is NOT followed by '-' or '*' (comments)
+// AND the parser state expects it (canShift guard — only true in ScopeExpr).
+// This avoids the +163K parser table growth from precedence-based `!scopeMinus "-"`.
+@external tokens scopeMinusTokenizer from "./scopeMinusTokenizer.js" {
+  ScopeMinus
+}
+
 // Precedence: highest (tightest binding) listed first
 @precedence {
+  trailingDot,
   member @left,
   subscript @left,
   bang,
@@ -71,6 +80,7 @@ expression[@isGroup=Expression] {
   Constant |
   Number |
   LeadingDotNumber |
+  TrailingDotNumber |
   String |
   TripleString |
   Boolean |
@@ -109,7 +119,7 @@ expression[@isGroup=Expression] {
 
 // Grouping — parens also handle block expressions (expr; expr; ...)
 ParenExpr { "(" Body ")" }
-ListExpr { "{" ListItems? "}" }
+ListExpr { "{" CallItems? "}" }
 ArrayExpr { "[" ListItems? "]" }
 AngleBarListExpr { "<|" ListItems? "|>" }
 Body { (expression (";" | ","))* expression? }
@@ -138,7 +148,7 @@ AssignExpr {
 // Function call / subscript with parens, braces, or brackets
 CallExpr {
   expression !call "(" CallItems? ")" |
-  expression !call "{" ListItems? "}" |
+  expression !call "{" CallItems? "}" |
   expression !call "[" ListItems? "]"
 }
 
@@ -159,7 +169,17 @@ LoadExpr { ckw<"load"> expression }
 NeedsExpr { ckw<"needs"> expression }
 UseExpr { ckw<"use"> expression }
 ExportExpr { ckw<"export"> expression }
-ScopeExpr { (ckw<"symbol"> | ckw<"global"> | ckw<"local"> | ckw<"threadLocal">) expression }
+// ScopeExpr: scope keyword followed by an expression or a keyword-operator name.
+// and/or/xor use kw (@specialize), which replaces Identifier entirely, so they
+// can't appear as expressions. We list them explicitly so `symbol and` works.
+// `not` uses ckw (@extend), so `symbol not` already works via expression fallback.
+// ScopeMinus is an external token (scopeMinusTokenizer.js): emits when '-' is NOT
+// followed by '-' or '*' (comments) AND parser expects it (canShift guard).
+// This avoids the parser table explosion from precedence-based `!scopeMinus "-"`.
+ScopeExpr {
+  (ckw<"symbol"> | ckw<"global"> | ckw<"local"> | ckw<"threadLocal">)
+  (kw<"and"> | kw<"or"> | kw<"xor"> | ScopeMinus | expression)
+}
 TimeExpr { ckw<"time"> expression }
 ElapsedTimeExpr { ckw<"elapsedTime"> expression }
 ShieldExpr { ckw<"shield"> expression }
@@ -242,6 +262,12 @@ PostfixExpression {
 // LR shift/reduce preference resolves: shift for BinaryExpression wins over
 // reduce-then-LeadingDotNumber, so C.0 correctly parses as member access.
 LeadingDotNumber { "." Number }
+
+// Trailing-dot numbers (0., 1., 100.): parser-level rule using Number + ".".
+// The Number token no longer matches trailing dots (to avoid consuming 0. in 0..<n).
+// Default shift-over-reduce means Number "." always becomes TrailingDotNumber.
+// This is correct: bare number member access (e.g. 0.field) is not valid M2.
+TrailingDotNumber { Number !trailingDot "." }
 
 // Literals
 Boolean { @specialize[@name=Boolean]<Identifier, "true" | "false"> }
@@ -350,11 +376,15 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   // Letterlike Symbols (2100-214F), Math Operators (2200-22FF), Misc Symbols (2A00-2AFF)
   Identifier { $[a-zA-Z\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF] $[a-zA-Z0-9'$\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF]* }
 
-  // M2 number formats: 42, 3.14, 1. (trailing dot), 1p111, 1e-10, 1.5p100e20
-  // NOTE: Leading-dot numbers (.5, .4e3) are handled by external tokenizer (see below)
-  // to avoid conflict with "." member access operator in x.0 patterns.
+  // M2 number formats: 42, 3.14, 1p111, 1e-10, 1.5p100e20, 1.p53, 1.e5
+  // Trailing-dot numbers (1., 0.) are handled at the parser level (TrailingDotNumber)
+  // to avoid tokenizer greedily consuming 0. in 0..<n (making ..< unrecognizable).
+  // Leading-dot numbers (.5, .4e3) are handled by parser-level LeadingDotNumber rule.
   Number {
-    @digit+ ("." @digit*)? ("p" @digit+)? ($[eE] $[\-+]? @digit+)?
+    @digit+ "." @digit+ ("p" @digit+)? ($[eE] $[\-+]? @digit+)? |
+    @digit+ "." ("p" @digit+) ($[eE] $[\-+]? @digit+)? |
+    @digit+ "." ($[eE] $[\-+]? @digit+) |
+    @digit+ ("p" @digit+)? ($[eE] $[\-+]? @digit+)?
   }
 
   // M2 strings can span multiple lines
@@ -362,11 +392,11 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
 
   // Triple-slash documentation strings: /// ... ///
   // M2's lexer (lex.d:getstringslashes) treats //// as an escape (4 slashes → 1 output slash).
-  // The "////" alternative handles this: Lezer's DFA longest-match picks //// over /// when 4+
-  // slashes appear, keeping the string open. Exactly 3 slashes still match the closing "///".
-  // This is a partial fidelity increment — covers common cases (XML.m2, OpenMath.m2, Text.m2)
-  // but may not replicate all edge cases of M2's character-by-character state machine.
-  TripleString { "///" (![/] | "/" ![/] | "//" ![/] | "////")* "///" }
+  // The "////" "/"* alternative greedily consumes 4+ consecutive slashes as body content,
+  // matching M2's lex.d escape mechanism (each //// produces one literal /).
+  // This prevents the modulo-4 self-closing bug where slash counts satisfying (n-6)%4===0
+  // caused TripleStrings to close prematurely within long slash runs (e.g., 58-slash dividers).
+  TripleString { "///" (![/] | "/" ![/] | "//" ![/] | "////" "/"*)* "///" }
 
   LineComment { "--" ![\n]* }
 
