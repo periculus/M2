@@ -4,10 +4,10 @@
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
 **Corpus**: 2,594 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/)
 **Canonical metric source**: `node test/test_corpus.js` — run to regenerate all numbers below
-**Current error rate**: 0.057% code-only (5,057 errors / 8,915,736 nodes) | 0.07% all files
+**Current error rate**: 0.053% code-only (4,737 errors / 8,915,295 nodes) | 0.07% all files
 **Code files**: 2,552 | **Doc files excluded**: 42 raw SimpleDoc + 0 corrupt
 **Doc-heavy files** (informational, included in code-only): 388 (Macaulay2Doc/, *-doc.m2)
-**Fixture tests**: 512 assertions in `test/test_fixtures.js` + 17 classifier tests
+**Fixture tests**: 529 assertions in `test/test_fixtures.js` + 17 classifier tests
 **Operator validation**: 67/67 operators covered — `node test/validate_operators.js`
 
 ## Metrics Policy
@@ -25,6 +25,8 @@ The primary metric is **CODE-ONLY error rate**. Parse time is reported for regre
 1. **Augmented assignment operators** (`da098e8`) — Added 29 augmented assignment operators (`+=`, `-=`, `*=`, etc.) to AssignExpr, derived from binding.d's `opsWithBinaryMethod`. Same precedence as `=`, right-associative. Also added to OperatorSymbol for `symbol +=` patterns. Validator (`validate_operators.js`) derives expected set from binding.d source, zero hardcoding. Error rate: 5,166 → 5,063 (-103 errors).
 2. **Unary `??` (null-check) operator** — Added `!or "??" expression` to UnaryExpression. M2's `??` is both prefix (`?? x`) and binary (`x ?? y`), defined as `unarybinaryright("??")` in binding.d at the same precedence as `or`. All 5 errors in `augmented-assignment.m2` eliminated. Error rate: 5,063 → 5,057 (-6 errors).
 3. **Method installation fixture coverage** — Verified `Type Op Type := func` patterns already parse correctly (BinaryExpression as LHS of AssignExpr). Added 13 fixture tests locking in behavior for real M2 patterns.
+4. **CallItems: empty first argument in function calls** — Introduced `CallItems` rule (allows leading comma for `f(, x)` patterns) scoped to `CallExpr(...)` only. `ListItems` stays strict for `{}`, `[]`, `<||>`. Fixes patterns like `prepend(, yAxis)`, `part(, 0, wts, f)`, `sub2(,ring f,v)` from M2 core. Confirmed by grammar.y `arglistornull`. Error rate: 5,057 → 4,850 (-207 errors). Key category changes: `juxtaposition_func_arg` 702→671 (-31), `unmatched_bracket` 879→823 (-56), `Identifier|Identifier` 46→39 (-7).
+5. **OperatorSymbol in juxArg** — Added `OperatorSymbol` to `juxArg` rule so juxtaposition patterns like `TO symbol *`, `print symbol ++` parse as JuxtapositionExpr. Data-gated: `symbol ^` (7x) and `symbol ==` (4x) error patterns eliminated. Large cascading benefit in doc-heavy files: `juxtaposition_english_text` 148→51 (-97). Error rate: 4,850 → 4,737 (-113 errors). Combined with Fix 4: 5,057 → 4,737 (-320 total).
 
 ### Feb 17, 2026
 1. **Implicit statement separation (ImplicitSemi)** — Added ContextTracker + ExternalTokenizer for newline-as-statement-separator, following the JavaScript Lezer ASI pattern. `spaces[@export]` + `newline[@export]` replace single `space` token; ContextTracker tracks newline boundaries; ExternalTokenizer emits zero-width `ImplicitSemi` with `fallback:true` + `canShift()` guard. Only active in `@top Program`, NOT in `Body` (parenthesized expressions). The `canShift` guard is critical: without it, `fallback:true` emits at error recovery positions causing +2,400 regression; with it, net -84 errors. Key patterns fixed: `Identifier|AssignExpr` 402→327 (-18.7%), `Number|AssignExpr` 217→185 (-14.7%), `newline_statement_sep` 53→18 (-66%). Error rate: 5,250 → 5,166 (0.0597% → 0.0579%).
@@ -59,8 +61,8 @@ M2 supports `try...catch`, `try...then`, `try...then...else`, and `try...else`. 
 
 ## Executive Summary
 
-The 0.057% error rate (code-only) is excellent for a syntax highlighter. The remaining
-~5,057 errors cluster around a small number of root causes. This report analyzes all
+The 0.053% error rate (code-only) is excellent for a syntax highlighter. The remaining
+~4,737 errors cluster around a small number of root causes. This report analyzes all
 error categories, identifies root causes from the actual M2 source code, and assesses
 fixability.
 
@@ -520,7 +522,7 @@ comment tokens and produces zero errors. Only prose OUTSIDE of comments/strings 
 
 ## Current Error Rate
 
-0.057% code-only (5,057 errors) | 0.07% all files. 42 raw SimpleDoc files excluded from code-only track.
+0.053% code-only (4,737 errors) | 0.07% all files. 42 raw SimpleDoc files excluded from code-only track.
 Run `node test/test_corpus.js` for exact numbers (canonical source).
 
 Remaining errors are primarily:
@@ -539,10 +541,10 @@ each error node's content, code-only track):
 
 | Count | Error Text | Root Cause |
 |---|---|---|
-| 1,313 | `,` | Cascading: commas eaten during recovery |
-| 826 | `)` | Cascading: closing parens eaten during recovery |
+| 1,172 | `,` | Cascading: commas eaten during recovery |
+| 771 | `)` | Cascading: closing parens eaten during recovery |
 | 604 | `;` | Cascading: semicolons eaten during recovery |
-| 53 | `}` | Cascading: closing braces eaten during recovery |
+| 52 | `}` | Cascading: closing braces eaten during recovery |
 | 34 | `\|` | Pipe operator in error context |
 | 26 | `?` | Question mark operator in error context |
 | 20 | `>=` | Comparison operator in error context |
@@ -550,7 +552,6 @@ each error node's content, code-only track):
 | 9 | `))`| Cascading: double-close eaten during recovery |
 | 9 | `==>` | Arrow operator in error context |
 | 9 | `_` | Subscript operator in error context |
-| 7 | `symbol ^` | OperatorSymbol edge case |
 | 6 | `///` | TripleString boundary |
 | 5 | `'` | Apostrophe in identifier context |
 

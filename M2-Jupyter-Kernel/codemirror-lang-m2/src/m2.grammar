@@ -115,6 +115,10 @@ AngleBarListExpr { "<|" ListItems? "|>" }
 Body { (expression (";" | ","))* expression? }
 ListItems { expression ("," expression?)* }
 
+// CallItems: like ListItems, but allows empty first argument f(, x)
+// Used only in CallExpr(...) — M2 grammar.y arglistornull allows empty elements.
+CallItems { expression ("," expression?)* | "," expression? ("," expression?)* }
+
 // Assignment, arrow, and augmented assignment operators
 // Augmented operators (+=, -=, etc.) derived from binding.d augmentedAssignmentOperatorWords.
 // Same precedence as =, right-associative. See tests/normal/augmented-assignment.m2.
@@ -133,7 +137,7 @@ AssignExpr {
 
 // Function call / subscript with parens, braces, or brackets
 CallExpr {
-  expression !call "(" ListItems? ")" |
+  expression !call "(" CallItems? ")" |
   expression !call "{" ListItems? "}" |
   expression !call "[" ListItems? "]"
 }
@@ -146,7 +150,7 @@ JuxtapositionExpr {
 }
 juxArg {
   Identifier | Type | Builtin | Constant | Number | String | TripleString |
-  Boolean | Null
+  Boolean | Null | OperatorSymbol
 }
 
 // Common M2 keywords that take an argument via juxtaposition

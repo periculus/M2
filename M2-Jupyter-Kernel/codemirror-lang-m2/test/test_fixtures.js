@@ -1620,6 +1620,86 @@ console.log('\n=== Method Installation (Type Op Type :=) ===');
 }
 
 // ============================================================
+// Empty First Argument in Function Calls (CallItems)
+// ============================================================
+// M2 allows f(, x) — empty first argument (null sequence element).
+// CallItems rule scoped to CallExpr(...) only; ListItems stays strict for {}/[].
+
+console.log('\n=== Empty First Argument in Function Calls (CallItems) ===');
+
+// Real corpus patterns (primary targets)
+{
+  const cases = [
+    ['f(, x)', 'basic empty first arg'],
+    ['f(, x, y)', 'empty first arg with 2 more'],
+    ['prepend(, yAxis)', 'betti.m2:131'],
+    ['part(, 0, wts, f)', 'hilbert.m2:18'],
+    ['sub2(,ring f,v)', 'ringmap.m2'],
+  ];
+  for (const [code, label] of cases) {
+    assert(errorCount(code) === 0, `"${code}" (${label}) should have 0 errors, got: ${errorCount(code)}`);
+  }
+}
+
+// Existing patterns: unchanged (regression checks)
+{
+  const regressionCases = [
+    ['f(x, y)', 'normal call'],
+    ['f()', 'empty call'],
+    ['f(x, , y)', 'existing empty middle slot'],
+  ];
+  for (const [code, label] of regressionCases) {
+    assert(errorCount(code) === 0, `"${code}" (${label}) should have 0 errors, got: ${errorCount(code)}`);
+  }
+}
+
+// ListItems stays strict — these use ListExpr/ArrayExpr, NOT CallItems
+{
+  assert(errorCount('{x, y}') === 0, '"{x, y}" ListExpr should be unchanged');
+  assert(errorCount('[x, y]') === 0, '"[x, y]" ArrayExpr should be unchanged');
+}
+
+// Parse-shape: f(, x) produces CallExpr
+{
+  const tree = parser.parse('f(, x)');
+  const top = tree.topNode.firstChild;
+  assert(top && top.name === 'CallExpr', `"f(, x)" top node should be CallExpr, got: ${top && top.name}`);
+}
+
+// ============================================================
+// OperatorSymbol in Juxtaposition (juxArg)
+// ============================================================
+// OperatorSymbol is in juxArg so patterns like `TO symbol *` parse
+// as JuxtapositionExpr rather than producing errors.
+
+console.log('\n=== OperatorSymbol in Juxtaposition (juxArg) ===');
+
+// Juxtaposition with OperatorSymbol RHS
+{
+  const cases = [
+    ['f symbol *', 'basic jux with OperatorSymbol'],
+    ['print symbol ++', 'keyword-like jux with OperatorSymbol'],
+    ['TO symbol ==', 'doc-style jux with OperatorSymbol'],
+  ];
+  for (const [code, label] of cases) {
+    assert(errorCount(code) === 0, `"${code}" (${label}) should have 0 errors, got: ${errorCount(code)}`);
+  }
+}
+
+// Parse-shape: f symbol * produces JuxtapositionExpr
+{
+  const tree = parser.parse('f symbol *');
+  const top = tree.topNode.firstChild;
+  assert(top && top.name === 'JuxtapositionExpr', `"f symbol *" top should be JuxtapositionExpr, got: ${top && top.name}`);
+}
+
+// Regression: normal juxtaposition unchanged
+{
+  assert(errorCount('f x') === 0, '"f x" normal jux should be unchanged');
+  assert(errorCount('print "hello"') === 0, '"print \\"hello\\"" jux with string unchanged');
+}
+
+// ============================================================
 // Summary
 // ============================================================
 console.log('');
