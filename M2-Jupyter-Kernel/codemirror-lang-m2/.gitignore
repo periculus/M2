@@ -4,3 +4,4 @@ src/parser.js
 src/parser.terms.js
 *.log
 .DS_Store
+_nightly_runs/
