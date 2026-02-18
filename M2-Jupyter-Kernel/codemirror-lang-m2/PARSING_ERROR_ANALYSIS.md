@@ -1,13 +1,13 @@
 # M2 Lezer Grammar: Parsing Error Analysis
 
-**Date**: February 2026 (updated Feb 17)
+**Date**: February 2026 (updated Feb 18)
 **Grammar**: `codemirror-lang-m2/src/m2.grammar`
 **Corpus**: 2,594 `.m2` files under `M2/Macaulay2/` (m2/, tests/, packages/)
 **Canonical metric source**: `node test/test_corpus.js` — run to regenerate all numbers below
-**Current error rate**: 0.058% code-only (5,166 errors / 8,915,934 nodes) | 0.07% all files
+**Current error rate**: 0.057% code-only (5,057 errors / 8,915,736 nodes) | 0.07% all files
 **Code files**: 2,552 | **Doc files excluded**: 42 raw SimpleDoc + 0 corrupt
 **Doc-heavy files** (informational, included in code-only): 388 (Macaulay2Doc/, *-doc.m2)
-**Fixture tests**: 376 assertions in `test/test_fixtures.js` + 17 classifier tests
+**Fixture tests**: 512 assertions in `test/test_fixtures.js` + 17 classifier tests
 **Operator validation**: 67/67 operators covered — `node test/validate_operators.js`
 
 ## Metrics Policy
@@ -20,6 +20,11 @@ The corpus test (`test/test_corpus.js`) reports **three tracks**:
 The primary metric is **CODE-ONLY error rate**. Parse time is reported for regression detection.
 
 ## Fixes Applied
+
+### Feb 18, 2026
+1. **Augmented assignment operators** (`da098e8`) — Added 29 augmented assignment operators (`+=`, `-=`, `*=`, etc.) to AssignExpr, derived from binding.d's `opsWithBinaryMethod`. Same precedence as `=`, right-associative. Also added to OperatorSymbol for `symbol +=` patterns. Validator (`validate_operators.js`) derives expected set from binding.d source, zero hardcoding. Error rate: 5,166 → 5,063 (-103 errors).
+2. **Unary `??` (null-check) operator** — Added `!or "??" expression` to UnaryExpression. M2's `??` is both prefix (`?? x`) and binary (`x ?? y`), defined as `unarybinaryright("??")` in binding.d at the same precedence as `or`. All 5 errors in `augmented-assignment.m2` eliminated. Error rate: 5,063 → 5,057 (-6 errors).
+3. **Method installation fixture coverage** — Verified `Type Op Type := func` patterns already parse correctly (BinaryExpression as LHS of AssignExpr). Added 13 fixture tests locking in behavior for real M2 patterns.
 
 ### Feb 17, 2026
 1. **Implicit statement separation (ImplicitSemi)** — Added ContextTracker + ExternalTokenizer for newline-as-statement-separator, following the JavaScript Lezer ASI pattern. `spaces[@export]` + `newline[@export]` replace single `space` token; ContextTracker tracks newline boundaries; ExternalTokenizer emits zero-width `ImplicitSemi` with `fallback:true` + `canShift()` guard. Only active in `@top Program`, NOT in `Body` (parenthesized expressions). The `canShift` guard is critical: without it, `fallback:true` emits at error recovery positions causing +2,400 regression; with it, net -84 errors. Key patterns fixed: `Identifier|AssignExpr` 402→327 (-18.7%), `Number|AssignExpr` 217→185 (-14.7%), `newline_statement_sep` 53→18 (-66%). Error rate: 5,250 → 5,166 (0.0597% → 0.0579%).
@@ -54,8 +59,8 @@ M2 supports `try...catch`, `try...then`, `try...then...else`, and `try...else`. 
 
 ## Executive Summary
 
-The 0.058% error rate (code-only) is excellent for a syntax highlighter. The remaining
-~5,166 errors cluster around a small number of root causes. This report analyzes all
+The 0.057% error rate (code-only) is excellent for a syntax highlighter. The remaining
+~5,057 errors cluster around a small number of root causes. This report analyzes all
 error categories, identifies root causes from the actual M2 source code, and assesses
 fixability.
 
@@ -515,7 +520,7 @@ comment tokens and produces zero errors. Only prose OUTSIDE of comments/strings 
 
 ## Current Error Rate
 
-0.058% code-only (5,166 errors) | 0.07% all files. 42 raw SimpleDoc files excluded from code-only track.
+0.057% code-only (5,057 errors) | 0.07% all files. 42 raw SimpleDoc files excluded from code-only track.
 Run `node test/test_corpus.js` for exact numbers (canonical source).
 
 Remaining errors are primarily:
@@ -527,7 +532,7 @@ Remaining errors are primarily:
 
 ---
 
-## Appendix: Top Error Patterns from Corpus Test (Feb 17, 2026)
+## Appendix: Top Error Patterns from Corpus Test (Feb 18, 2026)
 
 These are the actual error text snippets reported by the parser (first 20 chars of
 each error node's content, code-only track):
@@ -542,10 +547,10 @@ each error node's content, code-only track):
 | 26 | `?` | Question mark operator in error context |
 | 20 | `>=` | Comparison operator in error context |
 | 11 | `//` | Division in error context |
-| 9 | `\|_` | Subscript pipe in error context |
+| 9 | `))`| Cascading: double-close eaten during recovery |
 | 9 | `==>` | Arrow operator in error context |
+| 9 | `_` | Subscript operator in error context |
 | 7 | `symbol ^` | OperatorSymbol edge case |
-| 6 | `??` | Null-coalescing operator in error context |
 | 6 | `///` | TripleString boundary |
 | 5 | `'` | Apostrophe in identifier context |
 

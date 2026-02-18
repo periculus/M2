@@ -222,7 +222,8 @@ UnaryExpression {
   !prefix "*" expression |
   !prefix "#" expression |
   !prefix "<<" expression |
-  !not ckw<"not"> expression
+  !not ckw<"not"> expression |
+  !or "??" expression
 }
 
 // Postfix operators

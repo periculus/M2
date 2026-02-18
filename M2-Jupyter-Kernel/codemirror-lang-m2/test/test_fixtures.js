@@ -1454,6 +1454,172 @@ console.log('\n=== Augmented Assignment Operators ===');
 }
 
 // ============================================================
+// Unary ?? (null-check) Operator
+// ============================================================
+console.log('\n=== Unary ?? (null-check) Operator ===');
+
+// --- Zero-error + parse-shape assertions ---
+
+// 1. Basic prefix null-check
+{
+  const code = '?? x';
+  assert(findNode(code, 'UnaryExpression') !== null, `"${code}" must produce UnaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 2. Prefix on subscript expression
+{
+  const code = '?? x#0';
+  assert(findNode(code, 'UnaryExpression') !== null, `"${code}" must produce UnaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 3. Prefix on parenthesized expression
+{
+  const code = '?? (y + 1)';
+  assert(findNode(code, 'UnaryExpression') !== null, `"${code}" must produce UnaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 4. Inside assignment RHS
+{
+  const code = 'x = ?? y';
+  assert(findNode(code, 'UnaryExpression') !== null, `"${code}" must contain UnaryExpression`);
+  assert(findNode(code, 'AssignExpr') !== null, `"${code}" must contain AssignExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 5. Inside function call
+{
+  const code = 'f(?? x)';
+  assert(findNode(code, 'UnaryExpression') !== null, `"${code}" must contain UnaryExpression`);
+  assert(findNode(code, 'CallExpr') !== null, `"${code}" must contain CallExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 6. Real corpus pattern (from augmented-assignment.m2:138)
+{
+  const code = 'assert Equation(?? x, 5)';
+  assert(findNode(code, 'UnaryExpression') !== null, `"${code}" must contain UnaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// --- Precedence shape tests ---
+
+// 7. ?? x + y → ?? (x + y): UnaryExpression wraps BinaryExpression
+//    Because ?? is at !or precedence (lower than +), it binds LESS tightly
+{
+  const code = '?? x + y';
+  const tree = parser.parse(code);
+  const cursor = tree.cursor();
+  cursor.firstChild(); // → top expression
+  assert(cursor.name === 'UnaryExpression', `"${code}" top node should be UnaryExpression, got ${cursor.name}`);
+  // The child of UnaryExpression should contain BinaryExpression
+  const names = allNodeNames(code);
+  assert(names.has('BinaryExpression'), `"${code}" must contain BinaryExpression inside UnaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 8. ?? x ?? y → ?? (x ?? y): unary wraps binary (same prec, @right shifts)
+//    In M2's Pratt parser, unaryop parses its operand at the same prec level,
+//    and binary ?? at same prec is consumed (right-associative shift). Top-level
+//    is UnaryExpression, with BinaryExpression inside.
+{
+  const code = '?? x ?? y';
+  const tree = parser.parse(code);
+  const cursor = tree.cursor();
+  cursor.firstChild(); // → top expression
+  assert(cursor.name === 'UnaryExpression', `"${code}" top node should be UnaryExpression, got ${cursor.name}`);
+  // Inside should contain BinaryExpression
+  const names = allNodeNames(code);
+  assert(names.has('BinaryExpression'), `"${code}" must contain BinaryExpression inside UnaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 9. x ?? y ?? z → x ?? (y ?? z): right-associative binary chain
+{
+  const code = 'x ?? y ?? z';
+  const tree = parser.parse(code);
+  const cursor = tree.cursor();
+  cursor.firstChild(); // → top BinaryExpression
+  assert(cursor.name === 'BinaryExpression', `"${code}" top node should be BinaryExpression, got ${cursor.name}`);
+  // RHS should also be BinaryExpression (right-associative)
+  cursor.lastChild(); // → last child (RHS)
+  assert(cursor.name === 'BinaryExpression', `"${code}" RHS should be BinaryExpression, got ${cursor.name}`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// --- Regression checks ---
+
+// 10. Binary null-coalesce (unchanged)
+{
+  const code = 'x ?? 2';
+  assert(findNode(code, 'BinaryExpression') !== null, `"${code}" must produce BinaryExpression`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 11. Augmented assignment ??= (unchanged)
+{
+  const code = 'x ??= 2';
+  assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// ============================================================
+// Method Installation (Type Op Type :=)
+// ============================================================
+console.log('\n=== Method Installation (Type Op Type :=) ===');
+
+// From real M2 core library: 0 errors, contains AssignExpr
+{
+  const patterns = [
+    'Matrix + Matrix := (m,n) -> m',
+    'Ideal * Ideal := (I,J) -> I',
+    'Module ++ Module := Module => directSum',
+    'Matrix ** Matrix := (A,B) -> tensor(A,B)',
+    'ZZ _ ZZ := (x,y) -> x',
+    'Ring ^ ZZ := (R,i) -> R',
+    'Foo <==> Foo := (x,y) -> x',
+    'Foo @ Foo := (x,y) -> x',
+    'Foo |- Foo := (x,y) -> x',
+  ];
+  for (const code of patterns) {
+    assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+    assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  }
+}
+
+// Complex patterns from augmented-assignment.m2
+// 10. new...from method installation
+{
+  const code = 'new Foo from ZZ := (T, x) -> T {x}';
+  assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 11. Unary method installation
+{
+  const code = '+Bar := identity';
+  assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 12. Unary assignment method
+{
+  const code = '+Bar = (x, y) -> (x#0 = y#0; x)';
+  assert(findNode(code, 'AssignExpr') !== null, `"${code}" must produce AssignExpr`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// 13. installMethod with augmented symbol
+{
+  const code = 'installMethod(symbol -=, Bar, (x,y) -> x)';
+  assert(findNode(code, 'CallExpr') !== null, `"${code}" must produce CallExpr`);
+  assert(findNode(code, 'OperatorSymbol') !== null, `"${code}" must contain OperatorSymbol for "symbol -="`);
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+}
+
+// ============================================================
 // Summary
 // ============================================================
 console.log('');

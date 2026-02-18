@@ -95,7 +95,7 @@ M2-Jupyter-Kernel/
 │   │   └── tokens.ts            # Type/Builtin/Constant token lists
 │   └── test/
 │       ├── test_corpus.js       # Full corpus test (2594 .m2 files, 42 raw doc excluded)
-│       ├── test_fixtures.js     # Parser-shape assertions (376 fixtures)
+│       ├── test_fixtures.js     # Parser-shape assertions (512 fixtures)
 │       └── analyze_errors.js    # Detailed error categorization
 ├── src/                         # Extension TypeScript source
 │   ├── index.ts                 # Extension entry point (registers language, CSS overrides)
@@ -230,7 +230,7 @@ npm run build
 
 # 2. Tests
 cd codemirror-lang-m2
-node test/test_fixtures.js   # 376 fixture assertions
+node test/test_fixtures.js   # 512 fixture assertions
 node test/test_corpus.js     # target: <1% error rate
 cd ..
 
@@ -259,10 +259,12 @@ jupyter lab
 
 ## Current Grammar Status (Feb 2026)
 
-- **0.058% error rate** (5,166 errors across 2,552 code files, 42 raw doc files excluded)
+- **0.057% error rate** (5,057 errors across 2,552 code files, 42 raw doc files excluded)
 - See `codemirror-lang-m2/PARSING_ERROR_ANALYSIS.md` for detailed breakdown
 - Grammar uses `try...catch`/`try...then`/`try...then...else`/`try...else` forms (external tokenizer resolves all conflicts)
 - OperatorSymbol token handles `symbol *`, `symbol ==`, etc. — standalone `-` excluded (conflicts with comments)
 - **ImplicitSemi**: newline-as-statement-separator via ContextTracker + ExternalTokenizer (fallback + canShift guard). Only in Program, not Body.
-- Fixture tests: `node test/test_fixtures.js` (376 assertions)
+- **Augmented assignment**: 29 operators (`+=`, `-=`, `*=`, etc.) derived from binding.d
+- **Unary `??`**: prefix null-check operator at `!or` precedence
+- Fixture tests: `node test/test_fixtures.js` (512 assertions)
 - Known unfixable: `symbol -` (comment conflict), raw SimpleDoc markup, LaTeX in doc strings
