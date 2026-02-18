@@ -1,0 +1,108 @@
+# M2 Oracle Test Snippets
+# Format: EXPECTED_STATUS | snippet
+# Statuses: VALID, SYNTAX_ERROR, RUNTIME_ERROR, ANY
+#
+# Parser/lexer focused — no side effects, no I/O, no package loads.
+# Snippets must be self-contained to avoid "no method" runtime errors.
+
+# ============================================================
+# Known VALID — these should parse and evaluate without error
+# ============================================================
+
+# Basic expressions
+VALID | x = 1 + 2
+VALID | f = (x) -> x^2
+VALID | R = QQ[x,y,z]
+
+# Self-contained operator tests (variables defined in context)
+VALID | R = QQ[x,y,z]; I = ideal(x^2, y^2, z^2)
+VALID | 10 // 3
+VALID | 3 .. 7
+VALID | 1 ..< 5
+VALID | x_0
+
+# TripleString (documentation strings)
+VALID | ///hello///
+VALID | ///hello //// world///
+
+# Empty TripleString (6 slashes)
+VALID | //////
+
+# Keywords as identifiers (method installation context)
+VALID | symbol or
+VALID | symbol and
+VALID | symbol not
+VALID | symbol -
+
+# Control flow
+VALID | if true then 1 else 0
+VALID | for i from 0 to 5 do print i
+VALID | while false do 1
+VALID | try 1/0 then 0 else -1
+
+# Scope expressions
+VALID | local x
+VALID | global y
+VALID | symbol x
+
+# Multiple statements
+VALID | x = 1; y = 2; x + y
+
+# Lists and sequences
+VALID | {1, 2, 3}
+VALID | [1, 2, 3]
+VALID | (1, 2, 3)
+
+# AngleBarList
+VALID | matrix {{1,2},{3,4}}
+
+# Juxtaposition
+VALID | print "hello"
+
+# ============================================================
+# Known SYNTAX_ERROR — these should fail to parse
+# ============================================================
+
+# C-style comments (M2 uses --)
+SYNTAX_ERROR | //Theo1
+
+# Incomplete control flow
+SYNTAX_ERROR | if then
+SYNTAX_ERROR | for do
+
+# Mismatched brackets
+SYNTAX_ERROR | (]
+SYNTAX_ERROR | {)
+
+# Dollar sign (not valid in M2 syntax — "invalid character" error)
+SYNTAX_ERROR | $x
+
+# ============================================================
+# TripleString edge cases
+# ============================================================
+
+# Seven slashes: /// + //// → opens, body has escape, need closing
+VALID | ///x///////
+
+# Content with slashes
+VALID | ///a/b///
+VALID | ///a//b///
+
+# Multiple escapes
+VALID | ///a //// b //// c///
+
+# ============================================================
+# Operator edge cases (self-contained)
+# ============================================================
+
+VALID | x = 1; y = 2; x == y
+VALID | x = 1; y = 2; x != y
+VALID | x = 1; y = 2; x >= y
+VALID | x = 1; y = 2; x <= y
+
+# These operators are valid syntax but need defined variables
+# Mark as ANY since we care about parse success, not runtime
+ANY | x ==> y
+ANY | x <== y
+ANY | x |- y
+ANY | x |_ y
