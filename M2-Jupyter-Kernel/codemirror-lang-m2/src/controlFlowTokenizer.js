@@ -4,7 +4,7 @@
 // built-in tokenizer produces Identifier. This prevents JuxtapositionExpr from
 // consuming these words as Identifiers inside parens/braces/brackets.
 import {ExternalTokenizer} from "@lezer/lr"
-import {IfKw, ThenKw, ElseKw, TryKw, CatchKw} from "./parser.terms.js"
+import {IfKw, ThenKw, ElseKw, TryKw, CatchKw, NewFromKw} from "./parser.terms.js"
 
 // Characters that can continue an identifier-like word.
 // M2 identifiers are [a-zA-Z'][a-zA-Z0-9'$]* — note _ is NOT included
@@ -35,12 +35,15 @@ function emitIfShiftable(input, stack, word, term) {
   return true
 }
 
+// contextual:true prevents token-cache reuse across parse states,
+// which is required because canShift() results depend on parser state.
 export const controlFlowKw = new ExternalTokenizer((input, stack) => {
   // Clause keywords first (highest disambiguation value)
   if (emitIfShiftable(input, stack, "then", ThenKw)) return
   if (emitIfShiftable(input, stack, "else", ElseKw)) return
   if (emitIfShiftable(input, stack, "catch", CatchKw)) return
+  if (emitIfShiftable(input, stack, "from", NewFromKw)) return
   // Starter keywords
   if (emitIfShiftable(input, stack, "if", IfKw)) return
   if (emitIfShiftable(input, stack, "try", TryKw)) return
-})
+}, {contextual: true})

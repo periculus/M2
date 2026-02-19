@@ -17,6 +17,8 @@
 import {ExternalTokenizer} from "@lezer/lr"
 import {ScopeMinus} from "./parser.terms.js"
 
+// contextual:true prevents token-cache reuse across parse states,
+// which is required because canShift() results depend on parser state.
 export const scopeMinusTokenizer = new ExternalTokenizer((input, stack) => {
   if (input.next !== 45) return  // not '-'
   const after = input.peek(1)
@@ -24,4 +26,4 @@ export const scopeMinusTokenizer = new ExternalTokenizer((input, stack) => {
   if (stack.canShift(ScopeMinus)) {
     input.acceptToken(ScopeMinus, 1)
   }
-})
+}, {contextual: true})

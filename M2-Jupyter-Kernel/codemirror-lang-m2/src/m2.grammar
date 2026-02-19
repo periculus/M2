@@ -18,7 +18,7 @@ semi { ";" | ImplicitSemi }
 // them when the parser state actually expects them; otherwise "then"/"else"/"catch"
 // fall through to Identifier from the built-in tokenizer.
 @external tokens controlFlowKw from "./controlFlowTokenizer.js" {
-  IfKw, ThenKw, ElseKw, TryKw, CatchKw
+  IfKw, ThenKw, ElseKw, TryKw, CatchKw, NewFromKw
 }
 
 // Context tracker: sets stack.context = true when a newline was seen between
@@ -37,6 +37,13 @@ semi { ";" | ImplicitSemi }
 // This avoids the +163K parser table growth from precedence-based `!scopeMinus "-"`.
 @external tokens scopeMinusTokenizer from "./scopeMinusTokenizer.js" {
   ScopeMinus
+}
+
+// External tokenizer for TripleString (/// ... ///).
+// Mirrors M2's getstringslashes (lex.d:108-149) exactly — procedural escape loop
+// with parity-dependent close behavior that DFA longest-match cannot replicate.
+@external tokens tripleStringTokenizer from "./tripleStringTokenizer.js" {
+  TripleString
 }
 
 // Precedence: highest (tightest binding) listed first
@@ -126,8 +133,10 @@ Body { (expression (";" | ","))* expression? }
 ListItems { expression ("," expression?)* }
 
 // CallItems: like ListItems, but allows empty first argument f(, x)
-// Used only in CallExpr(...) — M2 grammar.y arglistornull allows empty elements.
-CallItems { expression ("," expression?)* | "," expression? ("," expression?)* }
+// Used in CallExpr (parens + braces) and ListExpr (braces).
+// M2's `;` creates Sequences: f(a; b; c) evaluates all, passes last.
+// M2 grammar.y: arglistornull allows both comma and semicolon separators.
+CallItems { expression (("," | ";") expression?)* | "," expression? (("," | ";") expression?)* }
 
 // Assignment, arrow, and augmented assignment operators
 // Augmented operators (+=, -=, etc.) derived from binding.d augmentedAssignmentOperatorWords.
@@ -191,7 +200,7 @@ DebugExpr { ckw<"debug"> expression }
 // so the parser can distinguish them from Identifier, fixing nested control flow
 // inside parens/braces (e.g., `(if x then y else z)` now produces IfExpr).
 IfExpr { IfKw expression ~ambigThen ThenKw expression (!ambigElse ElseKw expression)? }
-WhileExpr { ckw<"while"> expression ckw<"do"> expression }
+WhileExpr { ckw<"while"> expression (ckw<"do"> | ckw<"list">) expression }
 ForExpr {
   ckw<"for"> expression
   (ckw<"from"> expression)?
@@ -199,7 +208,7 @@ ForExpr {
   (ckw<"in"> expression)?
   (ckw<"when"> expression)?
   (ckw<"by"> expression)?
-  ckw<"do"> expression
+  (ckw<"do"> | ckw<"list">) expression
 }
 TryExpr { TryKw expression ~ambigThen TrySuffix? }
 TrySuffix {
@@ -207,7 +216,7 @@ TrySuffix {
   !ambigElse ElseKw expression |
   ThenKw expression (!ambigElse ElseKw expression)?
 }
-NewExpr { ckw<"new"> expression (~newof ckw<"of"> expression)? }
+NewExpr { ckw<"new"> expression ((~newof ckw<"of"> | ~newfrom NewFromKw) expression)? }
 ReturnExpr { ckw<"return"> expression }
 BreakExpr { ckw<"break"> expression }
 ContinueExpr { ckw<"continue"> expression }
@@ -390,13 +399,8 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   // M2 strings can span multiple lines
   String { '"' (![\\\"] | "\\" _)* '"' }
 
-  // Triple-slash documentation strings: /// ... ///
-  // M2's lexer (lex.d:getstringslashes) treats //// as an escape (4 slashes → 1 output slash).
-  // The "////" "/"* alternative greedily consumes 4+ consecutive slashes as body content,
-  // matching M2's lex.d escape mechanism (each //// produces one literal /).
-  // This prevents the modulo-4 self-closing bug where slash counts satisfying (n-6)%4===0
-  // caused TripleStrings to close prematurely within long slash runs (e.g., 58-slash dividers).
-  TripleString { "///" (![/] | "/" ![/] | "//" ![/] | "////" "/"*)* "///" }
+  // TripleString is now handled by external tokenizer (tripleStringTokenizer.js)
+  // which mirrors M2's getstringslashes (lex.d:108-149) exactly.
 
   LineComment { "--" ![\n]* }
 
@@ -434,7 +438,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     "_>=", "_>", "_<=", "_<", "_~", "_*", "_!", "_=", "|_=", "|_", "_",
     "..<=", "...", "..=", "..<", "..", ".?", ".",
     "#?", "#",
-    TripleString, "//=", "//", "/=", "/",
+    "//=", "//", "/=", "/",
     "||=", "||", "|-=", "|-", "|>", "|=", "|",
     "\\\\=", "\\\\", "\\=", "\\",
     "++=", "++", "+=", "+",
