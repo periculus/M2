@@ -25,9 +25,11 @@ function findFiles(dir, ext, results = []) {
 }
 
 // Count nodes and errors in a parse tree
-function analyzeTree(code, tree) {
+// If endOffset >= 0, also count errors after that offset (post-`end` region)
+function analyzeTree(code, tree, endOffset = -1) {
   let totalNodes = 0;
   let errorNodes = 0;
+  let postEndErrors = 0;
   let errorTexts = [];
 
   tree.iterate({
@@ -35,12 +37,31 @@ function analyzeTree(code, tree) {
       totalNodes++;
       if (node.type.isError) {
         errorNodes++;
+        if (endOffset >= 0 && node.from >= endOffset) {
+          postEndErrors++;
+        }
         const text = code.slice(node.from, Math.min(node.to, node.from + 30));
         if (text.trim()) errorTexts.push(text.trim());
       }
     }
   });
-  return { totalNodes, errorNodes, errorTexts };
+  return { totalNodes, errorNodes, postEndErrors, errorTexts };
+}
+
+// Find byte offset of first bare statement-level `end`.
+// A "bare end" is a line containing only `end` (with optional whitespace).
+// This excludes `M.end`, `symbol end`, `end = 5`, etc.
+// Returns -1 if no bare `end` found.
+function findBareEnd(code) {
+  const lines = code.split('\n');
+  let offset = 0;
+  for (const line of lines) {
+    if (/^\s*end\s*$/.test(line)) {
+      return offset;
+    }
+    offset += line.length + 1; // +1 for newline
+  }
+  return -1;
 }
 
 // Main
@@ -54,6 +75,10 @@ const dirs = [
 // Track counters
 let allFiles = 0, allNodes = 0, allErrors = 0;
 let codeFiles = 0, codeNodes = 0, codeErrors = 0;
+// CODE_EXECUTED: same as CODE_VALID but excludes errors after bare `end`
+let execPostEndErrors = 0; // total post-end errors across CODE_VALID files
+let filesWithBareEnd = 0;  // files containing bare `end`
+let filesWithPostEndErrors = 0; // files with errors after `end`
 // DOC_HEAVY informational counters (these files stay IN CODE_ONLY)
 let docHeavyFiles = 0, docHeavyNodes = 0, docHeavyErrors = 0;
 // AUTO_GENERATED informational counters (these files stay IN CODE_ONLY)
@@ -82,7 +107,8 @@ for (const dir of dirs) {
       const classification = classifyFile(code, file);
 
       const tree = parser.parse(code);
-      const { totalNodes: nodes, errorNodes: errors, errorTexts } = analyzeTree(code, tree);
+      const endOffset = findBareEnd(code);
+      const { totalNodes: nodes, errorNodes: errors, postEndErrors, errorTexts } = analyzeTree(code, tree, endOffset);
 
       // ALL track (every file)
       allFiles++;
@@ -118,6 +144,13 @@ for (const dir of dirs) {
       codeFiles++;
       codeNodes += nodes;
       codeErrors += errors;
+
+      // Track post-`end` errors for CODE_EXECUTED metric
+      if (endOffset >= 0) {
+        filesWithBareEnd++;
+        execPostEndErrors += postEndErrors;
+        if (postEndErrors > 0) filesWithPostEndErrors++;
+      }
 
       // Track doc-heavy separately (informational only, NOT excluded)
       if (classification === 'doc_heavy') {
@@ -170,12 +203,18 @@ const codeAllNodes = codeNodes + invalidSyntaxNodes;
 const codeAllErrors = codeErrors + invalidSyntaxErrors;
 const codeAllRate = codeAllNodes > 0 ? (codeAllErrors / codeAllNodes * 100) : 0;
 
+// CODE_EXECUTED: CODE_VALID minus post-`end` errors (M2 never executes post-end content)
+const execErrors = codeErrors - execPostEndErrors;
+const execRate = codeNodes > 0 ? (execErrors / codeNodes * 100) : 0;
+
 // JSON output mode for machine consumption (nightly.js, gate.fish)
 if (process.argv.includes('--json')) {
   const json = {
-    codeAll:   { files: codeAllFiles, nodes: codeAllNodes, errors: codeAllErrors, rate: parseFloat(codeAllRate.toFixed(4)) },
-    codeValid: { files: codeFiles,    nodes: codeNodes,    errors: codeErrors,    rate: parseFloat(codeRate.toFixed(4)) },
-    excluded:  { rawDoc: skippedDocFiles, corrupt: corruptFiles, invalidSyntax: invalidSyntaxFiles },
+    codeAll:      { files: codeAllFiles, nodes: codeAllNodes, errors: codeAllErrors, rate: parseFloat(codeAllRate.toFixed(4)) },
+    codeValid:    { files: codeFiles,    nodes: codeNodes,    errors: codeErrors,    rate: parseFloat(codeRate.toFixed(4)) },
+    codeExecuted: { files: codeFiles,    nodes: codeNodes,    errors: execErrors,    rate: parseFloat(execRate.toFixed(4)) },
+    postEnd:      { filesWithEnd: filesWithBareEnd, filesWithErrors: filesWithPostEndErrors, errors: execPostEndErrors },
+    excluded:     { rawDoc: skippedDocFiles, corrupt: corruptFiles, invalidSyntax: invalidSyntaxFiles },
     invalidSyntaxDetail,
     parseTime: parseFloat(elapsed),
     commit: commitInfo.trim(),
@@ -185,12 +224,14 @@ if (process.argv.includes('--json')) {
 }
 
 console.log(`\n=== CORPUS TEST RESULTS${commitInfo} ===`);
-console.log(`  ALL files:    ${allFiles} files | ${allNodes} nodes | ${allErrors} errors | ${allRate.toFixed(2)}%`);
-console.log(`  CODE_ALL:     ${codeAllFiles} files | ${codeAllNodes} nodes | ${codeAllErrors} errors | ${codeAllRate.toFixed(2)}%  (includes invalid_syntax, for history comparison)`);
-console.log(`  CODE_VALID:   ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate.toFixed(2)}%`);
-console.log(`  Strict code:  ${strictFiles} files | ${strictNodes} nodes | ${strictErrors} errors | ${strictRate.toFixed(2)}%  (informational: CODE_VALID minus ${docHeavyFiles} doc-heavy files)`);
-console.log(`  No autogen:   ${noAutoGenFiles} files | ${noAutoGenNodes} nodes | ${noAutoGenErrors} errors | ${noAutoGenRate.toFixed(2)}%  (informational: CODE_VALID minus ${autoGenFiles} auto-generated files)`);
+console.log(`  ALL files:      ${allFiles} files | ${allNodes} nodes | ${allErrors} errors | ${allRate.toFixed(2)}%`);
+console.log(`  CODE_ALL:       ${codeAllFiles} files | ${codeAllNodes} nodes | ${codeAllErrors} errors | ${codeAllRate.toFixed(2)}%  (includes invalid_syntax, for history comparison)`);
+console.log(`  CODE_VALID:     ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate.toFixed(2)}%`);
+console.log(`  CODE_EXECUTED:  ${codeFiles} files | ${codeNodes} nodes | ${execErrors} errors | ${execRate.toFixed(2)}%  (CODE_VALID minus ${execPostEndErrors} post-\`end\` errors)`);
+console.log(`  Strict code:    ${strictFiles} files | ${strictNodes} nodes | ${strictErrors} errors | ${strictRate.toFixed(2)}%  (informational: CODE_VALID minus ${docHeavyFiles} doc-heavy files)`);
+console.log(`  No autogen:     ${noAutoGenFiles} files | ${noAutoGenNodes} nodes | ${noAutoGenErrors} errors | ${noAutoGenRate.toFixed(2)}%  (informational: CODE_VALID minus ${autoGenFiles} auto-generated files)`);
 console.log(`  Excluded: ${skippedDocFiles} raw SimpleDoc + ${corruptFiles} corrupt + ${invalidSyntaxFiles} invalid syntax`);
+console.log(`  Post-\`end\`:    ${filesWithBareEnd} files with bare \`end\`, ${filesWithPostEndErrors} with post-end errors, ${execPostEndErrors} post-end error nodes`);
 console.log(`  Parse time: ${elapsed}s`);
 console.log(`Target: <5% (CODE_VALID)`);
 console.log(`Status: ${codeRate < 5 ? 'PASS' : 'NEEDS IMPROVEMENT'}`);

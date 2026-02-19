@@ -79,6 +79,8 @@ if (fixtureMatch) fixtureCount = parseInt(fixtureMatch[1]);
 const corpus = runCapture('Corpus', 'node test/test_corpus.js --json', 'corpus.json');
 let codeErrors = 0, codeNodes = 0, codeFiles = 0, codeRate = 0, parseTime = 0;
 let codeAllFiles = 0, codeAllNodes = 0, codeAllErrors = 0, codeAllRate = 0;
+let execErrors = 0, execRate = 0;
+let postEnd = { filesWithEnd: 0, filesWithErrors: 0, errors: 0 };
 let excluded = { rawDoc: 0, corrupt: 0, invalidSyntax: 0 };
 if (corpus.output) {
   try {
@@ -91,6 +93,13 @@ if (corpus.output) {
     codeAllNodes  = metrics.codeAll.nodes;
     codeAllErrors = metrics.codeAll.errors;
     codeAllRate   = metrics.codeAll.rate;
+    if (metrics.codeExecuted) {
+      execErrors = metrics.codeExecuted.errors;
+      execRate   = metrics.codeExecuted.rate;
+    }
+    if (metrics.postEnd) {
+      postEnd = metrics.postEnd;
+    }
     excluded   = metrics.excluded;
     parseTime  = metrics.parseTime;
   } catch (e) {
@@ -113,8 +122,10 @@ const summary = {
   git: { hash: gitHash, date: gitDate },
   parser: { size: parserSize, path: parserPath },
   corpus: {
-    codeAll:   { files: codeAllFiles, nodes: codeAllNodes, errors: codeAllErrors, rate: codeAllRate },
-    codeValid: { files: codeFiles,    nodes: codeNodes,    errors: codeErrors,    rate: codeRate },
+    codeAll:      { files: codeAllFiles, nodes: codeAllNodes, errors: codeAllErrors, rate: codeAllRate },
+    codeValid:    { files: codeFiles,    nodes: codeNodes,    errors: codeErrors,    rate: codeRate },
+    codeExecuted: { files: codeFiles,    nodes: codeNodes,    errors: execErrors,    rate: execRate },
+    postEnd,
     excluded,
     parseTime,
   },
@@ -139,8 +150,10 @@ console.log();
 console.log(`=== Summary ===`);
 console.log(`  Git: ${gitHash} (${gitDate})`);
 console.log(`  Parser size: ${parserSize} bytes`);
-console.log(`  CODE_VALID: ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate}%`);
-console.log(`  CODE_ALL:   ${codeAllFiles} files | ${codeAllNodes} nodes | ${codeAllErrors} errors | ${codeAllRate}%`);
+console.log(`  CODE_VALID:    ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate}%`);
+console.log(`  CODE_EXECUTED: ${codeFiles} files | ${codeNodes} nodes | ${execErrors} errors | ${execRate}%`);
+console.log(`  CODE_ALL:      ${codeAllFiles} files | ${codeAllNodes} nodes | ${codeAllErrors} errors | ${codeAllRate}%`);
+console.log(`  Post-end: ${postEnd.filesWithEnd} files with bare end, ${postEnd.errors} post-end errors`);
 console.log(`  Fixtures: ${fixtureCount} passed`);
 console.log(`  Operators: ${operators.success ? 'PASS' : 'FAIL'}`);
 console.log(`  Parse time: ${parseTime}s`);
