@@ -112,18 +112,35 @@ end
 if test $skip_corpus -eq 0
     echo ""
     echo "Check 5: Corpus error rate"
-    set corpus_out (node "$cm2_dir/test/test_corpus.js" 2>&1)
+    set corpus_json (node "$cm2_dir/test/test_corpus.js" --json 2>/dev/null)
     set corpus_status $status
-    # Extract CODE-only line
-    set code_line (echo "$corpus_out" | grep 'CODE only:')
-    if test -n "$code_line"
-        # Extract error count using awk
-        set code_errors (echo "$code_line" | awk -F'|' '{print $3}' | awk '{print $1}')
-        echo "  $code_line"
-        gate_pass "Corpus: $code_errors CODE-only errors"
+    # Parse JSON output for reliable metric extraction
+    set code_errors (echo "$corpus_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['codeValid']['errors'])" 2>/dev/null)
+    set code_rate (echo "$corpus_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['codeValid']['rate'])" 2>/dev/null)
+    if test -n "$code_errors"
+        echo "  CODE_VALID: $code_errors errors ($code_rate%)"
+        # Baseline-relative check
+        set baseline_file "$cm2_dir/test/baseline.json"
+        if test -f "$baseline_file"
+            set baseline_errors (python3 -c "import json; print(json.load(open('$baseline_file'))['codeValid']['errors'])" 2>/dev/null)
+            set max_delta 50
+            if test -n "$baseline_errors"
+                set limit (math $baseline_errors + $max_delta)
+                echo "  Baseline: $baseline_errors errors (tolerance: +$max_delta)"
+                if test $code_errors -le $limit
+                    gate_pass "Corpus: $code_errors errors (<= $limit)"
+                else
+                    gate_fail "Corpus regression: $code_errors errors (> baseline $baseline_errors + $max_delta)"
+                end
+            else
+                gate_pass "Corpus: $code_errors CODE_VALID errors (no baseline)"
+            end
+        else
+            gate_pass "Corpus: $code_errors CODE_VALID errors (no baseline.json)"
+        end
     else
-        gate_fail "Could not parse corpus output"
-        echo "$corpus_out" | tail -5
+        gate_fail "Could not parse corpus JSON output"
+        echo "$corpus_json" | tail -5
     end
 else
     echo ""
@@ -137,7 +154,12 @@ if test $baseline_size -gt 0
     set current_size (wc -c < "$parser_path" | tr -d ' ')
     set delta_pct (math "($current_size - $baseline_size) * 100 / $baseline_size")
     echo "  Size: $current_size bytes (baseline: $baseline_size, delta: $delta_pct%)"
-    gate_pass "Parser size: $current_size bytes"
+    set max_size_delta 10
+    if test $delta_pct -gt $max_size_delta
+        gate_fail "Parser size regression: $delta_pct% growth (> $max_size_delta% threshold)"
+    else
+        gate_pass "Parser size: $current_size bytes ($delta_pct% delta)"
+    end
 else
     gate_fail "Parser file not found for size check"
 end
@@ -157,6 +179,26 @@ if test -f "$cm2_dir/test/validate_operators.js"
     end
 else
     echo "  SKIP: validate_operators.js not found"
+end
+
+# ── Check 8: Manifest revalidation (optional — requires M2) ──
+echo ""
+echo "Check 8: Manifest revalidation"
+if type -q M2; or test -n "$M2_PATH"
+    set reval_out (node "$cm2_dir/test/revalidate_invalid.js" 2>&1)
+    set reval_status $status
+    if test $reval_status -eq 0
+        gate_pass "Manifest: no stale entries"
+        # Show confirmed/inconclusive counts from revalidation
+        for line in (printf '%s\n' $reval_out | grep -E '^\s+(Confirmed|Inconclusive):')
+            echo "  $line"
+        end
+    else
+        gate_fail "Manifest: stale entries found"
+        echo "$reval_out" | grep -E '(STALE|FAIL)' | head -5
+    end
+else
+    echo "  SKIP: Manifest revalidation (M2 not found)"
 end
 
 # ── Summary ──

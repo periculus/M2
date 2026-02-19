@@ -75,19 +75,27 @@ let fixtureCount = 0;
 const fixtureMatch = (fixtures.output || '').match(/(\d+) passed/);
 if (fixtureMatch) fixtureCount = parseInt(fixtureMatch[1]);
 
-// 2. Corpus
-const corpus = runCapture('Corpus', 'node test/test_corpus.js', 'corpus.txt');
+// 2. Corpus (JSON mode for reliable parsing)
+const corpus = runCapture('Corpus', 'node test/test_corpus.js --json', 'corpus.json');
 let codeErrors = 0, codeNodes = 0, codeFiles = 0, codeRate = 0, parseTime = 0;
+let codeAllFiles = 0, codeAllNodes = 0, codeAllErrors = 0, codeAllRate = 0;
+let excluded = { rawDoc: 0, corrupt: 0, invalidSyntax: 0 };
 if (corpus.output) {
-  const codeLine = corpus.output.match(/CODE only:\s+(\d+) files \| (\d+) nodes \| (\d+) errors \| ([\d.]+)%/);
-  if (codeLine) {
-    codeFiles = parseInt(codeLine[1]);
-    codeNodes = parseInt(codeLine[2]);
-    codeErrors = parseInt(codeLine[3]);
-    codeRate = parseFloat(codeLine[4]);
+  try {
+    const metrics = JSON.parse(corpus.output);
+    codeFiles  = metrics.codeValid.files;
+    codeNodes  = metrics.codeValid.nodes;
+    codeErrors = metrics.codeValid.errors;
+    codeRate   = metrics.codeValid.rate;
+    codeAllFiles  = metrics.codeAll.files;
+    codeAllNodes  = metrics.codeAll.nodes;
+    codeAllErrors = metrics.codeAll.errors;
+    codeAllRate   = metrics.codeAll.rate;
+    excluded   = metrics.excluded;
+    parseTime  = metrics.parseTime;
+  } catch (e) {
+    console.log('  Warning: failed to parse corpus JSON output');
   }
-  const timeLine = corpus.output.match(/Parse time:\s+([\d.]+)s/);
-  if (timeLine) parseTime = parseFloat(timeLine[1]);
 }
 
 // 3. Analyze errors
@@ -105,10 +113,9 @@ const summary = {
   git: { hash: gitHash, date: gitDate },
   parser: { size: parserSize, path: parserPath },
   corpus: {
-    codeFiles,
-    codeNodes,
-    codeErrors,
-    codeRate,
+    codeAll:   { files: codeAllFiles, nodes: codeAllNodes, errors: codeAllErrors, rate: codeAllRate },
+    codeValid: { files: codeFiles,    nodes: codeNodes,    errors: codeErrors,    rate: codeRate },
+    excluded,
     parseTime,
   },
   fixtures: {
@@ -132,7 +139,8 @@ console.log();
 console.log(`=== Summary ===`);
 console.log(`  Git: ${gitHash} (${gitDate})`);
 console.log(`  Parser size: ${parserSize} bytes`);
-console.log(`  CODE-only: ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate}%`);
+console.log(`  CODE_VALID: ${codeFiles} files | ${codeNodes} nodes | ${codeErrors} errors | ${codeRate}%`);
+console.log(`  CODE_ALL:   ${codeAllFiles} files | ${codeAllNodes} nodes | ${codeAllErrors} errors | ${codeAllRate}%`);
 console.log(`  Fixtures: ${fixtureCount} passed`);
 console.log(`  Operators: ${operators.success ? 'PASS' : 'FAIL'}`);
 console.log(`  Parse time: ${parseTime}s`);

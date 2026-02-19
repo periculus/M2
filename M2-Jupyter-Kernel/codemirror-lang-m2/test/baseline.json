@@ -1,0 +1,11 @@
+{
+  "codeValid": { "files": 2551, "nodes": 8909626, "errors": 2334, "rate": 0.0262 },
+  "codeAll":   { "files": 2552, "nodes": 8923009, "errors": 2622, "rate": 0.0294 },
+  "rootValid": { "rootCauses": 407, "filesWithErrors": 250 },
+  "excluded":  { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
+  "parser":    { "size": 258996 },
+  "parseTime": { "seconds": 21.8 },
+  "updated": "2026-02-20",
+  "sourceCommit": "9ea6abd905",
+  "note": "T1: added ; to CallItems (uncommitted)"
+}

@@ -58,10 +58,11 @@ function findFirstErrors(code, tree, maxErrors = 3) {
         const from = node.from;
         const to = node.to;
         const text = code.slice(from, Math.min(to, from + 50)).trim();
-        const contextBefore = code.slice(Math.max(0, from - 100), from);
-        const contextAfter = code.slice(to, Math.min(code.length, to + 100));
+        const contextBefore = code.slice(Math.max(0, from - 200), from);
+        const contextAfter = code.slice(to, Math.min(code.length, to + 200));
         const line = getLineNumber(code, from);
         const lineContent = getLineAt(code, from);
+        const isZeroLength = from === to;
 
         // Find preceding non-error node
         let prevType = null;
@@ -78,16 +79,53 @@ function findFirstErrors(code, tree, maxErrors = 3) {
           }
         }
 
-        errors.push({ from, to, text, contextBefore, contextAfter, line, lineContent, prevType, prevText });
+        // Find following non-error node
+        let nextType = null;
+        let nextText = null;
+        let cursor2 = tree.cursor();
+        cursor2.moveTo(to);
+        if (to < code.length && cursor2.moveTo(to + 1)) {
+          while (cursor2.type.isError && cursor2.to < code.length) {
+            if (!cursor2.moveTo(cursor2.to + 1)) break;
+          }
+          if (!cursor2.type.isError) {
+            nextType = cursor2.type.name;
+            nextText = code.slice(cursor2.from, Math.min(cursor2.to, cursor2.from + 30));
+          }
+        }
+
+        errors.push({ from, to, text, contextBefore, contextAfter, line, lineContent, isZeroLength, prevType, prevText, nextType, nextText });
       }
     }
   });
   return errors.slice(0, maxErrors);
 }
 
+// Check if position is inside unclosed parens/braces by counting unmatched openers
+function parenNesting(contextBefore) {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  for (const ch of contextBefore) {
+    if (ch === '(') parenDepth++;
+    else if (ch === ')') parenDepth = Math.max(0, parenDepth - 1);
+    else if (ch === '{') braceDepth++;
+    else if (ch === '}') braceDepth = Math.max(0, braceDepth - 1);
+  }
+  return { parenDepth, braceDepth };
+}
+
+// Expression-like node types (nodes that represent or end an expression)
+const EXPR_NODE_TYPES = new Set([
+  'Identifier', 'Type', 'Builtin', 'Constant', 'Number', 'String', 'TripleString',
+  'Boolean', 'Null', 'AssignExpr', 'BinaryExpression', 'CompareExpr', 'UnaryExpr',
+  'CallExpr', 'MemberExpr', 'ParenExpr', 'ListExpr', 'JuxtapositionExpr',
+  'IfExpr', 'ForExpr', 'WhileExpr', 'TryExpr', 'NewExpr', 'FunctionExpr',
+  'ArrowExpr', 'HashExpr', 'SequenceExpr', 'RangeExpr',
+]);
+
 // Classify a root-cause error
-function classifyError(error, code) {
-  const { text, contextBefore, lineContent, from } = error;
+function classifyError(error, code, fileClassification) {
+  const { text, contextBefore, lineContent, from, isZeroLength, prevType, nextType } = error;
 
   // c_style_comment: // at line start or after whitespace (not in operator context)
   const trimmedLine = lineContent.trim();
@@ -115,6 +153,35 @@ function classifyError(error, code) {
     return 'english_prose';
   }
 
+  // semicolon_in_call: `;` causing error inside parenthesized/braced call
+  // Detect: error near `;` while inside unclosed parens or braces
+  const { parenDepth, braceDepth } = parenNesting(contextBefore);
+  if (parenDepth > 0 || braceDepth > 0) {
+    // Error text is `;` itself, or zero-length error right before/after `;`
+    const nearSemicolon = text === ';' ||
+      (isZeroLength && /;\s*$/.test(contextBefore.slice(-10))) ||
+      (isZeroLength && /^\s*;/.test(code.slice(from, from + 10)));
+    if (nearSemicolon) {
+      return 'semicolon_in_call';
+    }
+  }
+
+  // divider_line: consecutive comparison/decoration operators (e.g., -----, *****,  ======)
+  // Typically prevType is CompareOp or error text is repeated operator chars
+  if (prevType === 'CompareOp' && (nextType === 'CompareOp' || /^[<>=*\-]+$/.test(text))) {
+    return 'divider_line';
+  }
+  // Also catch lines that are purely operator repetition (decorative dividers)
+  if (/^[-=*<>]{4,}$/.test(trimmedLine)) {
+    return 'divider_line';
+  }
+
+  // comment_boundary: error adjacent to line comment (--)
+  // Error before a line comment, or contextAfter starts with --
+  if (/^\s*--/.test(code.slice(from, from + 20)) || (nextType === 'LineComment')) {
+    return 'comment_boundary';
+  }
+
   // newline_sep: looks like a statement boundary issue
   // Error at start of line, preceded by an expression that could end a statement
   const endsWithExpr = /[a-zA-Z0-9_)\]}"']\s*$/.test(contextBefore);
@@ -123,12 +190,23 @@ function classifyError(error, code) {
     return 'newline_sep';
   }
 
+  // statement_boundary: zero-length error between two expression-like nodes
+  // (not caught by newline_sep because may be on same line or other context)
+  if (isZeroLength && EXPR_NODE_TYPES.has(prevType) && EXPR_NODE_TYPES.has(nextType)) {
+    return 'statement_boundary';
+  }
+
   // jux_non_atom: juxtaposition where RHS doesn't look like an atom
   if (error.prevType === 'JuxtapositionExpr' || error.prevType === 'Identifier') {
     const startsWithOp = /^[+\-*/<>=!@#%^&|~?]/.test(text);
     if (!startsWithOp && /^[a-zA-Z]/.test(text)) {
       return 'jux_non_atom';
     }
+  }
+
+  // auto_gen_pattern: error in auto-generated file
+  if (fileClassification === 'auto_generated') {
+    return 'auto_gen_pattern';
   }
 
   return 'other';
@@ -152,6 +230,9 @@ const categoryByClass = { code: {}, doc_heavy: {}, auto_generated: {} };
 let totalFilesWithErrors = 0;
 let totalRootCauses = 0;
 let filesProcessed = 0;
+let skippedInvalidSyntax = 0;
+let skippedRawDoc = 0;
+let skippedCorrupt = 0;
 
 const startTime = Date.now();
 
@@ -165,7 +246,9 @@ for (const dir of dirs) {
       if (code.length > 500000) continue;
 
       const classification = classifyFile(code, file);
-      if (classification === 'corrupt' || classification === 'raw_doc') continue;
+      if (classification === 'corrupt') { skippedCorrupt++; continue; }
+      if (classification === 'raw_doc') { skippedRawDoc++; continue; }
+      if (classification === 'invalid_syntax') { skippedInvalidSyntax++; continue; }
 
       const tree = parser.parse(code);
       const errors = findFirstErrors(code, tree, 3);
@@ -186,7 +269,7 @@ for (const dir of dirs) {
           continue; // likely cascading from previous error
         }
 
-        const category = classifyError(error, code);
+        const category = classifyError(error, code, classification);
         categories[category] = (categories[category] || 0) + 1;
         totalRootCauses++;
 
@@ -219,6 +302,11 @@ console.log();
 console.log('=== ROOT-CAUSE ANALYSIS ===');
 console.log(`  Files with errors: ${totalFilesWithErrors}`);
 console.log(`  Independent root causes: ${totalRootCauses}`);
+const exclusions = [];
+if (skippedInvalidSyntax > 0) exclusions.push(`${skippedInvalidSyntax} invalid_syntax`);
+if (skippedRawDoc > 0) exclusions.push(`${skippedRawDoc} raw_doc`);
+if (skippedCorrupt > 0) exclusions.push(`${skippedCorrupt} corrupt`);
+if (exclusions.length > 0) console.log(`  Excluded: ${exclusions.join(', ')} files`);
 console.log(`  Analysis time: ${elapsed}s`);
 console.log();
 
