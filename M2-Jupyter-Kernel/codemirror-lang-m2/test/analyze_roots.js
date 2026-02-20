@@ -123,8 +123,19 @@ const EXPR_NODE_TYPES = new Set([
   'ArrowExpr', 'HashExpr', 'SequenceExpr', 'RangeExpr',
 ]);
 
+// Find byte offset of first bare statement-level `end`.
+function findBareEnd(code) {
+  const lines = code.split('\n');
+  let offset = 0;
+  for (const line of lines) {
+    if (/^\s*end\s*$/.test(line)) return offset;
+    offset += line.length + 1;
+  }
+  return -1;
+}
+
 // Classify a root-cause error
-function classifyError(error, code, fileClassification) {
+function classifyError(error, code, fileClassification, endOffset = -1) {
   const { text, contextBefore, lineContent, from, isZeroLength, prevType, nextType } = error;
 
   // c_style_comment: // at line start or after whitespace (not in operator context)
@@ -209,6 +220,49 @@ function classifyError(error, code, fileClassification) {
     return 'auto_gen_pattern';
   }
 
+  // ── New sub-categories (previously lumped into 'other') ──
+
+  // post_end: error occurs after bare `end` statement (M2 stops loading here)
+  if (endOffset >= 0 && from >= endOffset) {
+    return 'post_end';
+  }
+
+  // unicode_char: error text contains non-ASCII characters (·, 𝔞, etc.)
+  if (/[^\x00-\x7F]/.test(text)) {
+    return 'unicode_char';
+  }
+
+  // question_mark_op: `?` used as documentation operator at line start
+  if (text === '?' && /^\s*\?/.test(lineContent)) {
+    return 'question_mark_op';
+  }
+
+  // comparison_prefix: `>=` or `<=` used as unary prefix inside calls (sheaf idiom)
+  if (/^[<>]=/.test(text) && (parenDepth > 0 || braceDepth > 0)) {
+    return 'comparison_prefix';
+  }
+
+  // body_boundary: zero-length error where next node is Body
+  // (expression ended but parser expected continuation before Body block)
+  if (isZeroLength && nextType === 'Body') {
+    return 'body_boundary';
+  }
+
+  // callitems_boundary: zero-length error where next node is CallItems
+  if (isZeroLength && nextType === 'CallItems') {
+    return 'callitems_boundary';
+  }
+
+  // program_boundary: zero-length error at program level or before `?`
+  if (isZeroLength && (nextType === 'Program' || nextType === '?')) {
+    return 'program_boundary';
+  }
+
+  // separator_context: comma or semicolon causing error in unexpected context
+  if (text === ',' || text === ';') {
+    return 'separator_context';
+  }
+
   return 'other';
 }
 
@@ -251,6 +305,7 @@ for (const dir of dirs) {
       if (classification === 'invalid_syntax') { skippedInvalidSyntax++; continue; }
 
       const tree = parser.parse(code);
+      const endOffset = findBareEnd(code);
       const errors = findFirstErrors(code, tree, 3);
       if (errors.length === 0) continue;
 
@@ -269,7 +324,7 @@ for (const dir of dirs) {
           continue; // likely cascading from previous error
         }
 
-        const category = classifyError(error, code, classification);
+        const category = classifyError(error, code, classification, endOffset);
         categories[category] = (categories[category] || 0) + 1;
         totalRootCauses++;
 

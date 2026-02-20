@@ -1,11 +1,13 @@
 {
-  "codeValid": { "files": 2551, "nodes": 8909626, "errors": 2334, "rate": 0.0262 },
-  "codeAll":   { "files": 2552, "nodes": 8923009, "errors": 2622, "rate": 0.0294 },
-  "rootValid": { "rootCauses": 407, "filesWithErrors": 250 },
-  "excluded":  { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
-  "parser":    { "size": 258996 },
-  "parseTime": { "seconds": 21.8 },
+  "codeValid":    { "files": 2551, "nodes": 8909626, "errors": 2334, "rate": 0.0262 },
+  "codeExecuted": { "files": 2551, "nodes": 8909626, "errors": 1929, "rate": 0.0217 },
+  "codeAll":      { "files": 2552, "nodes": 8923009, "errors": 2622, "rate": 0.0294 },
+  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 31, "errors": 405 },
+  "rootValid":    { "rootCauses": 407, "filesWithErrors": 250, "otherPct": 4.2 },
+  "excluded":     { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
+  "parser":       { "size": 258996 },
+  "parseTime":    { "seconds": 21.8 },
   "updated": "2026-02-20",
-  "sourceCommit": "9ea6abd905",
-  "note": "T1: added ; to CallItems (uncommitted)"
+  "sourceCommit": "efff20789a",
+  "note": "Post-T1: CODE_EXECUTED metric + root-cause deepening (other 68.8% -> 4.2%)"
 }
