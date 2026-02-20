@@ -5,9 +5,9 @@
   "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 14, "errors": 130 },
   "rootValid":    { "rootCauses": 142, "filesWithErrors": 101, "otherPct": 10.6 },
   "excluded":     { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
-  "parser":       { "size": 281038 },
+  "parser":       { "size": 271479 },
   "parseTime":    { "seconds": 23.1 },
-  "updated": "2026-02-20",
-  "sourceCommit": "rd/list-do-tokenizer-stageA",
-  "note": "Stage A: ListKw/DoKw external tokenizer (dual form) -417 CODE_VALID, -230 ROOT_VALID"
+  "updated": "2026-02-21",
+  "sourceCommit": "sth-mac-stageB",
+  "note": "Stage B: ListKw/DoKw tightened to external tokenizer only. Parser -3.4% vs Stage A, same accuracy"
 }

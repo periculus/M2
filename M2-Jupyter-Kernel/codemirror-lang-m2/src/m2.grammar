@@ -200,7 +200,7 @@ DebugExpr { ckw<"debug"> expression }
 // so the parser can distinguish them from Identifier, fixing nested control flow
 // inside parens/braces (e.g., `(if x then y else z)` now produces IfExpr).
 IfExpr { IfKw expression ~ambigThen ThenKw expression (!ambigElse ElseKw expression)? }
-WhileExpr { ckw<"while"> expression (DoKw | ListKw | ckw<"do"> | ckw<"list">) expression }
+WhileExpr { ckw<"while"> expression (DoKw | ListKw) expression }
 ForExpr {
   ckw<"for"> expression
   (ckw<"from"> expression)?
@@ -208,7 +208,7 @@ ForExpr {
   (ckw<"in"> expression)?
   (ckw<"when"> expression)?
   (ckw<"by"> expression)?
-  (DoKw | ListKw | ckw<"do"> | ckw<"list">) expression
+  (DoKw | ListKw) expression
 }
 TryExpr { TryKw expression ~ambigThen TrySuffix? }
 TrySuffix {

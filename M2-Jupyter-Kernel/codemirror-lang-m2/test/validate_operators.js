@@ -84,8 +84,8 @@ const EXCLUDED = {
   // Control-flow keywords (handled by external tokenizer or ckw, not OperatorSymbol)
   'else':         'Control-flow keyword, handled by external tokenizer (ElseKw)',
   'then':         'Control-flow keyword, handled by external tokenizer (ThenKw)',
-  'do':           'Control-flow keyword, handled by ckw<"do">',
-  'list':         'Keyword, not an operator',
+  'do':           'Control-flow keyword, handled by external tokenizer (DoKw)',
+  'list':         'Control-flow keyword, handled by external tokenizer (ListKw)',
   'if':           'Control-flow keyword, handled by external tokenizer (IfKw)',
   'try':          'Control-flow keyword, handled by external tokenizer (TryKw)',
   'catch':        'Control-flow keyword, handled by external tokenizer (CatchKw)',
