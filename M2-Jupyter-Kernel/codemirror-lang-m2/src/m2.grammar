@@ -249,12 +249,18 @@ BinaryExpression {
 }
 
 // Unary prefix operators
+// M2 comparison ops are unarybinaryright (binding.d): both binary and prefix.
+// Prefix form creates LowerBound/UpperBound (e.g., >=0, <=5).
 UnaryExpression {
   !prefix "-" expression |
   !prefix "+" expression |
   !prefix "*" expression |
   !prefix "#" expression |
   !prefix "<<" expression |
+  !prefix ">=" expression |
+  !prefix "<=" expression |
+  !prefix ">" expression |
+  !prefix "<" expression |
   !not ckw<"not"> expression |
   !or "??" expression
 }

@@ -1,13 +1,13 @@
 {
-  "codeValid":    { "files": 2551, "nodes": 8909626, "errors": 2334, "rate": 0.0262 },
-  "codeExecuted": { "files": 2551, "nodes": 8909626, "errors": 1929, "rate": 0.0217 },
-  "codeAll":      { "files": 2552, "nodes": 8923009, "errors": 2622, "rate": 0.0294 },
-  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 31, "errors": 405 },
-  "rootValid":    { "rootCauses": 407, "filesWithErrors": 250, "otherPct": 4.2 },
+  "codeValid":    { "files": 2551, "nodes": 8909577, "errors": 2272, "rate": 0.0255 },
+  "codeExecuted": { "files": 2551, "nodes": 8909577, "errors": 1884, "rate": 0.0211 },
+  "codeAll":      { "files": 2552, "nodes": 8922960, "errors": 2560, "rate": 0.0287 },
+  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 30, "errors": 388 },
+  "rootValid":    { "rootCauses": 398, "filesWithErrors": 242, "otherPct": 4.0 },
   "excluded":     { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
-  "parser":       { "size": 258996 },
-  "parseTime":    { "seconds": 21.8 },
+  "parser":       { "size": 259545 },
+  "parseTime":    { "seconds": 21.6 },
   "updated": "2026-02-20",
-  "sourceCommit": "efff20789a",
-  "note": "Post-T1: CODE_EXECUTED metric + root-cause deepening (other 68.8% -> 4.2%)"
+  "sourceCommit": "a318a3115f",
+  "note": "T2: Unary prefix >=, <=, >, < — comparison_prefix 8→0 root causes, -62 CODE_VALID"
 }

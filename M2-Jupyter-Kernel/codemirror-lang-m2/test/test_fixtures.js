@@ -2259,6 +2259,52 @@ console.log('\n=== Semicolon in CallExpr ===');
 }
 
 // ============================================================
+// Comparison Prefix (Unary >=, <=, >, <)
+// M2 comparison ops are unarybinaryright (binding.d): both binary and prefix.
+// Prefix form creates LowerBound/UpperBound (e.g., >=0, <=5).
+// ============================================================
+console.log('\n=== Comparison Prefix (Unary >=, <=, >, <) ===');
+
+// Unary prefix forms — zero errors
+for (const code of [
+  '(>=0)', '(<=5)', '(>3)', '(<10)',
+  'f(>=0)', 'HH^0(F(>=0))',
+  '(>=(-infinity))', 'HH^0 F(>=(-10))',
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  passed++;
+}
+
+// Parse-shape: prefix >=0 produces UnaryExpression inside parens
+{
+  const code = '(>=0)';
+  const node = findNode(code, 'UnaryExpression');
+  assert(node !== null, `"${code}" should produce UnaryExpression node`);
+  passed++;
+}
+
+// Parse-shape: binary x >= y produces BinaryExpression with CompareOp
+{
+  const code = 'x >= y';
+  const node = findNode(code, 'BinaryExpression');
+  assert(node !== null, `"${code}" should produce BinaryExpression node`);
+  const cmp = findNode(code, 'CompareOp');
+  assert(cmp !== null, `"${code}" should produce CompareOp node`);
+  passed++;
+}
+
+// Anti-regression: binary comparison must still work
+for (const code of [
+  'x >= y', 'x <= y', 'x > y', 'x < y',
+  'a + b < c + d',
+  'if x > 0 then x else -x',
+  'for i from 0 to n-1 do (if a >= b then c)',
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
+  passed++;
+}
+
+// ============================================================
 // Summary
 // ============================================================
 console.log('');
