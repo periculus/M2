@@ -262,6 +262,7 @@ UnaryExpression {
   !prefix "<=" expression |
   !prefix ">" expression |
   !prefix "<" expression |
+  !prefix "?" expression |
   !not ckw<"not"> expression |
   !or "??" expression
 }
@@ -421,9 +422,16 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   // Multi-char operators containing "-" (like "->", "|-", "<-") still work.
   // "symbol -" (bare minus) remains an error — acceptable since "-" CAN start a unary expression.
   // Augmented assignment operators (-=, +=, etc.) included: "-=" is safe (= after - disambiguates from -- and -*).
+  // "(*)" is a postfix operator (binding.d:333, precedence 332). Tokenizer correctly
+  // rejects "(*x)" (second char ≠ ')') and falls back to Identifier + ParenExpr.
+  // "{" / "}" / "(" / ")" / "[" / "]" are only valid after "symbol" (parser.d quotes
+  // next token). They must NOT appear after global/local/threadLocal, which use
+  // expressions: `local {x}` = local + ListExpr, NOT local quoting `{`.
+  // Oracle confirmed: `symbol {1}` → SYNTAX_ERROR (M2 consumes `{` as token, not expr).
   OperatorSymbol {
     ("symbol" | "global" | "local" | "threadLocal") $[ \t]*
-    ("===>="|"===>" | "<==>=" | "<===" | "<==>" |
+    ("(*)" |
+     "===>="|"===>" | "<==>=" | "<===" | "<==>" |
      "==>="|"==>" | "<==" | "===" | "=!=" | "^**=" | "^**" | "^>=" | "^<=" |
      "..<=" | "..<" | "..." |
      "==" | "!=" | "<=" | ">=" | "<-" | "->" | "=>" | ">>" |
@@ -433,7 +441,8 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
      "<<=" | "<<" | ">>=" | "+=" | "+" | "*=" | "*" |
      "/=" | "/" | "%=" | "%" | ">" | "<" | "=" | "^=" | "^" | "_=" | "_" |
      "." | "!" | "~" | "&=" | "&" | "|=" | "|" | ":" | "@=" | "@" | "?" | "\\=" | "\\" |
-     "-=" | "#")
+     "-=" | "#") |
+    "symbol" $[ \t]* ("{" | "}" | "(" | ")" | "[" | "]")
   }
 
   @precedence {

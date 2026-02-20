@@ -2384,6 +2384,240 @@ for (const code of [
   passed++;
 }
 
+// ============================================================
+// ? as Prefix Unary Operator (Fix B)
+// M2's `?` is `unarybinaryright` (binding.d:267): both prefix and binary.
+// Prefix form is doc-lookup: `? ZZ` shows documentation for ZZ.
+// Evidence: operatorAttributes ? → unarybinaryright, precedence 258.
+// Oracle-validated: ? ZZ, ? ideal, ? String, ? Ring all VALID.
+// ============================================================
+console.log('\n=== ? as Prefix Unary Operator ===');
+
+// Prefix ? should parse without errors (UnaryExpression)
+for (const [code, desc] of [
+  ['? ZZ', 'doc lookup on type'],
+  ['? ideal', 'doc lookup on function'],
+  ['? String', 'doc lookup on type'],
+  ['? Ring', 'doc lookup on type'],
+  ['? x', 'doc lookup on identifier'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  const unary = findNode(code, 'UnaryExpression');
+  assert(unary !== null, `"${code}" should contain UnaryExpression`);
+  passed++;
+}
+
+// Prefix ? inside expressions
+for (const [code, desc] of [
+  ['f(? ZZ)', 'prefix ? inside call'],
+  ['(? ideal)', 'prefix ? inside parens'],
+  ['x = ? Ring', 'prefix ? in assignment'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// Binary ? (comparison) — anti-regression
+for (const [code, desc] of [
+  ['x ? y', 'binary comparison'],
+  ['a ? b', 'binary comparison'],
+  ['"abc" ? "def"', 'string comparison'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  // Binary ? should produce BinaryExpression (via CompareOp)
+  const bin = findNode(code, 'BinaryExpression');
+  assert(bin !== null, `"${code}" should contain BinaryExpression`);
+  passed++;
+}
+
+// Anti-regression: multi-char ? operators
+for (const [code, desc] of [
+  ['x #? 0', '#? subscript operator'],
+  ['x .? y', '.? member access'],
+  ['x ?? y', '?? null-check'],
+  ['x ??= y', '??= augmented assign'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// ============================================================
+// Symbol Bracket/Postfix Tokens (Fix C)
+// M2's `symbol` quotes the next token (parser.d:396-401).
+// Oracle confirmed: `symbol {1}` = SYNTAX_ERROR (M2 consumes `{` as token, not expr).
+// `(*)` is a postfix operator (binding.d:333, precedence 332).
+// Bracket tokens (`{`, `}`, etc.) only valid after `symbol`, not global/local/threadLocal.
+// ============================================================
+console.log('\n=== Symbol Bracket/Postfix Tokens ===');
+
+// symbol + bracket tokens → OperatorSymbol (single token)
+for (const [code, desc] of [
+  ['symbol (*)', 'postfix operator'],
+  ['symbol {', 'open brace'],
+  ['symbol }', 'close brace'],
+  ['symbol (', 'open paren'],
+  ['symbol )', 'close paren'],
+  ['symbol [', 'open bracket'],
+  ['symbol ]', 'close bracket'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  const op = findNode(code, 'OperatorSymbol');
+  assert(op !== null, `"${code}" should be OperatorSymbol`);
+  passed++;
+}
+
+// (*) with other scope keywords → OperatorSymbol
+for (const [code, desc] of [
+  ['global (*)', 'global postfix'],
+  ['local (*)', 'local postfix'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  const op = findNode(code, 'OperatorSymbol');
+  assert(op !== null, `"${code}" should be OperatorSymbol`);
+  passed++;
+}
+
+// Anti-regression: local/global + braces → ScopeExpr with ListExpr (NOT OperatorSymbol)
+for (const [code, desc] of [
+  ['local {x}', 'local with list'],
+  ['global {x, y}', 'global with list'],
+  ['local (x)', 'local with paren expr'],
+  ['local (x + y)', 'local with complex paren expr'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  const scope = findNode(code, 'ScopeExpr');
+  assert(scope !== null, `"${code}" should be ScopeExpr (not OperatorSymbol)`);
+  passed++;
+}
+
+// Anti-regression: normal symbol + expression unchanged
+for (const [code, desc] of [
+  ['symbol x', 'normal identifier'],
+  ['symbol +', 'operator symbol'],
+  ['symbol ==', 'comparison operator symbol'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// Anti-regression: (*) in non-symbol context → NOT OperatorSymbol
+{
+  const code = '(a * b)';
+  assert(errorCount(code) === 0, '"(a * b)" should have 0 errors');
+  const op = findNode(code, 'OperatorSymbol');
+  assert(op === null, '"(a * b)" should NOT contain OperatorSymbol');
+  passed++;
+}
+
+// ============================================================
+// Comma Anti-Regression Fixtures (T3 stabilization)
+// Comprehensive edge cases for comma-as-Sequence behavior.
+// Oracle-validated: 100 corpus snippets, 0% mismatch rate.
+// ============================================================
+console.log('\n=== Comma Anti-Regression ===');
+
+// 1. Nested comma in different contexts
+for (const [code, desc] of [
+  ['(a, (b, c))', 'nested comma in parens'],
+  ['f(a, b), g(c, d)', 'comma between function calls'],
+  ['(f(a, b), g(c, d))', 'comma between calls inside parens'],
+  ['((a, b), (c, d))', 'nested tuples'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// 2. Comma in list/array contexts → should use CallItems/ListItems, NOT BinaryExpression
+for (const [code, nodeType] of [
+  ['{a, b, c}', 'CallItems'],
+  ['[a, b, c]', 'ListItems'],
+  ['f(a, b, c)', 'CallItems'],
+  ['f{a, b, c}', 'CallItems'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors`);
+  const items = findNode(code, nodeType);
+  assert(items !== null, `"${code}" should contain ${nodeType}`);
+  passed++;
+}
+
+// 3. Comma with control flow
+for (const [code, desc] of [
+  ['if x then a, b', 'comma in then branch'],
+  ['for i from 0 to 5 do (a, b)', 'comma in for-do body'],
+  ['while x do (a, b)', 'comma in while-do body'],
+  ['x -> (a, b, c)', 'comma in arrow body'],
+  ['(x, y) -> x + y', 'comma in arrow params'],
+  ['try (a, b) then c', 'comma in try body'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// 4. Comma precedence — lower than all binary operators
+for (const [code, desc] of [
+  ['a + b, c + d', 'comma lower than plus'],
+  ['a * b, c * d', 'comma lower than times'],
+  ['a .. b, c .. d', 'comma with range'],
+  ['a | b, c | d', 'comma with bar'],
+  ['a : b, c : d', 'comma with colon'],
+  ['a @ b, c @ d', 'comma with at'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  // The outermost node should be BinaryExpression with comma
+  const node = findNode(code, 'BinaryExpression');
+  assert(node !== null, `"${code}" should contain BinaryExpression`);
+  passed++;
+}
+
+// 5. Comma vs assign precedence
+for (const code of [
+  'a = b, c = d',
+  'a := b, c := d',
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// 6. Comma with juxtaposition
+for (const code of [
+  'dim I, degree I',
+  'rank M, numgens M',
+  'print a, print b',
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  // Should contain JuxtapositionExpr (jux) AND BinaryExpression (comma)
+  const jux = findNode(code, 'JuxtapositionExpr');
+  const bin = findNode(code, 'BinaryExpression');
+  assert(jux !== null, `"${code}" should contain JuxtapositionExpr`);
+  assert(bin !== null, `"${code}" should contain BinaryExpression`);
+  passed++;
+}
+
+// 7. Real M2 patterns from corpus (oracle-validated VALID)
+for (const [code, desc] of [
+  ['Ring, Ring', 'type pair for method dispatch'],
+  ['Module, Module', 'type pair for method dispatch'],
+  ['protect NoRoot, protect counter', 'protect sequence'],
+  ['DegreeLimit => null, MinimalGenerators => true', 'option sequence'],
+  ['Ring, Ideal', 'mixed type pair'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// 8. Anti-regression: things that should NOT change with comma-as-Sequence
+for (const [code, desc, nodeType] of [
+  ['f(a, b)', 'call with comma args', 'CallItems'],
+  ['{a, b}', 'list literal', 'CallItems'],
+  ['[a, b]', 'array literal', 'ListItems'],
+  ['f{a, b}', 'brace call', 'CallItems'],
+  ['f[a, b]', 'subscript call', 'ListItems'],
+]) {
+  const items = findNode(code, nodeType);
+  assert(items !== null, `"${code}" (${desc}) should use ${nodeType}, not BinaryExpression for comma`);
+  passed++;
+}
+
 console.log('');
 console.log(`=== RESULTS: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);

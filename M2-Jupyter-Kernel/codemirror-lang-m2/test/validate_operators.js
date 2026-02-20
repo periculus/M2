@@ -78,14 +78,7 @@ const EXCLUDED = {
   '⧢':            'Unicode shuffle product — rare, not in ASCII-focused grammar',
   ',':            'Comma is punctuation/separator, not an operator symbol',
   'SPACE':        'Juxtaposition — implicit, handled by JuxtapositionExpr',
-  '(*)':          'Postfix parens — special syntax, not an operator symbol form',
-  // Bracket pairs (not operators, grammar handles as delimiters)
-  '(':            'Open paren — delimiter, not operator symbol',
-  ')':            'Close paren — delimiter, not operator symbol',
-  '{':            'Open brace — delimiter, not operator symbol',
-  '}':            'Close brace — delimiter, not operator symbol',
-  '[':            'Open bracket — delimiter, not operator symbol',
-  ']':            'Close bracket — delimiter, not operator symbol',
+  // (*), (, ), {, }, [, ] are now in OperatorSymbol (symbol-only branch).
   '<|':           'Open angle-bar — handled in OperatorSymbol AND as AngleBarListExpr delimiter',
   '|>':           'Close angle-bar — handled in OperatorSymbol AND as AngleBarListExpr delimiter',
   // Control-flow keywords (handled by external tokenizer or ckw, not OperatorSymbol)
