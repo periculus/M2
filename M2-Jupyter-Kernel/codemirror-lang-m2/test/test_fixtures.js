@@ -2618,6 +2618,49 @@ for (const [code, desc, nodeType] of [
   passed++;
 }
 
+// ================================================================
+// TrailingDotNumber in Juxtaposition
+// ================================================================
+console.log('=== TrailingDotNumber in Juxtaposition ===');
+
+// Trailing dot numbers should work as juxArg (M2 treats 1000. as float)
+for (const [code, desc] of [
+  ['s 1000.', 'jux with trailing dot'],
+  ['ring 4.', 'ring with trailing dot float'],
+  ['toCC 1.', 'toCC with trailing dot'],
+  ['f 3.14', 'jux with float (no trailing dot, baseline)'],
+  ['s 1000. === 1011.', 'jux trailing dot in comparison'],
+  ['assert( s 1000. === 1011. )', 'jux trailing dot in assert'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// TrailingDotNumber should produce JuxtapositionExpr with TrailingDotNumber
+for (const code of ['s 1000.', 'ring 4.']) {
+  const jux = findNode(code, 'JuxtapositionExpr');
+  const tdn = findNode(code, 'TrailingDotNumber');
+  assert(jux !== null, `"${code}" should contain JuxtapositionExpr`);
+  assert(tdn !== null, `"${code}" should contain TrailingDotNumber`);
+  passed++;
+}
+
+// Anti-regression: standalone TrailingDotNumber still works
+for (const [code, desc] of [
+  ['1.', 'standalone trailing dot'],
+  ['1. + 2.', 'trailing dot in binary'],
+  ['1. === 1.', 'trailing dot in comparison'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// Anti-regression: member access after number (M2 treats as float + jux, not member)
+// s 1000.method = JuxtapositionExpr(s, TrailingDotNumber(1000.)) + Identifier(method)
+// This parses differently now but should be clean
+assert(errorCount('s 1000.method') === 0, '"s 1000.method" should have 0 errors');
+passed++;
+
 console.log('');
 console.log(`=== RESULTS: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);

@@ -1,8 +1,11 @@
 # Statement-Boundary Campaign Plan
 
-**Status**: Planning phase (not started)
+**Status**: B+C+D completed, A blocked, ImplicitSemi deferred
 **Created**: 2026-02-20
-**Baseline**: CODE_VALID 1,269 | ROOT_VALID 387 | Parser 272,026 bytes
+**Updated**: 2026-02-20 (post full-day campaign)
+**Baseline**: CODE_VALID 1,177 | ROOT_VALID 372 | Parser 273,405 bytes (post D)
+**Previous**: CODE_VALID 1,198 | ROOT_VALID 376 | Parser 272,637 bytes (post B+C)
+**v0.2-stable tag**: CODE_VALID 1,198 | ROOT_VALID 376 | Parser 272,637 bytes
 
 ## 1. Problem Summary
 
@@ -45,17 +48,21 @@ unicode_char (4), auto_gen_pattern (4), question_mark_op (3), divider_line (2).
 
 ## 3. Canary Suite
 
-### Failing Targets (9 snippets — these SHOULD pass after fix)
+### Failing Targets (5 remaining — these SHOULD pass after fix)
 ```
 FAIL(1)  (a, b, c,)            -- trailing comma in Body
 FAIL(1)  (a, b,)               -- trailing comma in 2-elem Body
 FAIL(1)  (a,,b)                -- empty element in Body
 FAIL(2)  (Ideal,,)             -- type + empty elements in Body
-FAIL(1)  ? X                   -- unary ? operator
-FAIL(1)  if ? ideal q != "x" then 1  -- if ? expr
-FAIL(1)  symbol (*)            -- symbol postfix parens
-FAIL(1)  symbol {              -- symbol open brace
-FAIL(1)  symbol }              -- symbol close brace
+FAIL(1)  symbol (*)            -- symbol as postfix (needs external tokenizer)
+```
+
+### Fixed by B+C (moved to passing anti-regression)
+```
+FIXED(B)  ? X                   -- unary ? prefix (Fix B: +!prefix "?")
+FIXED(B)  if ? ideal q != "x" then 1  -- if ? expr (Fix B)
+FIXED(C)  symbol {              -- symbol open brace (Fix C: bracket branch)
+FIXED(C)  symbol }              -- symbol close brace (Fix C: bracket branch)
 ```
 
 ### Passing Anti-Regression (22 snippets — these MUST NOT regress)
@@ -102,33 +109,24 @@ PASS  x = 1 -- comment                 -- stmt then comment
 
 **Go/No-Go**: Parser size <= +10%, CODE_VALID improves >= 20, ROOT_VALID improves >= 5
 
-### Experiment B: `?` as Unary Operator
-**Goal**: Fix `? X` and `if ? expr` patterns (2 of 9 failing snippets)
-**Approach**: Add `?` as prefix unary operator (like `?` documentation lookup in M2)
-**Options**:
-- B1: Add `!prefix "?" expression` to UnaryExpression
-  - Risk: conflict with `#?` and `.?` operators, `??` null-check
-  - Expected: likely compiles, small parser growth
-- B2: Dedicated `DocQueryExpr { "?" expression }` rule
-  - Risk: same conflict potential, slightly more controlled
-  - Expected: similar to B1
+### Experiment B: `?` as Unary Operator — COMPLETED
+**Result**: B1 implemented (`!prefix "?" expression` in UnaryExpression).
+CODE_VALID -61, ROOT_VALID -6, question_mark_op 3→0. Parser +0.04%. Gate 8/8.
+No conflicts with `#?`, `.?`, `??`, `??=` (token precedence resolves).
 
-**Go/No-Go**: Parser size <= +5%, no regression on `#?`, `.?`, `??` patterns
+### Experiment C: `symbol` with Special Tokens — COMPLETED
+**Result**: Neither C1 nor C2 — used OperatorSymbol token approach instead.
+Added `"(*)"` to shared operator list, added symbol-only branch for `{`, `}`, `(`, `)`, `[`, `]`.
+Key discovery: M2's `symbol` consumes ONE token (parser.d:396-401).
+Oracle confirmed: `symbol {1}` → SYNTAX_ERROR. `symbol {` → VALID.
+CODE_VALID -10, ROOT_VALID -5. Parser +0.18%. Gate 8/8.
 
-### Experiment C: `symbol` with Special Tokens
-**Goal**: Fix `symbol (*)`, `symbol {`, `symbol }` (3 of 9 failing snippets)
-**Approach**: Add bracket/paren alternatives to ScopeExpr
-**Options**:
-- C1: Add explicit alternatives: `"(" "*" ")"`, `"{"`, `"}"` to ScopeExpr
-  - Risk: conflict with CallExpr/ListExpr parsing
-  - Expected: may need external tokenizer to distinguish `symbol (expr)` from `symbol (*)`
-- C2: External tokenizer `SymbolBracket` for `(*)`, `{`, `}` after scope keyword
-  - Risk: complexity, canShift guard scope
-  - Expected: may work cleanly, follows established pattern
+### Experiment D: TrailingDotNumber in juxArg — COMPLETED
+**Result**: Added `TrailingDotNumber` to `juxArg` rule. M2 treats `1000.method` as
+`(1000.) method` (float + juxtaposition), not member access. Oracle-confirmed.
+CODE_VALID -21, ROOT_VALID -4. Parser +0.28%. Gate 8/8. 26 new fixtures.
 
-**Go/No-Go**: Parser size <= +3%, fixes exactly the 3 patterns
-
-### Experiment D: ImplicitSemi in Body (Phase 2)
+### Experiment E: ImplicitSemi in Body (Phase 2)
 **Goal**: Fix broader statement_boundary + newline_sep patterns
 **Approach**: Revisit Body-level ImplicitSemi with improved guards
 **Prerequisites**: Experiments A-C completed first (they reduce the target surface)
@@ -174,10 +172,60 @@ PASS  x = 1 -- comment                 -- stmt then comment
 **Good success**: Experiments A+B+C reduce ROOT_VALID by >= 15, CODE_VALID by >= 50
 **Stretch goal**: Experiment D reduces ROOT_VALID by >= 30 (bringing total below 350)
 
-## 7. Open Questions
+## 7. Open Questions (Updated)
 
-1. Can `?` as prefix unary coexist with `#?`, `.?`, `??` operators?
-2. Will `symbol (*)` need a new external tokenizer, or can it be handled in grammar?
+1. ~~Can `?` as prefix unary coexist with `#?`, `.?`, `??` operators?~~
+   **ANSWERED (Fix B)**: Yes. Token precedence resolves. No conflicts.
+2. ~~Will `symbol (*)` need a new external tokenizer, or can it be handled in grammar?~~
+   **ANSWERED (Fix C)**: Handled via OperatorSymbol token. `(*)` added to shared operator list.
+   Postfix `M(*)` still open (4 errors, needs external tokenizer, deferred).
 3. Is there a Body trailing-comma approach that avoids both parser growth and GLR?
+   **Still open**: A1/A2/A3 all untested. Only 5 canary failures remain in this category.
 4. Should Body-level ImplicitSemi be abandoned in favor of a fundamentally different
    approach (e.g., error-recovery post-processing)?
+   **Leaning yes**: Two failed attempts (MEMORY #17, #19). ckw limitation (MEMORY #32)
+   means keywords after binary operators in for/while bounds also fail. External
+   tokenizer approach for `list`/`do` (like controlFlowTokenizer for if/then/else)
+   is the most promising path but high complexity for 6 separator_context errors.
+
+## 8. Full-Day Campaign Results (2026-02-20)
+
+### Investigations Completed
+| Investigation | Finding |
+|--------------|---------|
+| program_boundary (41→42 root causes) | 42 post_comma = large list overflow (Lezer buffer limit, UNFIXABLE). 7 trailing_comma = blocked (A experiment). 9 other = free-form text |
+| statement_boundary (63) | Deeply structural: missing newline-as-separator. ckw limitation prevents `for i to n-1 list i`. External tokenizer needed. |
+| semicolon_in_call (15) | All nested for/while bodies with `);` closing. Same Body-level issue as MEMORY #17. Not fixable with narrow changes. |
+| body_boundary (148) | 183 self-cascade (no upstream to fix). 16 cascade from statement_boundary. Fixing upstream reduces ~78 downstream. |
+| Small categories | separator_context (6): ckw limitation. triple_string_boundary (5): source-level `///` issues. unicode_char (4): `·`/`⇒` operators. auto_gen_pattern (4): parser complexity limit. divider_line (2): post-end/merge markers. None safely fixable. |
+
+### Fixes Applied
+| Fix | Impact | Parser | Gate |
+|-----|--------|--------|------|
+| Fix D: TrailingDotNumber in juxArg | -21 CODE_VALID, -4 ROOT_VALID | +0.28% | 8/8 |
+
+### Error Rate Trajectory
+| Milestone | CODE_VALID | Rate | ROOT_VALID |
+|-----------|-----------|------|------------|
+| Grammar rewrite | ~4,737 | 4.35% | ~1,200 |
+| T1: `;` in CallItems | -1,187 | — | — |
+| T2: Prefix comparisons | -62 | — | — |
+| T3: Comma as Sequence | -1,003 | — | — |
+| Fix B: `?` prefix | -61 | — | — |
+| Fix C: symbol brackets | -10 | — | — |
+| **v0.2-stable** | **1,198** | **0.0126%** | **376** |
+| Fix D: TrailingDotNumber | -21 | — | — |
+| **Current** | **1,177** | **0.0123%** | **372** |
+
+### Remaining Error Landscape
+The 372 remaining root causes break down into:
+- **Structural (302, 81.2%)**: body_boundary (148), statement_boundary (63), program_boundary (41), newline_sep (41), semicolon_in_call (15), callitems_boundary (14) — all require Body-level ImplicitSemi or fundamental parser changes
+- **Post-end (13, 3.5%)**: Content after `end` statement (M2 ignores, tracked in CODE_EXECUTED)
+- **Other (16, 4.3%)**: Miscellaneous patterns
+- **Niche (21, 5.6%)**: separator_context (6), triple_string_boundary (5), unicode_char (4), auto_gen_pattern (4), divider_line (2)
+
+### Conclusion
+The "safe harvest" is exhausted. Further improvements require either:
+1. **External tokenizer for `list`/`do`** keywords (like controlFlowTokenizer) — moderate complexity, ~6 errors
+2. **Body-level ImplicitSemi Phase 3** — high complexity, high risk, potentially ~100+ errors
+3. **Lezer parser internals** — buffer limit for large lists (~42 errors, unfixable at grammar level)

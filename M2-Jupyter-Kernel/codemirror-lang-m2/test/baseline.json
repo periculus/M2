@@ -1,13 +1,13 @@
 {
-  "codeValid":    { "files": 2551, "nodes": 9531043, "errors": 1198, "rate": 0.0126 },
-  "codeExecuted": { "files": 2551, "nodes": 9531043, "errors": 1023, "rate": 0.0107 },
-  "codeAll":      { "files": 2552, "nodes": 9544917, "errors": 1477, "rate": 0.0155 },
+  "codeValid":    { "files": 2551, "nodes": 9531043, "errors": 1177, "rate": 0.0123 },
+  "codeExecuted": { "files": 2551, "nodes": 9531043, "errors": 1002, "rate": 0.0105 },
+  "codeAll":      { "files": 2552, "nodes": 9544917, "errors": 1456, "rate": 0.0153 },
   "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 21, "errors": 175 },
-  "rootValid":    { "rootCauses": 376, "filesWithErrors": 233, "otherPct": 5.1 },
+  "rootValid":    { "rootCauses": 372, "filesWithErrors": 230, "otherPct": 4.3 },
   "excluded":     { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
-  "parser":       { "size": 272637 },
-  "parseTime":    { "seconds": 23.0 },
+  "parser":       { "size": 273405 },
+  "parseTime":    { "seconds": 22.0 },
   "updated": "2026-02-20",
-  "sourceCommit": "T3-stable+B+C",
-  "note": "Fix B: ? prefix unary (-61 CODE_VALID), Fix C: symbol bracket tokens (-10 CODE_VALID)"
+  "sourceCommit": "v0.2-stable+D",
+  "note": "Fix D: TrailingDotNumber in juxArg (-21 CODE_VALID, -4 ROOT_VALID)"
 }

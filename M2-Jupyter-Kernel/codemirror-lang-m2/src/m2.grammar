@@ -168,8 +168,8 @@ JuxtapositionExpr {
   expression !jux juxArg
 }
 juxArg {
-  Identifier | Type | Builtin | Constant | Number | String | TripleString |
-  Boolean | Null | OperatorSymbol
+  Identifier | Type | Builtin | Constant | Number | TrailingDotNumber |
+  String | TripleString | Boolean | Null | OperatorSymbol
 }
 
 // Common M2 keywords that take an argument via juxtaposition

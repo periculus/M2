@@ -1,13 +1,13 @@
 {
-  "codeValid":    { "files": 2551, "nodes": 9531043, "errors": 1269, "rate": 0.0133 },
-  "codeExecuted": { "files": 2551, "nodes": 9531043, "errors": 1093, "rate": 0.0115 },
-  "codeAll":      { "files": 2552, "nodes": 9544917, "errors": 1548, "rate": 0.0162 },
-  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 21, "errors": 176 },
-  "rootValid":    { "rootCauses": 387, "filesWithErrors": 239, "otherPct": 4.7 },
+  "codeValid":    { "files": 2551, "nodes": 9531043, "errors": 1198, "rate": 0.0126 },
+  "codeExecuted": { "files": 2551, "nodes": 9531043, "errors": 1023, "rate": 0.0107 },
+  "codeAll":      { "files": 2552, "nodes": 9544917, "errors": 1477, "rate": 0.0155 },
+  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 21, "errors": 175 },
+  "rootValid":    { "rootCauses": 376, "filesWithErrors": 233, "otherPct": 5.1 },
   "excluded":     { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
-  "parser":       { "size": 272026 },
-  "parseTime":    { "seconds": 22.9 },
+  "parser":       { "size": 272637 },
+  "parseTime":    { "seconds": 23.0 },
   "updated": "2026-02-20",
-  "sourceCommit": "d12a248f35",
-  "note": "T3: Comma as Sequence operator — separator_context 31→7, CODE_VALID -1003 (-44.1%)"
+  "sourceCommit": "T3-stable+B+C",
+  "note": "Fix B: ? prefix unary (-61 CODE_VALID), Fix C: symbol bracket tokens (-10 CODE_VALID)"
 }
