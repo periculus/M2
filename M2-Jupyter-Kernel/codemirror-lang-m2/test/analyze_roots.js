@@ -253,6 +253,24 @@ function classifyError(error, code, fileClassification, endOffset = -1) {
     return 'callitems_boundary';
   }
 
+  // buffer_overflow: parser truncation in very large lists (>300 elements)
+  // Lezer has a finite buffer; lists with hundreds of comma-separated elements
+  // exhaust it. UNFIXABLE without forking Lezer internals.
+  // Signals: high comma density AND positive bracket nesting (inside unclosed structure).
+  if (isZeroLength && (nextType === 'Program' || nextType === '?')) {
+    const beforeChunk = code.slice(Math.max(0, from - 5000), from);
+    const commaCount = (beforeChunk.match(/,/g) || []).length;
+    // Use net nesting depth, not lastIndexOf (which misses nesting)
+    let depth = 0;
+    for (const ch of beforeChunk) {
+      if (ch === '{' || ch === '(') depth++;
+      else if (ch === '}' || ch === ')') depth = Math.max(0, depth - 1);
+    }
+    if (depth > 0 && commaCount > 200) {
+      return 'buffer_overflow';
+    }
+  }
+
   // program_boundary: zero-length error at program level or before `?`
   if (isZeroLength && (nextType === 'Program' || nextType === '?')) {
     return 'program_boundary';

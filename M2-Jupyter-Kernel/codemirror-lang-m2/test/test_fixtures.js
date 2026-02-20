@@ -2661,6 +2661,70 @@ for (const [code, desc] of [
 assert(errorCount('s 1000.method') === 0, '"s 1000.method" should have 0 errors');
 passed++;
 
+// ================================================================
+// Nested Loop Bodies (Anti-Regression)
+// ================================================================
+console.log('=== Nested Loop Bodies ===');
+
+for (const [code, desc] of [
+  ['for i do (f i; g i)', 'for-do body with semicolon'],
+  ['while cond do (x = x + 1; y = y - 1)', 'while-do body with semicolons'],
+  ['for i from 0 to 5 do (x = i; y = i+1)', 'for-do with from/to clauses'],
+  ['scan(L, x -> (f x; g x;))', 'scan with arrow body'],
+  ['apply(L, x -> (f x; g x))', 'apply with arrow body'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// ================================================================
+// ForExpr Clause Keywords (Anti-Regression)
+// ================================================================
+console.log('=== ForExpr Clause Keywords ===');
+
+for (const [code, desc] of [
+  ['for i to n list i', 'basic for...to...list'],
+  ['for i to (n-1) list i', 'for with parenthesized to-bound'],
+  ['for i from 0 to 5 when even(i) list i', 'for with all clauses'],
+  ['while x > 0 do (x = x - 1)', 'while with comparison condition'],
+  ['for i from 1 to 5 list i^2', 'for...list with exponentiation'],
+  ['for i in L do print i', 'for...in...do'],
+  ['for i from 0 to 10 by 2 list i', 'for with by clause'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// ================================================================
+// Buffer Overflow Boundary (Informational)
+// ================================================================
+console.log('=== Buffer Overflow Boundary ===');
+
+// Parser handles moderate-sized lists fine
+for (const [size, desc] of [[50, '50-element list'], [100, '100-element list']]) {
+  const code = '{' + Array.from({length: size}, (_, i) => i).join(', ') + '}';
+  assert(errorCount(code) === 0, `${desc} should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+// Note: >300 elements triggers Lezer buffer limit (MEMORY #47), too slow for fixtures
+
+// ================================================================
+// Keyword-as-Identifier Guards (External Tokenizer Prep)
+// ================================================================
+console.log('=== Keyword-as-Identifier Guards ===');
+
+// Oracle-confirmed: `do` and `list` are SYNTAX_ERROR in M2 as identifiers.
+// They are true reserved keywords, not contextual keywords.
+// `symbol` is a keyword that expects a following token.
+for (const [code, desc] of [
+  ['x = symbol X', 'symbol keyword with argument'],
+  ['f(symbol X)', 'symbol in call with argument'],
+  ['x = new', 'new as expression start'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
 console.log('');
 console.log(`=== RESULTS: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);

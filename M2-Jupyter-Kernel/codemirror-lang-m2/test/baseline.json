@@ -8,6 +8,6 @@
   "parser":       { "size": 273405 },
   "parseTime":    { "seconds": 22.0 },
   "updated": "2026-02-20",
-  "sourceCommit": "v0.2-stable+D",
-  "note": "Fix D: TrailingDotNumber in juxArg (-21 CODE_VALID, -4 ROOT_VALID)"
+  "sourceCommit": "v0.2-stable+D+track1",
+  "note": "Track 1: buffer_overflow category, canary expansion, limitations script (no grammar changes)"
 }
