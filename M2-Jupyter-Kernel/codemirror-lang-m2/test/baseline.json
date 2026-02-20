@@ -1,13 +1,13 @@
 {
-  "codeValid":    { "files": 2551, "nodes": 8909577, "errors": 2272, "rate": 0.0255 },
-  "codeExecuted": { "files": 2551, "nodes": 8909577, "errors": 1884, "rate": 0.0211 },
-  "codeAll":      { "files": 2552, "nodes": 8922960, "errors": 2560, "rate": 0.0287 },
-  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 30, "errors": 388 },
-  "rootValid":    { "rootCauses": 398, "filesWithErrors": 242, "otherPct": 4.0 },
+  "codeValid":    { "files": 2551, "nodes": 9531043, "errors": 1269, "rate": 0.0133 },
+  "codeExecuted": { "files": 2551, "nodes": 9531043, "errors": 1093, "rate": 0.0115 },
+  "codeAll":      { "files": 2552, "nodes": 9544917, "errors": 1548, "rate": 0.0162 },
+  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 21, "errors": 176 },
+  "rootValid":    { "rootCauses": 387, "filesWithErrors": 239, "otherPct": 4.7 },
   "excluded":     { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
-  "parser":       { "size": 259545 },
-  "parseTime":    { "seconds": 21.6 },
+  "parser":       { "size": 272026 },
+  "parseTime":    { "seconds": 22.9 },
   "updated": "2026-02-20",
-  "sourceCommit": "a318a3115f",
-  "note": "T2: Unary prefix >=, <=, >, < — comparison_prefix 8→0 root causes, -62 CODE_VALID"
+  "sourceCommit": "d12a248f35",
+  "note": "T3: Comma as Sequence operator — separator_context 31→7, CODE_VALID -1003 (-44.1%)"
 }

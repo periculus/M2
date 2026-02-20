@@ -2307,6 +2307,83 @@ for (const code of [
 // ============================================================
 // Summary
 // ============================================================
+// ============================================================
+// Comma as Sequence Operator (BinaryExpression at top level)
+// M2 uses `,` as the lowest-precedence binary operator creating Sequences.
+// `dim I, degree I` is Sequence(JuxtapositionExpr, JuxtapositionExpr).
+// ============================================================
+console.log('\n=== Comma as Sequence Operator ===');
+
+// Top-level comma sequences — zero errors
+for (const code of [
+  'dim I, degree I',
+  'a, b, c',
+  'f x, g y, h z',
+  'protect NoRoot, protect counter',
+  'x := 1, y := 2',
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// Parse-shape: comma produces BinaryExpression
+{
+  const node = findNode('a, b', 'BinaryExpression');
+  assert(node !== null, '"a, b" should contain BinaryExpression');
+  passed++;
+}
+
+// Nested comma: `a, b, c` → nested BinaryExpression (left-assoc)
+{
+  const code = 'a, b, c';
+  const tree = parser.parse(code);
+  let binCount = 0;
+  tree.iterate({ enter: n => { if (n.name === 'BinaryExpression') binCount++; } });
+  assert(binCount === 2, `"${code}" should have 2 BinaryExpressions, got ${binCount}`);
+  passed++;
+}
+
+// Comma inside parens → still works (Body with BinaryExpression)
+for (const code of [
+  '(a, b)',
+  '(a, b, c)',
+  '(dim I, degree I)',
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// Comma inside function calls → still CallItems (NOT BinaryExpression)
+for (const code of [
+  'f(a, b)',
+  'f(a, b, c)',
+  'matrix{{1, 2}, {3, 4}}',
+  'ideal(x, y, z)',
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  // Verify CallItems exists (structural comma, not binary)
+  const callItems = findNode(code, 'CallItems');
+  assert(callItems !== null, `"${code}" should contain CallItems`);
+  passed++;
+}
+
+// Anti-regression: semicolon in Body still works
+for (const code of [
+  '(a; b)',
+  '(a; b; c)',
+  '(x := 1; x + 1)',
+]) {
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// Anti-regression: mixed comma and semicolon in Body
+{
+  const code = '(a, b; c, d)';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
 console.log('');
 console.log(`=== RESULTS: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);

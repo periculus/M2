@@ -129,7 +129,7 @@ ParenExpr { "(" Body ")" }
 ListExpr { "{" CallItems? "}" }
 ArrayExpr { "[" ListItems? "]" }
 AngleBarListExpr { "<|" ListItems? "|>" }
-Body { (expression (";" | ","))* expression? }
+Body { (expression ";")* expression? }
 ListItems { expression ("," expression?)* }
 
 // CallItems: like ListItems, but allows empty first argument f(, x)
@@ -245,7 +245,8 @@ BinaryExpression {
   expression !or "??" expression |
   expression !arrow ("==>" | "<==" | "<==>" | "===>" | "<==="  ) expression |
   expression !ded "|-" expression |
-  expression !shift "<<" expression
+  expression !shift "<<" expression |
+  expression !comma "," expression
 }
 
 // Unary prefix operators
