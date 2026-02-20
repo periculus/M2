@@ -19,51 +19,20 @@ function errorCount(code) {
   return errors;
 }
 
-function findNode(code, typeName) {
-  const tree = parser.parse(code);
-  let found = null;
-  tree.iterate({
-    enter: (node) => {
-      if (!found && node.name === typeName) {
-        found = { name: node.name, from: node.from, to: node.to };
-      }
-    }
-  });
-  return found;
-}
-
 const limitations = [
-  // separator_context: binary operator before ckw keyword (MEMORY #49)
-  // Parses as (for i to n) - (1 list i) — silent misparse, no error nodes
-  {
-    code: 'for i to n-1 list i',
-    category: 'separator_context',
-    description: 'Binary operator before ckw "list" — juxtaposition consumes keyword',
-    expectedFix: 'External tokenizer for list/do (R&D Track 2)',
-    check: (code) => findNode(code, 'ForExpr') !== null,
-    checkDesc: 'should produce ForExpr node',
-  },
-
-  // separator_context: comparison before ckw keyword (MEMORY #32)
-  // Parses as (while i) < (5 do f()) — silent misparse, no error nodes
-  {
-    code: 'while i < 5 do f()',
-    category: 'separator_context',
-    description: 'Comparison operator prevents ckw "do" recognition',
-    expectedFix: 'External tokenizer for list/do (R&D Track 2)',
-    check: (code) => findNode(code, 'WhileExpr') !== null,
-    checkDesc: 'should produce WhileExpr node',
-  },
+  // FIXED by ListKw/DoKw external tokenizer — moved to test_fixtures.js:
+  // 'for i to n-1 list i' — now produces ForExpr
+  // 'while i < 5 do f()' — now produces WhileExpr
 
   // semicolon_in_call: nested loop bodies — inner for/do parsed as juxtaposition
-  // Inner `for j do` becomes Identifier(for) jux Identifier(j) jux Identifier(do)
+  // Inner `for j do` inside parens becomes Identifier(for) jux Identifier(j) jux Identifier(do)
+  // because ckw<"for"> fails inside Body (paren context)
   {
     code: 'for i do (for j do (f j; g j); h i)',
     category: 'semicolon_in_call',
     description: 'Nested for loops — inner for/do parsed as juxtaposition',
-    expectedFix: 'Body-level ImplicitSemi or external tokenizer',
+    expectedFix: 'External tokenizer for for/while starters (like IfKw/TryKw)',
     check: (code) => {
-      // Should have TWO ForExpr nodes (outer and inner)
       const tree = parser.parse(code);
       let count = 0;
       tree.iterate({ enter: (node) => { if (node.name === 'ForExpr') count++; } });

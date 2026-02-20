@@ -2725,6 +2725,50 @@ for (const [code, desc] of [
   passed++;
 }
 
+// ================================================================
+// ListKw/DoKw External Tokenizer (formerly known limitations)
+// ================================================================
+console.log('=== ListKw/DoKw External Tokenizer ===');
+
+// These were KNOWN LIMITATIONS that are now FIXED by the ListKw/DoKw external tokenizer.
+// Previously, ckw<"list"> and ckw<"do"> failed when preceded by binary operators
+// because juxtaposition consumed the keyword as Identifier.
+
+// Parse-shape assertions: correct tree structure, not just 0 errors
+for (const [code, nodeType, desc] of [
+  ['for i to n-1 list i', 'ForExpr', 'binary op before list keyword'],
+  ['for i to n-1 list i^2', 'ForExpr', 'binary op before list with power'],
+  ['while i < 5 do f()', 'WhileExpr', 'comparison before do keyword'],
+  ['while x != 0 do (x = x - 1)', 'WhileExpr', 'not-equal before do keyword'],
+  ['for i from 1 to 5 list i^2', 'ForExpr', 'basic for-list with power'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  assert(findNode(code, nodeType) !== null, `"${code}" should produce ${nodeType} node`);
+  passed++;
+}
+
+// ListKw/DoKw token assertions: verify the external tokenizer fires
+for (const [code, tokenName, desc] of [
+  ['for i to n-1 list i', 'ListKw', 'ListKw token after binary op'],
+  ['while i < 5 do f()', 'DoKw', 'DoKw token after comparison'],
+  ['for i from 0 to 5 do (x = i)', 'DoKw', 'DoKw in for-do loop'],
+]) {
+  const node = findNode(code, tokenName);
+  assert(node !== null, `"${code}" should contain ${tokenName} token (${desc})`);
+  passed++;
+}
+
+// Anti-regression: existing ckw patterns still work
+for (const [code, nodeType, desc] of [
+  ['for i to n list i', 'ForExpr', 'simple for-to-list (ckw path)'],
+  ['while cond do f()', 'WhileExpr', 'simple while-do (ckw path)'],
+  ['for i in L do print i', 'ForExpr', 'for-in-do (ckw path)'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  assert(findNode(code, nodeType) !== null, `"${code}" should produce ${nodeType} node`);
+  passed++;
+}
+
 console.log('');
 console.log(`=== RESULTS: ${passed} passed, ${failed} failed ===`);
 process.exit(failed > 0 ? 1 : 0);

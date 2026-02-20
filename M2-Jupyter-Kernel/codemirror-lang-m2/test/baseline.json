@@ -1,13 +1,13 @@
 {
-  "codeValid":    { "files": 2551, "nodes": 9531043, "errors": 1177, "rate": 0.0123 },
-  "codeExecuted": { "files": 2551, "nodes": 9531043, "errors": 1002, "rate": 0.0105 },
-  "codeAll":      { "files": 2552, "nodes": 9544917, "errors": 1456, "rate": 0.0153 },
-  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 21, "errors": 175 },
-  "rootValid":    { "rootCauses": 372, "filesWithErrors": 230, "otherPct": 4.3 },
+  "codeValid":    { "files": 2551, "nodes": 9532525, "errors": 760, "rate": 0.0080 },
+  "codeExecuted": { "files": 2551, "nodes": 9532525, "errors": 630, "rate": 0.0066 },
+  "codeAll":      { "files": 2552, "nodes": 9546399, "errors": 1039, "rate": 0.0109 },
+  "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 14, "errors": 130 },
+  "rootValid":    { "rootCauses": 142, "filesWithErrors": 101, "otherPct": 10.6 },
   "excluded":     { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
-  "parser":       { "size": 273405 },
-  "parseTime":    { "seconds": 22.0 },
+  "parser":       { "size": 281038 },
+  "parseTime":    { "seconds": 23.1 },
   "updated": "2026-02-20",
-  "sourceCommit": "v0.2-stable+D+track1",
-  "note": "Track 1: buffer_overflow category, canary expansion, limitations script (no grammar changes)"
+  "sourceCommit": "rd/list-do-tokenizer-stageA",
+  "note": "Stage A: ListKw/DoKw external tokenizer (dual form) -417 CODE_VALID, -230 ROOT_VALID"
 }

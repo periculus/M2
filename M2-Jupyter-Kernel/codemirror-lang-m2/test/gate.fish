@@ -37,7 +37,7 @@ echo ""
 echo "Check 1: Grammar compiles"
 set tmpout (mktemp /tmp/gate_parser_XXXXXX.js)
 set tmpterms (mktemp /tmp/gate_terms_XXXXXX.js)
-set grammar_err (NODE_OPTIONS='--max-old-space-size=8192' npx --no-install lezer-generator "$cm2_dir/src/m2.grammar" -o "$tmpout" 2>&1)
+set grammar_err (NODE_OPTIONS='--max-old-space-size=16384' npx --no-install lezer-generator "$cm2_dir/src/m2.grammar" -o "$tmpout" 2>&1)
 set grammar_status $status
 rm -f "$tmpout" "$tmpterms" 2>/dev/null
 if test $grammar_status -eq 0
