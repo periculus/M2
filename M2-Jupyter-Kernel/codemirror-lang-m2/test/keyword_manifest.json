@@ -2,7 +2,7 @@
   "version": "1.0",
   "generated": "2026-02-21",
   "m2Source": "M2/Macaulay2/d/binding.d + parser.d",
-  "baselineCommit": "e4baa2d38b",
+  "baselineCommit": "14416819be",
   "sourceOfTruth": "1: binding.d/parser.d declarations → 2: oracle runtime → 3: docs (supporting only)",
 
   "clauseKeywords": {
@@ -53,10 +53,8 @@
       "parserUsage": ["unaryfor: CONDITIONAL (gettoken)", "unarynew: OPTIONAL (peektoken)"],
       "reservedStatus": "reserved",
       "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID", "ZZK:=": "SYNTAX_ERROR" },
-      "currentLezer": "ckw (ForExpr) + NewFromKw external token (NewExpr)",
-      "recommendedLezer": "FromKw external token (ForExpr) + NewFromKw (NewExpr)",
-      "status": "MECHANISM_MISMATCH",
-      "note": "ForExpr uses ckw but keyword is reserved. External tokenizer needed for ForExpr context."
+      "currentLezer": "external token (FromKw for ForExpr, NewFromKw for NewExpr)",
+      "status": "ALIGNED"
     },
     "to": {
       "makeKeyword": true,
@@ -64,9 +62,8 @@
       "parserUsage": ["unaryfor: CONDITIONAL (gettoken)"],
       "reservedStatus": "reserved",
       "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID", "ZZK:=": "SYNTAX_ERROR" },
-      "currentLezer": "ckw (ForExpr)",
-      "recommendedLezer": "ToKw external token",
-      "status": "MECHANISM_MISMATCH"
+      "currentLezer": "external token (ToKw)",
+      "status": "ALIGNED"
     },
     "in": {
       "makeKeyword": true,
@@ -74,10 +71,9 @@
       "parserUsage": ["unaryfor: CONDITIONAL (gettoken, mutually exclusive with from/to)"],
       "reservedStatus": "reserved",
       "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID" },
-      "currentLezer": "ckw (ForExpr)",
-      "recommendedLezer": "InKw external token",
-      "status": "MECHANISM_MISMATCH",
-      "structureNote": "parser.d: in is mutually exclusive with from/to. Grammar allows all three."
+      "currentLezer": "external token (InKw)",
+      "status": "ALIGNED",
+      "structureNote": "parser.d: in is mutually exclusive with from/to. Grammar matches: (InKw expr | (FromKw expr)? (ToKw expr)?)"
     },
     "when": {
       "makeKeyword": true,
@@ -85,9 +81,8 @@
       "parserUsage": ["unaryfor: CONDITIONAL (gettoken)"],
       "reservedStatus": "reserved",
       "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID" },
-      "currentLezer": "ckw (ForExpr)",
-      "recommendedLezer": "WhenKw external token",
-      "status": "MECHANISM_MISMATCH"
+      "currentLezer": "external token (WhenKw)",
+      "status": "ALIGNED"
     },
     "of": {
       "makeKeyword": true,
@@ -95,13 +90,13 @@
       "parserUsage": ["unarynew: OPTIONAL (peektoken)"],
       "reservedStatus": "reserved",
       "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID" },
-      "currentLezer": "ckw (NewExpr)",
-      "recommendedLezer": "OfKw external token",
-      "status": "MECHANISM_MISMATCH"
+      "currentLezer": "external token (OfKw)",
+      "status": "ALIGNED"
     }
   },
 
   "drift": {
+    "_description": "All drift items resolved in Phase 1 (commit 0c24a59133)",
     "by": {
       "makeKeyword": false,
       "inBindingD": false,
@@ -110,16 +105,13 @@
       "grammarYLine": 334,
       "reservedStatus": "NOT_A_KEYWORD",
       "oracleResults": { "x=K": "VALID", "f(K)": "RUNTIME_ERROR", "by=5": "VALID", "ZZby:=": "RUNTIME_ERROR", "for...by...do": "RUNTIME_ERROR" },
-      "currentLezer": "ckw<\"by\"> in ForExpr",
-      "recommendedLezer": "REMOVE — not in modern M2",
-      "status": "EXTRA_KEYWORD",
-      "note": "Only in legacy grammar.y (line 334). Not in binding.d or parser.d. Zero usage across 2,594 .m2 files. M2 treats 'by' as regular identifier."
+      "status": "RESOLVED",
+      "resolution": "Removed ckw<\"by\"> from ForExpr in Phase 1"
     },
     "forExprExclusivity": {
       "source": "parser.d:333-353: in is mutually exclusive with from/to",
-      "grammar": "ForExpr allows from, to, and in simultaneously",
-      "status": "STRUCTURE_MISMATCH",
-      "recommendation": "Fix grammar to ((in) | ((from)? (to)?)) pattern"
+      "status": "RESOLVED",
+      "resolution": "Fixed grammar to (InKw expr | (FromKw expr)? (ToKw expr)?) in Phase 1"
     }
   },
 

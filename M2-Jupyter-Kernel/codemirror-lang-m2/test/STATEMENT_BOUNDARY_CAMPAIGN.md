@@ -1,10 +1,10 @@
 # Statement-Boundary Campaign Plan
 
-**Status**: B+C+D+F completed, A blocked, ImplicitSemi deferred
+**Status**: B+C+D+F completed, Keyword Alignment Sprint completed, A blocked, ImplicitSemi deferred
 **Created**: 2026-02-20
-**Updated**: 2026-02-21 (post ListKw/DoKw external tokenizer campaign)
-**Current**: CODE_VALID 760 | ROOT_VALID 142 | Parser 271,479 bytes (post Stage B)
-**Previous**: CODE_VALID 1,177 | ROOT_VALID 372 | Parser 273,405 bytes (post D)
+**Updated**: 2026-02-21 (post Keyword Alignment Sprint)
+**Current**: CODE_VALID 759 | ROOT_VALID 142 | Parser 263,116 bytes (post Phase 2)
+**Previous**: CODE_VALID 760 | ROOT_VALID 142 | Parser 271,479 bytes (post Stage B)
 **v0.2-stable tag**: CODE_VALID 1,198 | ROOT_VALID 376 | Parser 272,637 bytes
 
 ## 1. Problem Summary
@@ -252,9 +252,39 @@ from Identifier, allowing parser to correctly terminate for/while clause express
 - doc_heavy: 7 (statement_boundary 4, program_boundary 2, other 1)
 - auto_generated: 17 (statement_boundary 13, auto_gen_pattern 4)
 
-### Conclusion (Updated)
-The external tokenizer for `list`/`do` was the single biggest improvement since T1 (`;` in CallItems).
-Remaining 142 root causes are fragmented across many small categories. Further improvements require:
-1. **External tokenizers for more clause keywords** (`from`/`to`/`in`/`when`/`by`) — same pattern as ListKw/DoKw
-2. **Body-level ImplicitSemi Phase 3** — high complexity, high risk
-3. **Lezer parser internals** — buffer limit for large lists (3 buffer_overflow errors, unfixable)
+## Keyword Alignment Sprint (2026-02-21)
+
+### Phase 0: Oracle Validation + Manifest
+Oracle confirmed: `from`/`to`/`in`/`when`/`of` all RESERVED (SYNTAX_ERROR as identifiers).
+`by` is NOT a keyword (not in binding.d/parser.d, only legacy grammar.y).
+Created `keyword_manifest.json` (canonical keyword database) and `drift_check.js` (automated drift detection).
+
+### Phase 1: Drift Correction
+- Removed `ckw<"by">` from ForExpr (not in M2)
+- Fixed `in`/`from`+`to` mutual exclusivity to match parser.d
+- Parser -3.7% (271→262KB), CODE_VALID -1 (760→759)
+
+### Phase 2: External Tokenizers (from/to/when/in/of)
+Rolled out all 5 narrow-tier clause keywords as external tokenizers, same pattern as ListKw/DoKw.
+Each keyword: Stage A (dual form) verified clean, Stage B (ckw removed) verified clean.
+All 5 showed zero CODE_VALID regression — confirming remaining 759 errors are NOT caused by
+the ckw keyword mechanism.
+
+| Phase | CODE_VALID | ROOT_VALID | Parser | Gate |
+|-------|-----------|------------|--------|------|
+| Phase 1 (drift fix) | -1 (759) | 0 (142) | -3.7% | 8/8 |
+| Phase 2 (5 keywords) | 0 (759) | 0 (142) | +0.6% from Phase 1 | 8/8 |
+
+13 external tokens total in controlFlowTokenizer.js:
+if, then, else, try, catch, NewFrom, from, to, when, in, of, list, do
+
+### Conclusion (Final)
+The external tokenizer pattern is now fully deployed for all clause keywords. The remaining
+759 CODE_VALID errors (142 root causes) are caused by:
+1. **Lezer parser buffer limit** — large lists (3 buffer_overflow, unfixable)
+2. **Body-level ImplicitSemi** — newline separation inside parens (24 newline_sep, high risk)
+3. **Statement boundary artifacts** — cascading parse recovery (23 statement_boundary)
+4. **Program-level boundary** — trailing commas, cascades (28 program_boundary)
+5. **Fragmented small categories** — other, post_end, triple_string_boundary, unicode_char
+
+No further keyword mechanism improvements are expected to reduce error count.
