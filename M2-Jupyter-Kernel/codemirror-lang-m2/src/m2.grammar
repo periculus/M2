@@ -18,7 +18,7 @@ semi { ";" | ImplicitSemi }
 // them when the parser state actually expects them; otherwise "then"/"else"/"catch"
 // fall through to Identifier from the built-in tokenizer.
 @external tokens controlFlowKw from "./controlFlowTokenizer.js" {
-  IfKw, ThenKw, ElseKw, TryKw, CatchKw, NewFromKw, ListKw, DoKw
+  IfKw, ThenKw, ElseKw, TryKw, CatchKw, NewFromKw, FromKw, ToKw, WhenKw, InKw, OfKw, ListKw, DoKw
 }
 
 // Context tracker: sets stack.context = true when a newline was seen between
@@ -203,8 +203,8 @@ IfExpr { IfKw expression ~ambigThen ThenKw expression (!ambigElse ElseKw express
 WhileExpr { ckw<"while"> expression (DoKw | ListKw) expression }
 ForExpr {
   ckw<"for"> expression
-  (ckw<"in"> expression | (ckw<"from"> expression)? (ckw<"to"> expression)?)
-  (ckw<"when"> expression)?
+  (InKw expression | (FromKw expression)? (ToKw expression)?)
+  (WhenKw expression)?
   (DoKw | ListKw) expression
 }
 TryExpr { TryKw expression ~ambigThen TrySuffix? }
@@ -213,7 +213,7 @@ TrySuffix {
   !ambigElse ElseKw expression |
   ThenKw expression (!ambigElse ElseKw expression)?
 }
-NewExpr { ckw<"new"> expression ((~newof ckw<"of"> | ~newfrom NewFromKw) expression)? }
+NewExpr { ckw<"new"> expression ((~newof OfKw | ~newfrom NewFromKw) expression)? }
 ReturnExpr { ckw<"return"> expression }
 BreakExpr { ckw<"break"> expression }
 ContinueExpr { ckw<"continue"> expression }
