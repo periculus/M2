@@ -73,9 +73,7 @@ const EXCLUDED = {
   'or':           'Keyword operator, handled by ckw<"or"> / kw<"or">',
   'xor':          'Keyword operator, handled by ckw<"xor"> / kw<"xor">',
   'not':          'Keyword operator, handled by ckw<"not">',
-  '·':            'Unicode interpunct — rare, not in ASCII-focused grammar',
-  '⊠':            'Unicode box times — rare, not in ASCII-focused grammar',
-  '⧢':            'Unicode shuffle product — rare, not in ASCII-focused grammar',
+  // ·, ⊠, ⧢ — now in OperatorSymbol and BinaryExpression (E1-C unicode fix)
   ',':            'Comma is punctuation/separator, not an operator symbol',
   'SPACE':        'Juxtaposition — implicit, handled by JuxtapositionExpr',
   // (*), (, ), {, }, [, ] are now in OperatorSymbol (symbol-only branch).
@@ -303,11 +301,8 @@ while ((aqm = assignQuoted.exec(assignBlock)) !== null) {
 }
 
 // Augmented operators excluded from grammar with rationale
-const EXCLUDED_AUG = {
-  '·=':  'Unicode interpunct augmented — rare, not in ASCII-focused grammar',
-  '⊠=':  'Unicode box times augmented — rare, not in ASCII-focused grammar',
-  '⧢=':  'Unicode shuffle product augmented — rare, not in ASCII-focused grammar',
-};
+// ·=, ⊠=, ⧢= — now in AssignExpr (E1-C unicode fix)
+const EXCLUDED_AUG = {};
 
 // 6b. Primary check: binding.d-derived augmented ops vs grammar AssignExpr
 const augInGrammar = [];

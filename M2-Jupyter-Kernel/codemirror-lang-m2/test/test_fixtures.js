@@ -709,19 +709,19 @@ console.log('=== AngleBarList <| |> ===');
   assert(assign !== null, `"${code}" should produce AssignExpr`);
 }
 
-// R<|T|> — parses as juxtaposition + AngleBarListExpr (correct highlighting)
+// R<|T|> — parses as CallExpr with angle-bar delimiters (like R(T), R{T}, R[T])
 {
   const code = 'R<|T|>';
-  const abl = findNode(code, 'AngleBarListExpr');
-  assert(abl !== null, `"${code}" should produce AngleBarListExpr`);
+  const call = findNode(code, 'CallExpr');
+  assert(call !== null, `"${code}" should produce CallExpr`);
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
 }
 
-// R<|T,X|> — multiple args
+// R<|T,X|> — multiple args in angle-bar CallExpr
 {
   const code = 'R<|T,X|>';
-  const abl = findNode(code, 'AngleBarListExpr');
-  assert(abl !== null, `"${code}" should produce AngleBarListExpr`);
+  const call = findNode(code, 'CallExpr');
+  assert(call !== null, `"${code}" should produce CallExpr`);
   assert(errorCount(code) === 0, `"${code}" should have 0 errors, got: ${errorCount(code)}`);
 }
 
@@ -2766,6 +2766,91 @@ for (const [code, nodeType, desc] of [
 ]) {
   assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
   assert(findNode(code, nodeType) !== null, `"${code}" should produce ${nodeType} node`);
+  passed++;
+}
+
+// ============================================================
+// Unicode Operators (binding.d: ·, ⊠, ⧢ binaryleft; ⊗ = **, ⇒ = =>)
+// ============================================================
+console.log('=== Unicode Operators ===');
+
+// Binary operator usage — oracle-confirmed VALID/RUNTIME_ERROR (not SYNTAX_ERROR)
+for (const [code, desc] of [
+  ['x · y', 'interpunct binary'],
+  ['x ⊗ y', 'circled times binary'],
+  ['x ⊠ y', 'squared times binary'],
+  ['x ⧢ y', 'shuffle product binary'],
+  // Note: ⇒ is at !assign level, tested separately below
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  assert(findNode(code, 'BinaryExpression') !== null, `"${code}" should produce BinaryExpression`);
+  passed++;
+}
+
+// OperatorSymbol — symbol + unicode operator (produces OperatorSymbol token, not ScopeExpr)
+for (const [code, desc] of [
+  ['symbol ·', 'symbol interpunct'],
+  ['symbol ⊗', 'symbol circled times'],
+  ['symbol ⊠', 'symbol squared times'],
+  ['symbol ⧢', 'symbol shuffle product'],
+  ['symbol ⇒', 'symbol double arrow'],
+  ['global ·', 'global interpunct'],
+  ['local ⊗', 'local circled times'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  assert(findNode(code, 'OperatorSymbol') !== null, `"${code}" should produce OperatorSymbol`);
+  passed++;
+}
+
+// Augmented assignment — ·=, ⊠=, ⧢=
+for (const [code, desc] of [
+  ['x ·= y', 'interpunct augmented assign'],
+  ['x ⊠= y', 'squared times augmented assign'],
+  ['x ⧢= y', 'shuffle product augmented assign'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  assert(findNode(code, 'AssignExpr') !== null, `"${code}" should produce AssignExpr`);
+  passed++;
+}
+
+// Method installation with unicode operators
+for (const [code, desc] of [
+  ['Vector · Vector := (v, w) -> 0', 'interpunct method install'],
+  ['Matrix ⊗ Matrix := (A, B) -> 0', 'circled times method install'],
+]) {
+  assert(errorCount(code) === 0, `"${code}" (${desc}) should have 0 errors, got ${errorCount(code)}`);
+  passed++;
+}
+
+// ⇒ is at !assign level (synonym for =>), produces AssignExpr
+{
+  const code = 'a ⇒ b';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  assert(findNode(code, 'AssignExpr') !== null, `"${code}" should produce AssignExpr`);
+  passed++;
+}
+
+// Anti-regression: unicode chars inside strings stay strings
+{
+  const code = '"⊗"';
+  assert(errorCount(code) === 0, `string with ⊗ should have 0 errors`);
+  assert(findNode(code, 'String') !== null, 'should produce String node');
+  passed++;
+}
+
+// Anti-regression: v⊗w should parse as v ⊗ w (3 tokens), not single identifier
+{
+  const code = 'v⊗w';
+  assert(errorCount(code) === 0, `"v⊗w" should have 0 errors, got ${errorCount(code)}`);
+  assert(findNode(code, 'BinaryExpression') !== null, '"v⊗w" should produce BinaryExpression');
+  passed++;
+}
+
+// Angle-bar CallExpr: QQ<| x, y |> — oracle-confirmed RUNTIME_ERROR
+{
+  const code = 'QQ<| x, y |>';
+  assert(errorCount(code) === 0, `"${code}" should have 0 errors, got ${errorCount(code)}`);
+  assert(findNode(code, 'CallExpr') !== null, `"${code}" should produce CallExpr`);
   passed++;
 }
 

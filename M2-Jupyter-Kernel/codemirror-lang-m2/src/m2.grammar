@@ -150,15 +150,18 @@ AssignExpr {
     "++="|"**=" | "@@=" | "@=" |
     "_=" | "<<=" | ">>=" | "..=" | "..<=" |
     "^**=" | "|-=" | "|_=" |
-    "==>="|"<==>="|"===>=") expression |
-  expression !assign ("->" | "=>" | ">>") expression
+    "==>="|"<==>="|"===>="|
+    "·=" | "⊠=" | "⧢=") expression |
+  expression !assign ("->" | "=>" | ">>" | "⇒") expression
 }
 
 // Function call / subscript with parens, braces, or brackets
+// <| |> added for free algebra creation: QQ<| x, y |> (juxtaposition with AngleBarList)
 CallExpr {
   expression !call "(" CallItems? ")" |
   expression !call "{" CallItems? "}" |
-  expression !call "[" ListItems? "]"
+  expression !call "[" ListItems? "]" |
+  expression !call "<|" ListItems? "|>"
 }
 
 // Juxtaposition: M2's space-application (f x, error "msg", flatten entries M)
@@ -226,8 +229,8 @@ BinaryExpression {
   expression !power ("^" | "^**" | "^>" | "^>=" | "^<" | "^<=") expression |
   expression !comp "@@" expression |
   expression !at "@" expression |
-  expression !times ("*" | "/" | "%" | "//" | "\\\\" | "\\") expression |
-  expression !times "**" expression |
+  expression !times ("*" | "/" | "%" | "//" | "\\\\" | "\\" | "·" | "⊠" | "⧢") expression |
+  expression !times ("**" | "⊗") expression |
   expression !plus ("+" | "-" | "++") expression |
   expression !range (".." | "..<") expression |
   expression !amp "&" expression |
@@ -387,8 +390,9 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
   // Identifiers: letters + digits + prime + Unicode, NO underscore
   // M2 allows Unicode identifiers (e.g., ω, α) and $ in some contexts
   // Unicode ranges: Latin Extended (00C0-024F), Greek (0370-03FF),
-  // Letterlike Symbols (2100-214F), Math Operators (2200-22FF), Misc Symbols (2A00-2AFF)
-  Identifier { $[a-zA-Z\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF] $[a-zA-Z0-9'$\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u22FF\u2A00-\u2AFF]* }
+  // Letterlike Symbols (2100-214F), Math Operators (2200-22FF minus operators), Misc Symbols (2A00-2AFF)
+  // Excluded from Math Operators: ⊗ (U+2297), ⊠ (U+22A0) — these are binary operators in binding.d
+  Identifier { $[a-zA-Z\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u2296\u2298-\u229F\u22A1-\u22FF\u2A00-\u2AFF] $[a-zA-Z0-9'$\u00C0-\u024F\u0370-\u03FF\u2100-\u214F\u2200-\u2296\u2298-\u229F\u22A1-\u22FF\u2A00-\u2AFF]* }
 
   // M2 number formats: 42, 3.14, 1p111, 1e-10, 1.5p100e20, 1.p53, 1.e5
   // Trailing-dot numbers (1., 0.) are handled at the parser level (TrailingDotNumber)
@@ -438,7 +442,8 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
      "<<=" | "<<" | ">>=" | "+=" | "+" | "*=" | "*" |
      "/=" | "/" | "%=" | "%" | ">" | "<" | "=" | "^=" | "^" | "_=" | "_" |
      "." | "!" | "~" | "&=" | "&" | "|=" | "|" | ":" | "@=" | "@" | "?" | "\\=" | "\\" |
-     "-=" | "#") |
+     "-=" | "#" |
+     "·=" | "·" | "⊗" | "⊠=" | "⊠" | "⧢=" | "⧢" | "⇒") |
     "symbol" $[ \t]* ("{" | "}" | "(" | ")" | "[" | "]")
   }
 
@@ -458,6 +463,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     "@@=", "@@", "@=", "@",
     "??=", "??", "?",
     "**=", "**", "*=", "*",
+    "·=", "·", "⊗", "⊠=", "⊠", "⧢=", "⧢", "⇒",
     "&=", "&",
     "%=", "%",
     "!=", "!",
@@ -465,5 +471,7 @@ CompareOp { "<" | ">" | "<=" | ">=" | "==" | "===" | "!=" | "=!=" | "?" }
     Number, String, OperatorSymbol, Identifier, spaces, newline
   }
 }
+
+@detectDelim
 
 @external propSource m2Highlighting from "./highlight.js"
