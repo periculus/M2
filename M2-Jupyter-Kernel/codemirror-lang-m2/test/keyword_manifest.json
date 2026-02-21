@@ -1,0 +1,142 @@
+{
+  "version": "1.0",
+  "generated": "2026-02-21",
+  "m2Source": "M2/Macaulay2/d/binding.d + parser.d",
+  "baselineCommit": "e4baa2d38b",
+  "sourceOfTruth": "1: binding.d/parser.d declarations → 2: oracle runtime → 3: docs (supporting only)",
+
+  "clauseKeywords": {
+    "_description": "Keywords registered via makeKeyword() in binding.d and used as clause delimiters in parser.d parse routines",
+    "_wideTier": "else, then, do, list — precedence level 'wide' (binding.d:218-222), below assignment operators",
+    "_narrowTier": "when, of, in, from, to — precedence level 'narrow' (binding.d:231-235), above assignment operators",
+
+    "then": {
+      "makeKeyword": true,
+      "precedenceTier": "wide",
+      "parserUsage": ["unaryif: REQUIRED (gettoken + explicit check)", "unarytry: OPTIONAL (peektoken)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR" },
+      "currentLezer": "external token (ThenKw)",
+      "status": "ALIGNED"
+    },
+    "else": {
+      "makeKeyword": true,
+      "precedenceTier": "wide",
+      "parserUsage": ["unaryif: OPTIONAL (peektoken)", "unarytry: OPTIONAL (peektoken)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR" },
+      "currentLezer": "external token (ElseKw)",
+      "status": "ALIGNED"
+    },
+    "do": {
+      "makeKeyword": true,
+      "precedenceTier": "wide",
+      "parserUsage": ["unarywhile: REQUIRED (gettoken)", "unaryfor: REQUIRED (gettoken)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR" },
+      "currentLezer": "external token (DoKw)",
+      "status": "ALIGNED"
+    },
+    "list": {
+      "makeKeyword": true,
+      "precedenceTier": "wide",
+      "parserUsage": ["unarywhile: REQUIRED (gettoken)", "unaryfor: REQUIRED (gettoken)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR" },
+      "currentLezer": "external token (ListKw)",
+      "status": "ALIGNED"
+    },
+
+    "from": {
+      "makeKeyword": true,
+      "precedenceTier": "narrow",
+      "parserUsage": ["unaryfor: CONDITIONAL (gettoken)", "unarynew: OPTIONAL (peektoken)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID", "ZZK:=": "SYNTAX_ERROR" },
+      "currentLezer": "ckw (ForExpr) + NewFromKw external token (NewExpr)",
+      "recommendedLezer": "FromKw external token (ForExpr) + NewFromKw (NewExpr)",
+      "status": "MECHANISM_MISMATCH",
+      "note": "ForExpr uses ckw but keyword is reserved. External tokenizer needed for ForExpr context."
+    },
+    "to": {
+      "makeKeyword": true,
+      "precedenceTier": "narrow",
+      "parserUsage": ["unaryfor: CONDITIONAL (gettoken)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID", "ZZK:=": "SYNTAX_ERROR" },
+      "currentLezer": "ckw (ForExpr)",
+      "recommendedLezer": "ToKw external token",
+      "status": "MECHANISM_MISMATCH"
+    },
+    "in": {
+      "makeKeyword": true,
+      "precedenceTier": "narrow",
+      "parserUsage": ["unaryfor: CONDITIONAL (gettoken, mutually exclusive with from/to)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID" },
+      "currentLezer": "ckw (ForExpr)",
+      "recommendedLezer": "InKw external token",
+      "status": "MECHANISM_MISMATCH",
+      "structureNote": "parser.d: in is mutually exclusive with from/to. Grammar allows all three."
+    },
+    "when": {
+      "makeKeyword": true,
+      "precedenceTier": "narrow",
+      "parserUsage": ["unaryfor: CONDITIONAL (gettoken)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID" },
+      "currentLezer": "ckw (ForExpr)",
+      "recommendedLezer": "WhenKw external token",
+      "status": "MECHANISM_MISMATCH"
+    },
+    "of": {
+      "makeKeyword": true,
+      "precedenceTier": "narrow",
+      "parserUsage": ["unarynew: OPTIONAL (peektoken)"],
+      "reservedStatus": "reserved",
+      "oracleResults": { "x=K": "SYNTAX_ERROR", "f(K)": "SYNTAX_ERROR", "symbolK": "VALID" },
+      "currentLezer": "ckw (NewExpr)",
+      "recommendedLezer": "OfKw external token",
+      "status": "MECHANISM_MISMATCH"
+    }
+  },
+
+  "drift": {
+    "by": {
+      "makeKeyword": false,
+      "inBindingD": false,
+      "inParserD": false,
+      "inGrammarY": true,
+      "grammarYLine": 334,
+      "reservedStatus": "NOT_A_KEYWORD",
+      "oracleResults": { "x=K": "VALID", "f(K)": "RUNTIME_ERROR", "by=5": "VALID", "ZZby:=": "RUNTIME_ERROR", "for...by...do": "RUNTIME_ERROR" },
+      "currentLezer": "ckw<\"by\"> in ForExpr",
+      "recommendedLezer": "REMOVE — not in modern M2",
+      "status": "EXTRA_KEYWORD",
+      "note": "Only in legacy grammar.y (line 334). Not in binding.d or parser.d. Zero usage across 2,594 .m2 files. M2 treats 'by' as regular identifier."
+    },
+    "forExprExclusivity": {
+      "source": "parser.d:333-353: in is mutually exclusive with from/to",
+      "grammar": "ForExpr allows from, to, and in simultaneously",
+      "status": "STRUCTURE_MISMATCH",
+      "recommendation": "Fix grammar to ((in) | ((from)? (to)?)) pattern"
+    }
+  },
+
+  "statementStarters": {
+    "_description": "Keywords registered via special() in binding.d that start new expressions",
+    "if":    { "currentLezer": "external token (IfKw)", "status": "ALIGNED" },
+    "try":   { "currentLezer": "external token (TryKw)", "status": "ALIGNED" },
+    "catch": { "currentLezer": "external token (CatchKw)", "status": "ALIGNED" },
+    "while": { "currentLezer": "ckw", "status": "POTENTIAL_UPGRADE", "note": "Nested (while x do y) in parens — ckw may fail" },
+    "for":   { "currentLezer": "ckw", "status": "POTENTIAL_UPGRADE", "note": "Nested (for i ...) in parens — ckw may fail" },
+    "new":   { "currentLezer": "ckw", "status": "POTENTIAL_UPGRADE" }
+  },
+
+  "binaryKeywords": {
+    "and": { "currentLezer": "kw (@specialize)", "status": "ALIGNED" },
+    "or":  { "currentLezer": "kw (@specialize)", "status": "ALIGNED" },
+    "xor": { "currentLezer": "kw (@specialize)", "status": "ALIGNED" },
+    "not": { "currentLezer": "ckw (@extend)", "status": "ALIGNED", "note": "Unary operator, ckw correct for method installations" }
+  }
+}

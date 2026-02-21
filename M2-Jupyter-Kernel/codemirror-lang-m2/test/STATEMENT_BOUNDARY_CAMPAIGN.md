@@ -1,10 +1,10 @@
 # Statement-Boundary Campaign Plan
 
-**Status**: B+C+D completed, A blocked, ImplicitSemi deferred
+**Status**: B+C+D+F completed, A blocked, ImplicitSemi deferred
 **Created**: 2026-02-20
-**Updated**: 2026-02-20 (post full-day campaign)
-**Baseline**: CODE_VALID 1,177 | ROOT_VALID 372 | Parser 273,405 bytes (post D)
-**Previous**: CODE_VALID 1,198 | ROOT_VALID 376 | Parser 272,637 bytes (post B+C)
+**Updated**: 2026-02-21 (post ListKw/DoKw external tokenizer campaign)
+**Current**: CODE_VALID 760 | ROOT_VALID 142 | Parser 271,479 bytes (post Stage B)
+**Previous**: CODE_VALID 1,177 | ROOT_VALID 372 | Parser 273,405 bytes (post D)
 **v0.2-stable tag**: CODE_VALID 1,198 | ROOT_VALID 376 | Parser 272,637 bytes
 
 ## 1. Problem Summary
@@ -215,7 +215,9 @@ CODE_VALID -21, ROOT_VALID -4. Parser +0.28%. Gate 8/8. 26 new fixtures.
 | Fix C: symbol brackets | -10 | — | — |
 | **v0.2-stable** | **1,198** | **0.0126%** | **376** |
 | Fix D: TrailingDotNumber | -21 | — | — |
-| **Current** | **1,177** | **0.0123%** | **372** |
+| v0.2-stable+D | 1,177 | 0.0123% | 372 |
+| Fix F: ListKw/DoKw (Stage A+B) | -417 | — | — |
+| **Current** | **760** | **0.008%** | **142** |
 
 ### Remaining Error Landscape
 The 372 remaining root causes break down into:
@@ -224,8 +226,35 @@ The 372 remaining root causes break down into:
 - **Other (16, 4.3%)**: Miscellaneous patterns
 - **Niche (21, 5.6%)**: separator_context (6), triple_string_boundary (5), unicode_char (4), auto_gen_pattern (4), divider_line (2)
 
-### Conclusion
-The "safe harvest" is exhausted. Further improvements require either:
-1. **External tokenizer for `list`/`do`** keywords (like controlFlowTokenizer) — moderate complexity, ~6 errors
-2. **Body-level ImplicitSemi Phase 3** — high complexity, high risk, potentially ~100+ errors
-3. **Lezer parser internals** — buffer limit for large lists (~42 errors, unfixable at grammar level)
+### Experiment F: ListKw/DoKw External Tokenizer — COMPLETED (2026-02-21)
+**Result**: Massive success. Added `ListKw`/`DoKw` to controlFlowTokenizer.js with canShift guards.
+Stage A (dual form: external token + ckw fallback): CODE_VALID 1,177→760 (-35.4%), ROOT_VALID 372→142 (-61.8%).
+Stage B (tightened: removed ckw fallback): Same accuracy, parser -3.4% (281KB→271KB).
+
+Key discovery: `list` and `do` are **reserved keywords** in M2 (SYNTAX_ERROR as identifiers),
+not contextual keywords. Oracle confirmed `x = list`, `f(list)`, `x = do`, `f(do)` all fail.
+ckw (@extend, falls back to Identifier) was wrong approach — external tokenizer is correct.
+
+Impact cascades: body_boundary 148→2, semicolon_in_call 15→1, statement_boundary 63→40,
+callitems_boundary 14→3, separator_context 6→1. External tokenizer disambiguates `list`/`do`
+from Identifier, allowing parser to correctly terminate for/while clause expressions.
+
+| Fix | CODE_VALID | ROOT_VALID | Parser | Gate |
+|-----|-----------|------------|--------|------|
+| Stage A (dual form) | -417 | -230 | +2.8% | 8/8 |
+| Stage B (token-only) | 0 | 0 | -3.4% vs A | 8/8 |
+
+### Remaining Error Landscape (post-F)
+142 root causes across 101 files:
+- code: 118 (program_boundary 28, newline_sep 24, statement_boundary 23, other 14, post_end 8,
+  triple_string_boundary 5, unicode_char 4, buffer_overflow 3, callitems_boundary 3,
+  body_boundary 2, divider_line 2, separator_context 1, semicolon_in_call 1)
+- doc_heavy: 7 (statement_boundary 4, program_boundary 2, other 1)
+- auto_generated: 17 (statement_boundary 13, auto_gen_pattern 4)
+
+### Conclusion (Updated)
+The external tokenizer for `list`/`do` was the single biggest improvement since T1 (`;` in CallItems).
+Remaining 142 root causes are fragmented across many small categories. Further improvements require:
+1. **External tokenizers for more clause keywords** (`from`/`to`/`in`/`when`/`by`) — same pattern as ListKw/DoKw
+2. **Body-level ImplicitSemi Phase 3** — high complexity, high risk
+3. **Lezer parser internals** — buffer limit for large lists (3 buffer_overflow errors, unfixable)

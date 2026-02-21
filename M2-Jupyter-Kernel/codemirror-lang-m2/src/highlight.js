@@ -3,7 +3,7 @@ import {styleTags, tags as t} from "@lezer/highlight"
 export const m2Highlighting = styleTags({
   // Control flow keywords — external tokens + ckw keywords
   "IfKw ThenKw ElseKw TryKw CatchKw NewFromKw ListKw DoKw": t.controlKeyword,
-  "when while for from to by in new of": t.controlKeyword,
+  "when while for from to in new of": t.controlKeyword,
   "return break continue throw": t.controlKeyword,
 
   // Keyword-like constructs that take arguments

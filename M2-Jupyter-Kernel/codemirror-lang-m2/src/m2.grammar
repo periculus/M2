@@ -203,11 +203,8 @@ IfExpr { IfKw expression ~ambigThen ThenKw expression (!ambigElse ElseKw express
 WhileExpr { ckw<"while"> expression (DoKw | ListKw) expression }
 ForExpr {
   ckw<"for"> expression
-  (ckw<"from"> expression)?
-  (ckw<"to"> expression)?
-  (ckw<"in"> expression)?
+  (ckw<"in"> expression | (ckw<"from"> expression)? (ckw<"to"> expression)?)
   (ckw<"when"> expression)?
-  (ckw<"by"> expression)?
   (DoKw | ListKw) expression
 }
 TryExpr { TryKw expression ~ambigThen TrySuffix? }

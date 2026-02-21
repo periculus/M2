@@ -1,13 +1,13 @@
 {
-  "codeValid":    { "files": 2551, "nodes": 9532525, "errors": 760, "rate": 0.0080 },
-  "codeExecuted": { "files": 2551, "nodes": 9532525, "errors": 630, "rate": 0.0066 },
-  "codeAll":      { "files": 2552, "nodes": 9546399, "errors": 1039, "rate": 0.0109 },
+  "codeValid":    { "files": 2551, "nodes": 9532524, "errors": 759, "rate": 0.0080 },
+  "codeExecuted": { "files": 2551, "nodes": 9532524, "errors": 629, "rate": 0.0066 },
+  "codeAll":      { "files": 2552, "nodes": 9546398, "errors": 1038, "rate": 0.0109 },
   "postEnd":      { "filesWithEnd": 701, "filesWithErrors": 14, "errors": 130 },
   "rootValid":    { "rootCauses": 142, "filesWithErrors": 101, "otherPct": 10.6 },
   "excluded":     { "rawDoc": 42, "corrupt": 0, "invalidSyntax": 1 },
-  "parser":       { "size": 271479 },
-  "parseTime":    { "seconds": 23.1 },
+  "parser":       { "size": 261516 },
+  "parseTime":    { "seconds": 26.8 },
   "updated": "2026-02-21",
-  "sourceCommit": "sth-mac-stageB",
-  "note": "Stage B: ListKw/DoKw tightened to external tokenizer only. Parser -3.4% vs Stage A, same accuracy"
+  "sourceCommit": "sth-mac-phase1",
+  "note": "Phase 1: Remove by (not in M2), fix in/from+to exclusivity. Parser -3.7%, CODE_VALID -1"
 }
