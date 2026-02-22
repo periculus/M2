@@ -17,3 +17,18 @@
 .*.swp
 /BUILD
 /M2/BUILD
+
+# Archived development artifacts (repo split complete)
+# Use dir/* pattern so negation rules for README.md work
+/_archive/*
+!/_archive/README.md
+/M2-Jupyter-Kernel/_archive/*
+!/M2-Jupyter-Kernel/_archive/README.md
+/M2-Jupyter-Kernel/codemirror-lang-m2/src/_archive/
+/M2-Jupyter-Kernel/codemirror-lang-m2/test/_archive/
+/M2-Jupyter-Kernel/docs/_archive/
+
+# Untracked development files (canonical versions in split repos)
+/M2-Jupyter-Kernel/codemirror-lang-m2/test/baseline_raw.json
+/M2-Jupyter-Kernel/codemirror-lang-m2/test/paths.js
+/M2-Jupyter-Kernel/codemirror-lang-m2/test/test_triplestring_strict.js
