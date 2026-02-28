@@ -1,6 +1,0 @@
-node_modules
-**/node_modules
-**/lib
-**/package.json
-!/package.json
-@m2_jupyter/jupyterlab_m2_codemirror

@@ -191,8 +191,10 @@ The M2 JupyterLab extension provides syntax highlighting, code intelligence, and
 
 ### Stage 1: Grammar (only when changing syntax parsing)
 
+> Grammar and syntax files are in the **macaulay2-syntax** repo (`~/Documents/GitHub/macaulay2-syntax/`).
+
 ```fish
-cd M2-Jupyter-Kernel/codemirror-lang-m2
+cd ~/Documents/GitHub/macaulay2-syntax/codemirror-lang-m2
 
 # 1. Edit the grammar
 #    Source: src/m2.grammar
@@ -208,12 +210,12 @@ cp src/parser.js src/parser.terms.js ../src/parser/
 cp src/highlight.js ../src/parser/
 ```
 
-**Key grammar files:**
-- Grammar: `M2-Jupyter-Kernel/codemirror-lang-m2/src/m2.grammar`
-- Highlight mapping: `codemirror-lang-m2/src/highlight.js`
-- Token lists: `codemirror-lang-m2/src/tokens.ts`
-- Corpus test: `codemirror-lang-m2/test/test_corpus.js`
-- Error analysis: `codemirror-lang-m2/test/analyze_errors.js`
+**Key grammar files** (in `macaulay2-syntax` repo):
+- Grammar: `macaulay2-syntax/codemirror-lang-m2/src/m2.grammar`
+- Highlight mapping: `macaulay2-syntax/codemirror-lang-m2/src/highlight.js`
+- Token lists: `macaulay2-syntax/codemirror-lang-m2/src/tokens.ts`
+- Corpus test: `macaulay2-syntax/codemirror-lang-m2/test/test_corpus.js`
+- Error analysis: `macaulay2-syntax/codemirror-lang-m2/test/analyze_errors.js`
 
 **M2 syntax reference files:**
 - Operator precedence: `M2/Macaulay2/d/binding.d` (lines 215-371)
@@ -221,12 +223,12 @@ cp src/highlight.js ../src/parser/
 - Symbol dictionary: `M2/Macaulay2/editors/vim/m2.vim.dict` (1763+ symbols)
 
 **Current status (Feb 2026):** 0.17% error rate across 2593 .m2 files (1 raw doc file excluded).
-See `M2-Jupyter-Kernel/docs/grammar.md` for architecture details and `M2-Jupyter-Kernel/docs/extension-workflow.md` for full workflow.
+See `macaulay2-syntax/docs/grammar.md` for architecture details and `macaulay2-syntax/docs/extension-workflow.md` for full workflow.
 
 ### Stage 2: Documentation Symbols (when M2 version changes or docs update)
 
 ```fish
-cd M2-Jupyter-Kernel
+cd ~/Documents/GitHub/macaulay2-syntax
 
 # Regenerate m2Symbols.json from M2's documentation
 # This parses SimpleDoc files, runs M2 help, and applies fallbacks
@@ -242,7 +244,7 @@ python3 scripts/generate_symbols.py
 6. **Runs M2** (`M2 --stop --no-readline --silent`) to extract headlines via `help "symbol"` for remaining gaps
 7. Applies `FALLBACK_DESCRIPTIONS` dict for keywords, constants, and internal symbols
 
-**Output:** `src/m2Symbols.json` (~266 KB, 1763 entries, 100% documented)
+**Output:** `macaulay2-syntax/src/m2Symbols.json` (~266 KB, 1763 entries, 100% documented)
 
 **When to re-run:**
 - After updating to a new M2 version (new symbols, changed docs)
@@ -252,7 +254,7 @@ python3 scripts/generate_symbols.py
 ### Stage 3: Extension Build & Deploy
 
 ```fish
-cd M2-Jupyter-Kernel
+cd ~/Documents/GitHub/macaulay2-syntax
 
 # 1. Compile TypeScript
 npx tsc --sourceMap
@@ -264,8 +266,8 @@ cp src/parser/parser.js src/parser/parser.terms.js src/parser/highlight.js lib/p
 # 3. Build webpack extension
 jupyter labextension build --development True .
 
-# 4. Deploy to venv
-set DEST venv/share/jupyter/labextensions/@m2-jupyter/jupyterlab-m2-codemirror
+# 4. Deploy to m2env
+set DEST ~/Documents/GitHub/m2env/share/jupyter/labextensions/@m2-jupyter/jupyterlab-m2-codemirror
 set SRC @m2_jupyter/jupyterlab_m2_codemirror/labextension
 cp $SRC/static/* $DEST/static/
 cp $SRC/package.json $DEST/
@@ -292,12 +294,12 @@ jupyter lab
 
 ### Extension Change Checklist
 
-After any extension change: run the verify checklist in `M2-Jupyter-Kernel/docs/extension-workflow.md`, update MEMORY.md if stats changed. All build commands have both fish and bash equivalents in the workflow doc.
+After any extension change: run the verify checklist in `macaulay2-syntax/docs/extension-workflow.md`, update MEMORY.md if stats changed. All build commands have both fish and bash equivalents in the workflow doc.
 
 ## Memories
 - `memorize`
 - Always use fish and jupyter lab
-- I have added the book itself to the project, it is called M2-Jupyter-Kernel/EisenbudEtAlComputationAlgGeoMacaulay.pdf, you can use the text in there and the files we already found to make notebooks with text/formulas and M2 code intermixed
+- I have added the book itself to the project, it is called macaulay2-jupyter/EisenbudEtAlComputationAlgGeoMacaulay.pdf (in `~/Documents/GitHub/macaulay2-jupyter/`), you can use the text in there and the files we already found to make notebooks with text/formulas and M2 code intermixed
 - I use fish, please have all shell instruction fish compatible
 - to memorize
 - Lets remember this todo list
